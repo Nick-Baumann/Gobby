@@ -6,3 +6,4 @@ A running notebook of changes, observations, and small experiments.
 - 2025-05-12: fixed an off-by-one in the buffer iter
 - 2025-05-13: engine learned to fianchetto
 - 2025-05-13: moved a cargo dep to workspace
+- 2025-05-14: candidate failed gate, archived
