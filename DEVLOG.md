@@ -17,3 +17,4 @@ A running notebook of changes, observations, and small experiments.
 - 2025-05-21: discovered another sicilian line
 - 2025-05-21: noticed a slow path in the encoder
 - 2025-05-23: noticed a slow path in MCTS expand
+- 2025-05-24: dropped a buggy feature flag
