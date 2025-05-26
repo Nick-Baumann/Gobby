@@ -18,3 +18,4 @@ A running notebook of changes, observations, and small experiments.
 - 2025-05-21: noticed a slow path in the encoder
 - 2025-05-23: noticed a slow path in MCTS expand
 - 2025-05-24: dropped a buggy feature flag
+- 2025-05-26: renamed a confusing field
