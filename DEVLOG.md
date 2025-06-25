@@ -42,3 +42,4 @@ A running notebook of changes, observations, and small experiments.
 - 2025-06-24: swapped to a faster hashmap
 - 2025-06-24: fixed an off-by-one in the buffer iter
 - 2025-06-25: lowered batch size for stability
+- 2025-06-25: lowered batch size for stability
