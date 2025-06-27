@@ -45,3 +45,4 @@ A running notebook of changes, observations, and small experiments.
 - 2025-06-25: lowered batch size for stability
 - 2025-06-26: switched to AdamW
 - 2025-06-27: tightened type signatures
+- 2025-06-27: wrote a quick repro
