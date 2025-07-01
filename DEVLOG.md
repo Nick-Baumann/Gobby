@@ -47,3 +47,4 @@ A running notebook of changes, observations, and small experiments.
 - 2025-06-27: tightened type signatures
 - 2025-06-27: wrote a quick repro
 - 2025-07-01: clarified a comment
+- 2025-07-01: added more telemetry
