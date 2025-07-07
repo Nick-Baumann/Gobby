@@ -50,3 +50,4 @@ A running notebook of changes, observations, and small experiments.
 - 2025-07-01: added more telemetry
 - 2025-07-03: added schema validation on coach output
 - 2025-07-06: wrote a quick repro
+- 2025-07-07: clarified a comment
