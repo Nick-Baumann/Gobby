@@ -52,3 +52,4 @@ A running notebook of changes, observations, and small experiments.
 - 2025-07-06: wrote a quick repro
 - 2025-07-07: clarified a comment
 - 2025-07-11: candidate passed at 58%
+- 2025-07-11: fixed a panic on empty PGN
