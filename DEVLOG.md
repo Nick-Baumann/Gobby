@@ -60,3 +60,4 @@ A running notebook of changes, observations, and small experiments.
 - 2025-07-15: smaller checkpoints on disk now
 - 2025-07-16: added schema validation on coach output
 - 2025-07-16: split a long function
+- 2025-07-17: swapped to a faster hashmap
