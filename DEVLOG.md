@@ -73,3 +73,4 @@ A running notebook of changes, observations, and small experiments.
 - 2025-07-29: kept Adam, AdamW was worse here
 - 2025-07-29: renamed a confusing field
 - 2025-07-30: trained for 6 epochs instead of 8
+- 2025-07-30: added one more validation check
