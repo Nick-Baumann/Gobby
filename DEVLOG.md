@@ -75,3 +75,4 @@ A running notebook of changes, observations, and small experiments.
 - 2025-07-30: trained for 6 epochs instead of 8
 - 2025-07-30: added one more validation check
 - 2025-07-30: coach output is now strict JSON
+- 2025-08-02: candidate failed gate, archived
