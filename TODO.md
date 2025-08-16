@@ -10,3 +10,4 @@ Loose tracker. Items here are nice-to-have, not promises.
 - [ ] loss curve smoother now
 - [ ] smaller checkpoints on disk now
 - [ ] found a bug in resign logic
+- [ ] discovered another sicilian line
