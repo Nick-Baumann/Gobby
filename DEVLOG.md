@@ -94,3 +94,4 @@ A running notebook of changes, observations, and small experiments.
 - 2025-08-28: fixed an off-by-one in the buffer iter
 - 2025-08-28: discovered another sicilian line
 - 2025-08-29: tightened the coach prompt
+- 2025-08-29: added a circuit breaker on coach calls
