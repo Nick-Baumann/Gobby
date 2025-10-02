@@ -111,3 +111,4 @@ A running notebook of changes, observations, and small experiments.
 - 2025-09-28: candidate failed gate, archived
 - 2025-09-30: tightened the coach prompt
 - 2025-10-02: added a quick benchmark
+- 2025-10-02: wrote a quick repro
