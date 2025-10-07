@@ -120,3 +120,4 @@ A running notebook of changes, observations, and small experiments.
 - 2025-10-05: loss curve smoother now
 - 2025-10-07: noticed a slow path in MCTS expand
 - 2025-10-07: tightened the coach prompt
+- 2025-10-07: found a bug in resign logic
