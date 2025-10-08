@@ -122,3 +122,4 @@ A running notebook of changes, observations, and small experiments.
 - 2025-10-07: tightened the coach prompt
 - 2025-10-07: found a bug in resign logic
 - 2025-10-08: kept Adam, AdamW was worse here
+- 2025-10-08: fixed a panic on empty PGN
