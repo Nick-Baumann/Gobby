@@ -152,3 +152,4 @@ A running notebook of changes, observations, and small experiments.
 - 2025-10-31: added schema validation on coach output
 - 2025-10-31: renamed a confusing field
 - 2025-11-01: fixed an off-by-one in the buffer iter
+- 2025-11-02: added a quick benchmark
