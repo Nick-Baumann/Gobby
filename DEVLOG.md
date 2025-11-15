@@ -165,3 +165,4 @@ A running notebook of changes, observations, and small experiments.
 - 2025-11-11: clarified a comment
 - 2025-11-13: dropped a buggy feature flag
 - 2025-11-13: dropped a buggy feature flag
+- 2025-11-15: removed noisy log line
