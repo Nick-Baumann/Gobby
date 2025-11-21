@@ -177,3 +177,4 @@ A running notebook of changes, observations, and small experiments.
 - 2025-11-19: fixed a flaky lichess reconnect
 - 2025-11-19: kept Adam, AdamW was worse here
 - 2025-11-19: clarified a comment
+- 2025-11-21: switched to AdamW
