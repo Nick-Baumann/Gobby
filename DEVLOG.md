@@ -182,3 +182,4 @@ A running notebook of changes, observations, and small experiments.
 - 2025-11-21: coach output is now strict JSON
 - 2025-11-22: wrote a quick repro
 - 2025-11-22: no regression in selfplay time
+- 2025-11-23: candidate passed at 61%
