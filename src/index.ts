@@ -13,6 +13,16 @@ import { Command } from "commander";
 import dotenv from "dotenv";
 import express, { type Request, type Response } from "express";
 import JSON5 from "json5";
+import {
+	DisconnectReason,
+	fetchLatestBaileysVersion,
+	makeCacheableSignalKeyStore,
+	makeWASocket,
+	useMultiFileAuthState,
+} from "@whiskeysockets/baileys";
+import type { ConnectionState } from "@whiskeysockets/baileys";
+import pino from "pino";
+import qrcode from "qrcode-terminal";
 import Twilio from "twilio";
 import type { MessageInstance } from "twilio/lib/rest/api/v2010/account/message.js";
 
@@ -366,7 +376,34 @@ function normalizePath(p: string): string {
 	return p;
 }
 
+async function ensureDir(dir: string) {
+	await fs.promises.mkdir(dir, { recursive: true });
+}
+
+type Provider = "twilio" | "web";
+
+function assertProvider(input: string): asserts input is Provider {
+	if (input !== "twilio" && input !== "web") {
+		console.error("Provider must be 'twilio' or 'web'");
+		process.exit(1);
+	}
+}
+
+function normalizeE164(number: string): string {
+	const withoutPrefix = number.replace(/^whatsapp:/, "").trim();
+	const digits = withoutPrefix.replace(/[^\d+]/g, "");
+	if (digits.startsWith("+")) return `+${digits.slice(1)}`;
+	return `+${digits}`;
+}
+
+function toWhatsappJid(number: string): string {
+	const e164 = normalizeE164(number);
+	const digits = e164.replace(/\D/g, "");
+	return `${digits}@s.whatsapp.net`;
+}
+
 const CONFIG_PATH = path.join(os.homedir(), ".warelay", "warelay.json");
+const WA_WEB_AUTH_DIR = path.join(os.homedir(), ".warelay", "waweb");
 const success = chalk.green;
 const warn = chalk.yellow;
 const info = chalk.cyan;
@@ -664,6 +701,110 @@ async function sendMessage(to: string, body: string) {
 			console.error("Response body:", JSON.stringify(responseBody, null, 2));
 		}
 		process.exit(1);
+	}
+}
+
+async function createWaSocket(printQr: boolean, verbose: boolean) {
+	await ensureDir(WA_WEB_AUTH_DIR);
+	const { state, saveCreds } = await useMultiFileAuthState(WA_WEB_AUTH_DIR);
+	const { version } = await fetchLatestBaileysVersion();
+	const logger = pino({ level: verbose ? "info" : "silent" });
+	const sock = makeWASocket({
+		auth: {
+			creds: state.creds,
+			keys: makeCacheableSignalKeyStore(state.keys, logger),
+		},
+		version,
+		printQRInTerminal: false,
+		browser: ["Warelay", "CLI", "1.0.0"],
+		syncFullHistory: false,
+		markOnlineOnConnect: false,
+	});
+
+	sock.ev.on("creds.update", saveCreds);
+	sock.ev.on("connection.update", (update: Partial<ConnectionState>) => {
+		const { connection, lastDisconnect, qr } = update;
+		if (qr && printQr) {
+			console.log("Scan this QR in WhatsApp (Linked Devices):");
+			qrcode.generate(qr, { small: true });
+		}
+		if (connection === "close") {
+			const code = (lastDisconnect?.error as { output?: { statusCode?: number } })
+				?.output?.statusCode;
+			if (code === DisconnectReason.loggedOut) {
+				console.error(danger("WhatsApp session logged out. Run: warelay web:login"));
+			}
+		}
+		if (connection === "open" && verbose) {
+			console.log(success("WhatsApp Web connected."));
+		}
+	});
+
+	return sock;
+}
+
+async function waitForWaConnection(sock: ReturnType<typeof makeWASocket>) {
+	return new Promise<void>((resolve, reject) => {
+		const handler = (update: Partial<ConnectionState>) => {
+			if (update.connection === "open") {
+				(sock.ev as unknown as { off?: Function }).off?.(
+					"connection.update",
+					handler,
+				);
+				resolve();
+			}
+			if (update.connection === "close") {
+				(sock.ev as unknown as { off?: Function }).off?.(
+					"connection.update",
+					handler,
+				);
+				reject(update.lastDisconnect ?? new Error("Connection closed"));
+			}
+		};
+		sock.ev.on("connection.update", handler);
+	});
+}
+
+async function sendMessageWeb(to: string, body: string) {
+	const sock = await createWaSocket(false, globalVerbose);
+	try {
+		await waitForWaConnection(sock);
+		const jid = toWhatsappJid(to);
+		try {
+			await sock.sendPresenceUpdate("composing", jid);
+		} catch (err) {
+			logVerbose(`Presence update skipped: ${String(err)}`);
+		}
+		const result = await sock.sendMessage(jid, { text: body });
+		const messageId = result?.key?.id ?? "unknown";
+		console.log(
+			success(
+				`✅ Sent via web session. Message ID: ${messageId} -> ${jid}`,
+			),
+		);
+	} finally {
+		try {
+			sock.ws?.close();
+		} catch (err) {
+			logVerbose(`Socket close failed: ${String(err)}`);
+		}
+	}
+}
+
+async function loginWeb(verbose: boolean) {
+	const sock = await createWaSocket(true, verbose);
+	console.log(info("Waiting for WhatsApp connection..."));
+	try {
+		await waitForWaConnection(sock);
+		console.log(success("✅ Linked! Credentials saved for future sends."));
+	} finally {
+		setTimeout(() => {
+			try {
+				sock.ws?.close();
+			} catch {
+				// ignore
+			}
+		}, 500);
 	}
 }
 
@@ -1120,8 +1261,9 @@ async function updateWebhook(
 				"Webhook.CallbackMethod": method,
 			},
 		});
-		const fetched =
-			await clientTyped.messaging.v2.channelsSenders(senderSid).fetch();
+		const fetched = await clientTyped.messaging.v2
+			.channelsSenders(senderSid)
+			.fetch();
 		const storedUrl =
 			fetched?.webhook?.callback_url || fetched?.webhook?.fallback_url;
 		if (storedUrl) {
@@ -1147,8 +1289,9 @@ async function updateWebhook(
 				callbackUrl: url,
 				callbackMethod: method,
 			});
-			const fetched =
-				await clientTyped.messaging.v2.channelsSenders(senderSid).fetch();
+			const fetched = await clientTyped.messaging.v2
+				.channelsSenders(senderSid)
+				.fetch();
 			const storedUrl =
 				fetched?.webhook?.callback_url || fetched?.webhook?.fallback_url;
 			console.log(
@@ -1389,8 +1532,17 @@ async function listRecentMessages(
 
 program
 	.name("warelay")
-	.description("WhatsApp relay CLI using Twilio")
+	.description("WhatsApp relay CLI (Twilio or WhatsApp Web session)")
 	.version("1.0.0");
+
+program
+	.command("web:login")
+	.description("Link your personal WhatsApp via QR (web provider)")
+	.option("--verbose", "Verbose connection logs", false)
+	.action(async (opts) => {
+		setVerbose(Boolean(opts.verbose));
+		await loginWeb(Boolean(opts.verbose));
+	});
 
 program
 	.command("send")
@@ -1402,6 +1554,7 @@ program
 	.requiredOption("-m, --message <text>", "Message body")
 	.option("-w, --wait <seconds>", "Wait for delivery status (0 to skip)", "20")
 	.option("-p, --poll <seconds>", "Polling interval while waiting", "2")
+	.option("--provider <provider>", "Provider: twilio | web", "twilio")
 	.addHelpText(
 		"after",
 		`
@@ -1411,6 +1564,7 @@ Examples:
   warelay send --to +15551234567 --message "Hi" --wait 60 --poll 3`,
 	)
 	.action(async (opts) => {
+		assertProvider(opts.provider);
 		const waitSeconds = Number.parseInt(opts.wait, 10);
 		const pollSeconds = Number.parseInt(opts.poll, 10);
 
@@ -1421,6 +1575,14 @@ Examples:
 		if (Number.isNaN(pollSeconds) || pollSeconds <= 0) {
 			console.error("Poll must be > 0 seconds");
 			process.exit(1);
+		}
+
+		if (opts.provider === "web") {
+			if (waitSeconds !== 0) {
+				console.log(info("Wait/poll are Twilio-only; ignored for provider=web."));
+			}
+			await sendMessageWeb(opts.to, opts.message);
+			return;
 		}
 
 		const result = await sendMessage(opts.to, opts.message);

@@ -1,86 +1,52 @@
 # 📡 Warelay — WhatsApp Relay CLI (Twilio)
 
-Small TypeScript CLI to send, monitor, and webhook WhatsApp messages via Twilio. Supports Tailscale Funnel and config-driven auto-replies.
+Small TypeScript CLI to send, receive, auto-reply, and inspect WhatsApp messages via Twilio. Works in polling mode or webhook mode (with Tailscale Funnel helper).
 
-## Setup
+You can also use a personal WhatsApp Web session (QR login) via `--provider web` for direct sends alongside the Twilio flow.
 
-1. `pnpm install`
-2. Copy `.env.example` to `.env` and fill in `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_WHATSAPP_FROM` (use your approved WhatsApp-enabled Twilio number, prefixed with `whatsapp:`).
-   - Alternatively, use API keys: `TWILIO_API_KEY` + `TWILIO_API_SECRET` instead of `TWILIO_AUTH_TOKEN`.
-   - Optional: `TWILIO_SENDER_SID` to skip auto-discovery of the WhatsApp sender in Twilio.
-3. (Optional) Build: `pnpm build` (scripts run directly via tsx, no build required for local use)
+## Quick Start
 
-## Commands
+1) Install: `pnpm install`  
+2) Configure `.env` (see `.env.example`): set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` (or `TWILIO_API_KEY`/`TWILIO_API_SECRET`), and `TWILIO_WHATSAPP_FROM=whatsapp:+15551234567`. Optional: `TWILIO_SENDER_SID` if you don’t want auto-discovery.  
+3) Send a test: `pnpm warelay send --to +15551234567 --message "Hi from warelay"`  
+4) Run auto-replies in polling mode (no public URL needed):  
+   `pnpm warelay poll --interval 5 --lookback 10 --verbose`  
+5) Prefer webhooks? Launch everything in one step (webhook + Tailscale Funnel + Twilio callback):  
+   `pnpm warelay up --port 42873 --path /webhook/whatsapp --verbose`
+
+## Modes at a Glance
+
+- **Polling (`monitor` / `poll`)**: Periodically fetch inbound messages to your WhatsApp number. Easiest to start; no ingress needed. Auto-replies still run.
+- **Webhook (`webhook` / `up`)**: Push delivery from Twilio. `webhook` runs the server locally; `up` also enables Tailscale Funnel and points the Twilio sender/webhook to your public Funnel URL (with fallbacks to phone number and messaging service).
+
+## Providers (choose per command)
+
+- **Twilio (default)** — full feature set: send, wait/poll delivery, status, inbound polling/webhook, auto-replies. Requires `.env` Twilio creds and a WhatsApp-enabled number (`TWILIO_WHATSAPP_FROM`).
+- **Web (`--provider web`)** — uses your personal WhatsApp Web session via QR. Currently **send-only** (no inbound/auto-reply/status yet) and returns immediately without delivery polling. Setup: `pnpm warelay web:login` then send with `--provider web`. Session data lives in `~/.warelay/waweb/`; if logged out, rerun `web:login`. Use at your own risk (personal-account automation can be rate-limited or logged out by WhatsApp).
+
+## Common Commands
 
 - Send: `pnpm warelay send --to +15551234567 --message "Hello" --wait 20 --poll 2`
-  - `--wait` seconds (default 20) waits for a terminal delivery status; exits non-zero on failed/undelivered/canceled.
-  - `--poll` seconds (default 2) sets the polling interval while waiting.
-- Monitor (polling): `pnpm warelay monitor` (defaults: 5s interval, 5m lookback)
-  - Options: `--interval <seconds>`, `--lookback <minutes>`
-- Webhook (push, works well with Tailscale): `pnpm warelay webhook --port 42873 --reply "Got it!"`
-  - Points Twilio’s “Incoming Message” webhook to `http://<your-host>:42873/webhook/whatsapp`
-  - With Tailscale, expose it: `tailscale serve tcp 42873 127.0.0.1:42873` and use your tailnet IP.
-  - Customize path if desired: `--path /hooks/wa`
-  - If no `--reply`, auto-reply can be configured via `~/.warelay/warelay.json` (JSON5)
-- Webhook/funnel “up”: `pnpm warelay up --port 42873 --path /webhook/whatsapp`
-  - Validates Twilio env, confirms `tailscale` binary, enables Tailscale Funnel, starts the webhook, and sets the Twilio incoming webhook to your Funnel URL via the Twilio API (Channels/Senders → fallback to phone number → fallback to messaging service).
-  - Requires Tailscale Funnel to be enabled for your tailnet/device (admin setting). If it isn’t enabled, the command will exit with instructions; alternatively expose the webhook via your own tunnel and set the Twilio URL manually.
-- Polling mode (no webhooks/funnel): `pnpm warelay poll --interval 5 --lookback 10 --verbose`
-  - Useful fallback if Twilio webhook can’t reach you.
-  - Still runs config-driven auto-replies (including command-mode/Claude) for new inbound messages.
-- Status: `pnpm warelay status --limit 20 --lookback 240`
-  - Lists recent sent/received WhatsApp messages (merged and sorted), defaulting to 20 messages from the past 4 hours. Add `--json` for machine-readable output.
+- Send via personal WhatsApp Web: first `pnpm warelay web:login` (scan QR), then `pnpm warelay send --provider web --to +15551234567 --message "Hi"`
+- Poll (lightweight): `pnpm warelay poll --interval 5 --lookback 10 --verbose`
+- Webhook only: `pnpm warelay webhook --port 42873 --path /webhook/whatsapp --verbose`
+- Webhook + Funnel + Twilio update: `pnpm warelay up --port 42873 --path /webhook/whatsapp --verbose`
+- Status (recent sent/received): `pnpm warelay status --limit 20 --lookback 240` (add `--json` for machine-readable)
 
-## Config-driven auto-replies
+## Auto-Reply Config (JSON5 at `~/.warelay/warelay.json`)
 
-Put a JSON5 config at `~/.warelay/warelay.json`. Examples:
-
+### Claude-style example (your current setup)
 ```json5
 {
   inbound: {
-    // Static text reply with templating
-    reply: { mode: 'text', text: 'Echo: {{Body}}' }
-  }
-}
-
-// Command-based reply (stdout becomes the reply)
-{
-  inbound: {
-    reply: {
-      mode: 'command',
-      command: ['bash', '-lc', 'echo "You said: {{Body}} from {{From}}"']
-    }
-  }
-}
-```
-
-### Options reference (JSON5)
-
-- `inbound.allowFrom?: string[]` — optional allowlist of E.164 numbers (no `whatsapp:` prefix). If set, only these senders trigger auto-replies.
-- `inbound.reply.mode: "text" | "command"`
-  - `text` — send `inbound.reply.text` after templating.
-  - `command` — run `inbound.reply.command` (argv array) after templating; trimmed stdout becomes the reply.
-- `inbound.reply.text?: string` — used when `mode` is `text`; supports `{{Body}}`, `{{From}}`, `{{To}}`, `{{MessageSid}}`.
-- `inbound.reply.command?: string[]` — argv for the command to run; templated per element.
-- `inbound.reply.template?: string` — optional string prepended as the second argv element (handy for adding a prompt prefix).
-- `inbound.reply.bodyPrefix?: string` — optional string prepended to `Body` before templating (useful to add system instructions, e.g., `You are a helpful assistant running on the user's Mac. User writes messages via WhatsApp and you respond. You want to be concise in your responses, at most 1000 characters.\n\n`).
-
-Example with an allowlist and Claude CLI one-shot (uses a sample number):
-
-```json5
-{
-  inbound: {
-    allowFrom: ["+15551230000"],
+    allowFrom: ["***REMOVED***"], // optional allowlist (E.164, no whatsapp: prefix)
     reply: {
       mode: "command",
+      bodyPrefix: "You are a helpful assistant running on the user's Mac. User writes messages via WhatsApp and you respond. You want to be concise in your responses, at most 1000 characters.\n\n",
       command: [
         "claude",
-        "--print",
-        "--output-format",
-        "text",
+        "-p",
         "--dangerously-skip-permissions",
-        "--system-prompt",
-        "You are an auto-reply bot on WhatsApp. Respond concisely.",
         "{{Body}}"
       ]
     }
@@ -88,10 +54,38 @@ Example with an allowlist and Claude CLI one-shot (uses a sample number):
 }
 ```
 
-During dev you can run without building: `pnpm dev -- <subcommand>` (e.g. `pnpm dev -- send --to +1...`). Auto-replies apply in webhook and polling modes.
+### Simple text echo
+```json5
+{
+  inbound: {
+    reply: { mode: "text", text: "Echo: {{Body}}" }
+  }
+}
+```
 
-## Notes
+Notes:
+- Templates support `{{Body}}`, `{{From}}`, `{{To}}`, `{{MessageSid}}`.
+- When an auto-reply starts (text or command), warelay sends a WhatsApp typing indicator tied to the inbound `MessageSid`.
 
-- Monitor uses polling; webhook mode is push (recommended).
-- Stop monitor/webhook with `Ctrl+C`.
-- When an auto-reply is triggered (text or command mode), warelay immediately posts a WhatsApp typing indicator tied to the inbound `MessageSid` so the user sees “typing…” while your handler runs.
+## Troubleshooting Delivery
+
+- Auto-reply send failures now print in red with Twilio code/status and the response body (e.g., policy violation 63112). Watch terminal output when running `poll`, `webhook`, or `up`.
+- Check recent messages: `pnpm warelay status --limit 20 --lookback 240`.
+- If you must resend while a reply is long-running, keep messages <1600 chars (WhatsApp limit) and avoid restricted content/templates.
+
+## Options Reference
+
+| Field | Type / Values | Default | Description |
+| --- | --- | --- | --- |
+| `inbound.allowFrom` | `string[]` | empty | Allowlist of E.164 numbers (no `whatsapp:`). If set, only these trigger auto-replies. |
+| `inbound.reply.mode` | `"text"` \| `"command"` | — | Auto-reply type. |
+| `inbound.reply.text` | `string` | — | Reply body for text mode; templated. |
+| `inbound.reply.command` | `string[]` | — | Argv to run for command mode; templated per element. Stdout (trimmed) is sent. |
+| `inbound.reply.template` | `string` | — | Optional string inserted as second argv element (prompt prefix). |
+| `inbound.reply.bodyPrefix` | `string` | — | Prepends to `Body` before templating (ideal for system instructions). |
+| `inbound.reply.timeoutSeconds` | `number` | 600 | Command timeout. |
+
+## Dev Notes
+
+- During dev you can run without building: `pnpm dev -- <subcommand>` (e.g., `pnpm dev -- send --to +1...`).
+- Stop polling/webhook with `Ctrl+C`. CLI uses `pnpm` and `tsx`; no build required for local runs.
