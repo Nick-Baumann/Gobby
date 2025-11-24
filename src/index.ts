@@ -20,6 +20,7 @@ dotenv.config({ quiet: true });
 
 const program = new Command();
 let globalVerbose = false;
+let globalYes = false;
 
 function setVerbose(v: boolean) {
   globalVerbose = v;
@@ -29,12 +30,17 @@ function logVerbose(message: string) {
   if (globalVerbose) console.log(chalk.gray(message));
 }
 
+function setYes(v: boolean) {
+  globalYes = v;
+}
+
 type AuthMode =
   | { accountSid: string; authToken: string }
   | { accountSid: string; apiKey: string; apiSecret: string };
 
 type GlobalOptions = {
   verbose: boolean;
+  yes?: boolean;
 };
 
 type EnvConfig = {
@@ -120,6 +126,7 @@ async function ensureBinary(name: string): Promise<void> {
 }
 
 async function promptYesNo(question: string, defaultYes = false): Promise<boolean> {
+  if (globalYes) return true;
   const rl = readline.createInterface({ input, output });
   const suffix = defaultYes ? ' [Y/n] ' : ' [y/N] ';
   const answer = (await rl.question(`${question}${suffix}`)).trim().toLowerCase();
@@ -593,6 +600,7 @@ program
   .option('-r, --reply <text>', 'Optional auto-reply text')
   .option('--path <path>', 'Webhook path', '/webhook/whatsapp')
   .option('--verbose', 'Log inbound and auto-replies', false)
+  .option('-y, --yes', 'Auto-confirm prompts when possible', false)
   .addHelpText(
     'after',
     `
@@ -607,6 +615,7 @@ With Tailscale:
   )
   .action(async (opts) => {
     setVerbose(Boolean(opts.verbose));
+    setYes(Boolean(opts.yes));
     const port = Number.parseInt(opts.port, 10);
     if (Number.isNaN(port) || port <= 0 || port >= 65536) {
       console.error('Port must be between 1 and 65535');
@@ -621,8 +630,10 @@ program
   .option('-p, --port <port>', 'Port to listen on', '42873')
   .option('--path <path>', 'Webhook path', '/webhook/whatsapp')
   .option('--verbose', 'Verbose logging during setup/webhook', false)
+  .option('-y, --yes', 'Auto-confirm prompts when possible', false)
   .action(async (opts) => {
     setVerbose(Boolean(opts.verbose));
+    setYes(Boolean(opts.yes));
     const port = Number.parseInt(opts.port, 10);
     if (Number.isNaN(port) || port <= 0 || port >= 65536) {
       console.error('Port must be between 1 and 65535');
