@@ -781,7 +781,27 @@ async function updateWebhook(
 	method: "POST" | "GET" = "POST",
 ) {
 	// Point Twilio sender webhook at the provided URL.
+	const requester = client as unknown as TwilioRequester;
 	const clientTyped = client as unknown as TwilioSenderListClient;
+
+	// 1) Raw request (Channels/Senders) with explicit form fields (canonical for WA senders)
+	try {
+		await requester.request({
+			method: "post",
+			uri: `https://messaging.twilio.com/v2/Channels/Senders/${senderSid}`,
+			form: {
+				CallbackUrl: url,
+				CallbackMethod: method,
+			},
+		});
+		console.log(success(`✅ Twilio sender webhook set to ${url}`));
+		return;
+	} catch (err) {
+		if (globalVerbose)
+			console.error("channelsSenders request update failed, will try client helpers", err);
+	}
+
+	// 2) SDK helper fallback (if supported by this client)
 	try {
 		if (clientTyped.messaging?.v2?.channelsSenders) {
 			await clientTyped.messaging.v2.channelsSenders(senderSid).update({
@@ -793,9 +813,10 @@ async function updateWebhook(
 		}
 	} catch (err) {
 		if (globalVerbose)
-			console.error("channelsSenders update failed, will try phone number fallback", err);
+			console.error("channelsSenders helper update failed, will try phone number fallback", err);
 	}
 
+	// 3) Incoming phone number fallback (works for many WA senders)
 	try {
 		const phoneSid = await findIncomingNumberSid(clientTyped, url);
 		if (phoneSid) {
