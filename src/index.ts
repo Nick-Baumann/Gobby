@@ -685,6 +685,11 @@ async function ensureFunnel(port: number) {
 		console.error(
 			"Failed to enable Tailscale Funnel. Is it allowed on your tailnet?",
 		);
+		console.error(
+			info(
+				"Tip: you can fall back to polling (no webhooks needed): `pnpm warelay poll --interval 5 --lookback 10`",
+			),
+		);
 		if (globalVerbose) {
 			if (stdout.trim()) console.error(chalk.gray(`stdout: ${stdout.trim()}`));
 			if (stderr.trim()) console.error(chalk.gray(`stderr: ${stderr.trim()}`));
@@ -799,6 +804,11 @@ async function updateWebhook(
 	console.error(
 		info(
 			"Double-check your sender SID and credentials; you can set TWILIO_SENDER_SID to force a specific sender.",
+		),
+	);
+	console.error(
+		info(
+			"Tip: if webhooks are blocked, use polling instead: `pnpm warelay poll --interval 5 --lookback 10`",
 		),
 	);
 	process.exit(1);
@@ -942,6 +952,36 @@ Examples:
 	});
 
 program
+	.command("poll")
+	.description("Poll Twilio for inbound WhatsApp messages (non-webhook mode)")
+	.option("-i, --interval <seconds>", "Polling interval in seconds", "5")
+	.option("-l, --lookback <minutes>", "Initial lookback window in minutes", "5")
+	.option("--verbose", "Verbose logging during polling", false)
+	.addHelpText(
+		"after",
+		`
+Examples:
+  warelay poll                         # poll every 5s, look back 5 minutes
+  warelay poll --interval 2 --lookback 30 --verbose`,
+	)
+	.action(async (opts) => {
+		setVerbose(Boolean(opts.verbose));
+		const intervalSeconds = Number.parseInt(opts.interval, 10);
+		const lookbackMinutes = Number.parseInt(opts.lookback, 10);
+
+		if (Number.isNaN(intervalSeconds) || intervalSeconds <= 0) {
+			console.error("Interval must be a positive integer");
+			process.exit(1);
+		}
+		if (Number.isNaN(lookbackMinutes) || lookbackMinutes < 0) {
+			console.error("Lookback must be >= 0 minutes");
+			process.exit(1);
+		}
+
+		await monitor(intervalSeconds, lookbackMinutes);
+	});
+
+program
 	.command("webhook")
 	.description(
 		"Run a local webhook server for inbound WhatsApp (works with Tailscale/port forward)",
@@ -998,9 +1038,9 @@ With Tailscale:
 	});
 
 program
-	.command("setup")
+	.command("up")
 	.description(
-		"Auto-setup webhook + Tailscale Funnel + Twilio callback with sensible defaults",
+		"Bring up webhook + Tailscale Funnel + Twilio callback (default webhook mode)",
 	)
 	.option("-p, --port <port>", "Port to listen on", "42873")
 	.option("--path <path>", "Webhook path", "/webhook/whatsapp")
@@ -1063,6 +1103,7 @@ program
 			"\nSetup complete. Leave this process running to keep the webhook online. Ctrl+C to stop.",
 		);
 		await waitForever();
-	});
+	})
+	.alias("setup");
 
 program.parseAsync(process.argv);
