@@ -1,4 +1,4 @@
-# 📡 Warelay — WhatsApp Relay CLI (Twilio)
+# 📡 warelay — WhatsApp Relay CLI (Twilio)
 
 Small TypeScript CLI to send, receive, auto-reply, and inspect WhatsApp messages via Twilio. Works in polling mode or webhook mode (with Tailscale Funnel helper).
 
