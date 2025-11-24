@@ -465,8 +465,16 @@ async function ensureFunnel(port: number) {
   }
 }
 
-async function findWhatsappSenderSid(client: ReturnType<typeof createClient>, from: string) {
-  // Fetch sender SID that matches configured WhatsApp from number.
+async function findWhatsappSenderSid(
+  client: ReturnType<typeof createClient>,
+  from: string,
+  explicitSenderSid?: string
+) {
+  // Use explicit sender SID if provided, otherwise list and match by sender_id.
+  if (explicitSenderSid) {
+    logVerbose(`Using TWILIO_SENDER_SID from env: ${explicitSenderSid}`);
+    return explicitSenderSid;
+  }
   try {
     const resp = await (client as unknown as TwilioRequester).request({
       method: 'get',
@@ -486,10 +494,12 @@ async function findWhatsappSenderSid(client: ReturnType<typeof createClient>, fr
     return match.sid;
   } catch (err) {
     console.error(danger('Unable to list WhatsApp senders via Twilio API.'));
-    if (globalVerbose) console.error(err);
+    if (globalVerbose) {
+      console.error(err);
+    }
     console.error(
       info(
-        'Provide TWILIO_SENDER_SID in .env to skip lookup (find it in Twilio Console → Messaging → Senders → WhatsApp).'
+        'Set TWILIO_SENDER_SID in .env to skip discovery (Twilio Console → Messaging → Senders → WhatsApp).'
       )
     );
     process.exit(1);
@@ -709,7 +719,7 @@ program
 
     // Configure Twilio sender webhook
     const client = createClient(env);
-    const senderSid = await findWhatsappSenderSid(client, env.whatsappFrom);
+    const senderSid = await findWhatsappSenderSid(client, env.whatsappFrom, env.whatsappSenderSid);
     await updateWebhook(client, senderSid, publicUrl, 'POST');
 
     console.log('\nSetup complete. Leave this process running to keep the webhook online. Ctrl+C to stop.');
