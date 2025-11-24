@@ -23,6 +23,10 @@ type AuthMode =
   | { accountSid: string; authToken: string }
   | { accountSid: string; apiKey: string; apiSecret: string };
 
+type GlobalOptions = {
+  verbose: boolean;
+};
+
 type EnvConfig = {
   accountSid: string;
   whatsappFrom: string;
@@ -251,7 +255,8 @@ async function waitForFinalStatus(
 async function startWebhook(
   port: number,
   path = '/webhook/whatsapp',
-  autoReply?: string
+  autoReply: string | undefined,
+  verbose: boolean
 ) {
   // Start Express webhook; generate replies via config or CLI flag.
   const env = readEnv();
@@ -262,7 +267,9 @@ async function startWebhook(
 
   app.post(path, async (req: Request, res: Response) => {
     const { From, To, Body, MessageSid } = req.body ?? {};
-    console.log(`[INBOUND] ${From} -> ${To} (${MessageSid}): ${Body}`);
+    if (verbose) {
+      console.log(`[INBOUND] ${From} -> ${To} (${MessageSid}): ${Body}`);
+    }
 
     let replyText = autoReply;
     if (!replyText) {
@@ -282,7 +289,9 @@ async function startWebhook(
           to: From,
           body: replyText
         });
-        console.log(`↩️  Auto-replied to ${From}`);
+        if (verbose) {
+          console.log(`↩️  Auto-replied to ${From}`);
+        }
       } catch (err) {
         console.error('Failed to auto-reply', err);
       }
@@ -542,6 +551,7 @@ program
   .option('-p, --port <port>', 'Port to listen on', '42873')
   .option('-r, --reply <text>', 'Optional auto-reply text')
   .option('--path <path>', 'Webhook path', '/webhook/whatsapp')
+  .option('--verbose', 'Log inbound and auto-replies', false)
   .addHelpText(
     'after',
     `
@@ -560,7 +570,7 @@ With Tailscale:
       console.error('Port must be between 1 and 65535');
       process.exit(1);
     }
-    await startWebhook(port, opts.path, opts.reply);
+    await startWebhook(port, opts.path, opts.reply, Boolean(opts.verbose));
   });
 
 program
@@ -568,6 +578,7 @@ program
   .description('Auto-setup webhook + Tailscale Funnel + Twilio callback with sensible defaults')
   .option('-p, --port <port>', 'Port to listen on', '42873')
   .option('--path <path>', 'Webhook path', '/webhook/whatsapp')
+  .option('--verbose', 'Verbose logging during setup/webhook', false)
   .action(async (opts) => {
     const port = Number.parseInt(opts.port, 10);
     if (Number.isNaN(port) || port <= 0 || port >= 65536) {
@@ -580,7 +591,7 @@ program
     await ensureBinary('tailscale');
 
     // Start webhook locally
-    await startWebhook(port, opts.path, undefined);
+    await startWebhook(port, opts.path, undefined, Boolean(opts.verbose));
 
     // Enable Funnel and derive public URL
     await ensureFunnel(port);
