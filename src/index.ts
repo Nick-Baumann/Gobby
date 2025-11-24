@@ -400,12 +400,19 @@ async function getReplyFromConfig(
 		logVerbose(`Resolved command argv: ${finalArgv.join(" ")}`);
 		const started = Date.now();
 		try {
-			const { stdout } = await execFileAsync(finalArgv[0], finalArgv.slice(1), {
-				maxBuffer: 1024 * 1024,
-				timeout: timeoutMs,
-				killSignal: "SIGKILL",
-			});
+			const { stdout, stderr } = await execFileAsync(
+				finalArgv[0],
+				finalArgv.slice(1),
+				{
+					maxBuffer: 1024 * 1024,
+					timeout: timeoutMs,
+					killSignal: "SIGKILL",
+				},
+			);
 			const trimmed = stdout.trim();
+			if (stderr?.trim()) {
+				logVerbose(`Command auto-reply stderr: ${stderr.trim()}`);
+			}
 			logVerbose(
 				`Command auto-reply stdout (trimmed): ${trimmed || "<empty>"}`,
 			);
@@ -415,6 +422,13 @@ async function getReplyFromConfig(
 			const elapsed = Date.now() - started;
 			const anyErr = err as { killed?: boolean; signal?: string };
 			const timeoutHit = anyErr.killed === true || anyErr.signal === "SIGKILL";
+			const errorObj = err as {
+				stdout?: string;
+				stderr?: string;
+			};
+			if (errorObj.stderr?.trim()) {
+				logVerbose(`Command auto-reply stderr: ${errorObj.stderr.trim()}`);
+			}
 			if (timeoutHit) {
 				console.error(
 					`Command auto-reply timed out after ${elapsed}ms (limit ${timeoutMs}ms)`,
