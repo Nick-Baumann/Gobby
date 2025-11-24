@@ -12,6 +12,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import JSON5 from 'json5';
+import readline from 'node:readline/promises';
+import { stdin as input, stdout as output } from 'node:process';
 
 dotenv.config();
 
@@ -80,6 +82,15 @@ async function ensureBinary(name: string): Promise<void> {
     console.error(`Missing required binary: ${name}. Please install it.`);
     process.exit(1);
   });
+}
+
+async function promptYesNo(question: string, defaultYes = false): Promise<boolean> {
+  const rl = readline.createInterface({ input, output });
+  const suffix = defaultYes ? ' [Y/n] ' : ' [y/N] ';
+  const answer = (await rl.question(`${question}${suffix}`)).trim().toLowerCase();
+  rl.close();
+  if (!answer) return defaultYes;
+  return answer.startsWith('y');
 }
 
 function withWhatsAppPrefix(number: string): string {
@@ -301,16 +312,50 @@ async function getTailnetHostname() {
   throw new Error('Could not determine Tailscale DNS or IP');
 }
 
+async function ensureGoInstalled() {
+  // Ensure Go toolchain is present; offer Homebrew install if missing.
+  const hasGo = await runExec('go', ['version']).then(
+    () => true,
+    () => false
+  );
+  if (hasGo) return;
+  const install = await promptYesNo('Go is not installed. Install via Homebrew (brew install go)?', true);
+  if (!install) {
+    console.error('Go is required to build tailscaled from source. Aborting.');
+    process.exit(1);
+  }
+  await runExec('brew', ['install', 'go']);
+}
+
+async function ensureTailscaledInstalled() {
+  // Ensure tailscaled binary exists; install via Homebrew tailscale if missing.
+  const hasTailscaled = await runExec('tailscaled', ['--version']).then(
+    () => true,
+    () => false
+  );
+  if (hasTailscaled) return;
+
+  const install = await promptYesNo('tailscaled not found. Install via Homebrew (tailscale package)?', true);
+  if (!install) {
+    console.error('tailscaled is required for user-space funnel. Aborting.');
+    process.exit(1);
+  }
+  await runExec('brew', ['install', 'tailscale']);
+}
+
 async function ensureFunnel(port: number) {
   // Ensure Funnel is enabled and publish the webhook port.
   try {
     const statusOut = (await runExec('tailscale', ['funnel', 'status', '--json'])).stdout.trim();
     const parsed = statusOut ? (JSON.parse(statusOut) as Record<string, unknown>) : {};
     if (!parsed || Object.keys(parsed).length === 0) {
-      console.error(
-        'Tailscale Funnel is not enabled on this tailnet/device. Enable it in the Tailscale admin console, then re-run warelay setup.'
-      );
-      process.exit(1);
+      console.error('Tailscale Funnel is not enabled on this tailnet/device.');
+      console.error('Enable in admin console: https://login.tailscale.com/admin (see https://tailscale.com/kb/1223/funnel)');
+      console.error('macOS user-space tailscaled docs: https://github.com/tailscale/tailscale/wiki/Tailscaled-on-macOS');
+      const proceed = await promptYesNo('Attempt local setup with user-space tailscaled?', false);
+      if (!proceed) process.exit(1);
+      await ensureGoInstalled();
+      await ensureTailscaledInstalled();
     }
 
     const { stdout } = await runExec('tailscale', ['funnel', '--yes', '--bg', `${port}`], 200_000);
