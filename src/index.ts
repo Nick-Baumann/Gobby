@@ -449,10 +449,12 @@ async function ensureFunnel(port: number) {
 async function findWhatsappSenderSid(client: ReturnType<typeof createClient>, from: string) {
   // Fetch sender SID that matches configured WhatsApp from number.
   try {
-    const resp = await (client as unknown as { request: (options: Record<string, unknown>) => Promise<{ data?: unknown }> }).request({
+    const resp = await (client as unknown as {
+      request: (options: Record<string, unknown>) => Promise<{ data?: unknown }>
+    }).request({
       method: 'get',
       uri: 'https://messaging.twilio.com/v2/Channels/Senders',
-      qs: { Channel: 'whatsapp', PageSize: 50 }
+      params: { Channel: 'whatsapp', PageSize: 50 }
     });
     const data = resp?.data as Record<string, unknown> | undefined;
     const senders = Array.isArray((data as Record<string, unknown> | undefined)?.senders)
