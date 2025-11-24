@@ -352,7 +352,7 @@ async function ensureFunnel(port: number) {
       console.error('Tailscale Funnel is not enabled on this tailnet/device.');
       console.error('Enable in admin console: https://login.tailscale.com/admin (see https://tailscale.com/kb/1223/funnel)');
       console.error('macOS user-space tailscaled docs: https://github.com/tailscale/tailscale/wiki/Tailscaled-on-macOS');
-      const proceed = await promptYesNo('Attempt local setup with user-space tailscaled?', false);
+      const proceed = await promptYesNo('Attempt local setup with user-space tailscaled?', true);
       if (!proceed) process.exit(1);
       await ensureGoInstalled();
       await ensureTailscaledInstalled();
