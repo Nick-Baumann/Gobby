@@ -117,12 +117,15 @@ export async function sendMessageWeb(
 			logVerbose(`Presence update skipped: ${String(err)}`);
 		}
 		let payload: AnyMessageContent = { text: body };
-		if (options.mediaUrl) {
-			const media = await loadWebMedia(options.mediaUrl);
-			payload = {
-				image: media.buffer,
-				caption: body || undefined,
-				mimetype: media.contentType,
+	if (options.mediaUrl) {
+		const normalized = options.mediaUrl.startsWith("file://")
+			? options.mediaUrl.replace("file://", "")
+			: options.mediaUrl;
+		const media = await loadWebMedia(options.mediaUrl);
+		payload = {
+			image: media.buffer,
+			caption: body || undefined,
+			mimetype: media.contentType,
 			};
 		}
 		logInfo(
@@ -514,6 +517,9 @@ async function downloadInboundMedia(
 async function loadWebMedia(
 	mediaUrl: string,
 ): Promise<{ buffer: Buffer; contentType?: string }> {
+	if (mediaUrl.startsWith("file://")) {
+		mediaUrl = mediaUrl.replace("file://", "");
+	}
 	if (/^https?:\/\//i.test(mediaUrl)) {
 		const res = await fetch(mediaUrl);
 		if (!res.ok || !res.body) {
