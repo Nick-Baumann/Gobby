@@ -12,6 +12,7 @@ describe("update-webhook helpers", () => {
 	beforeEach(() => {
 		process.env.TWILIO_ACCOUNT_SID = "AC";
 		process.env.TWILIO_WHATSAPP_FROM = "whatsapp:+1555";
+		process.env.TWILIO_AUTH_TOKEN = "dummy-token";
 	});
 
 	afterEach(() => {
