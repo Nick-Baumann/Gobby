@@ -179,6 +179,7 @@ Examples:
 		.option("--path <path>", "Webhook path", "/webhook/whatsapp")
 		.option("--verbose", "Log inbound and auto-replies", false)
 		.option("-y, --yes", "Auto-confirm prompts when possible", false)
+		.option("--dry-run", "Print planned actions without starting server", false)
 		.addHelpText(
 			"after",
 			`
@@ -220,6 +221,7 @@ With Tailscale:
 		.option("--path <path>", "Webhook path", "/webhook/whatsapp")
 		.option("--verbose", "Verbose logging during setup/webhook", false)
 		.option("-y, --yes", "Auto-confirm prompts when possible", false)
+		.option("--dry-run", "Print planned actions without touching network", false)
 		// istanbul ignore next
 		.action(async (opts) => {
 			setVerbose(Boolean(opts.verbose));

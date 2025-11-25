@@ -3,7 +3,7 @@ import type { RuntimeEnv } from "../runtime.js";
 import { waitForever as defaultWaitForever } from "../cli/wait.js";
 
 export async function upCommand(
-	opts: { port: string; path: string; verbose?: boolean; yes?: boolean },
+	opts: { port: string; path: string; verbose?: boolean; yes?: boolean; dryRun?: boolean },
 	deps: CliDeps,
 	runtime: RuntimeEnv,
 	waiter: typeof defaultWaitForever = defaultWaitForever,
@@ -15,6 +15,13 @@ export async function upCommand(
 
 	await deps.ensurePortAvailable(port);
 	const env = deps.readEnv(runtime);
+	if (opts.dryRun) {
+		runtime.log(`[dry-run] would enable funnel on port ${port}`);
+		runtime.log(`[dry-run] would start webhook at path ${opts.path}`);
+		runtime.log(`[dry-run] would update Twilio sender webhook`);
+		const publicUrl = `https://dry-run${opts.path}`;
+		return { server: undefined, publicUrl, senderSid: undefined, waiter };
+	}
 	await deps.ensureBinary("tailscale", undefined, runtime);
 	await deps.ensureFunnel(port, undefined, runtime);
 	const host = await deps.getTailnetHostname();

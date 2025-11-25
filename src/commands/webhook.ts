@@ -17,6 +17,10 @@ export async function webhookCommand(
 		throw new Error("Port must be between 1 and 65535");
 	}
 	await deps.ensurePortAvailable(port);
+	if (opts.reply === "dry-run") {
+		runtime.log(`[dry-run] would start webhook on port ${port} path ${opts.path}`);
+		return undefined;
+	}
 	const server = await deps.startWebhook(
 		port,
 		opts.path,
