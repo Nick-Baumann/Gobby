@@ -717,6 +717,8 @@ async function getReplyFromConfig(
 		}
 
 		// Ensure Claude commands can emit plain text by forcing --output-format when configured.
+		// We inject the flags only when the user points at the `claude` binary and has opted in via config,
+		// so existing custom argv or non-Claude commands remain untouched.
 		if (
 			reply.claudeOutputFormat &&
 			argv.length > 0 &&
