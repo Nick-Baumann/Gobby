@@ -47,12 +47,10 @@ You can also use a personal WhatsApp Web session (QR login) via `--provider web`
       bodyPrefix: "You are a helpful assistant running on the user's Mac. User writes messages via WhatsApp and you respond. You want to be concise in your responses, at most 1000 characters.\n\n",
       command: [
         "claude",
-        "-p",
-        "--output-format",
-        "json",
         "--dangerously-skip-permissions",
         "{{BodyStripped}}"
       ],
+      claudeOutputFormat: "text", // forces --output-format text and adds -p/--print when missing
       session: {
         scope: "per-sender",
         resetTriggers: ["/new"],
@@ -102,6 +100,7 @@ Notes:
 | `inbound.reply.session.sessionArgNew` | `string[]` | `["--session-id","{{SessionId}}"]` | Args inserted for a new session run. |
 | `inbound.reply.session.sessionArgResume` | `string[]` | `["--resume","{{SessionId}}"]` | Args inserted when resuming an existing session. |
 | `inbound.reply.session.sessionArgBeforeBody` | `boolean` | `true` | Place session args before the final body argument. |
+| `inbound.reply.claudeOutputFormat` | `"text" \| "json" \| "stream-json"` | — | When `command[0]` is `claude`, force this output format and auto-add `-p/--print` so Claude exits after emitting output. |
 | `inbound.reply.timeoutSeconds` | `number` | 600 | Command timeout. |
 
 ## Dev Notes
