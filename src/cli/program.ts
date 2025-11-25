@@ -1,3 +1,4 @@
+import chalk from "chalk";
 import { Command } from "commander";
 import { sendCommand } from "../commands/send.js";
 import { statusCommand } from "../commands/status.js";
@@ -17,11 +18,76 @@ import { spawnRelayTmux } from "./relay_tmux.js";
 
 export function buildProgram() {
 	const program = new Command();
+	const PROGRAM_VERSION = "0.1.0";
+	const TAGLINE =
+		"Send, receive, and auto-reply on WhatsApp—Twilio-backed or QR-linked.";
 
 	program
 		.name("warelay")
 		.description("WhatsApp relay CLI (Twilio or WhatsApp Web session)")
-		.version("0.1.0");
+		.version(PROGRAM_VERSION);
+
+	const formatIntroLine = (version: string, rich = true) => {
+		const base = `📡 warelay ${version} — ${TAGLINE}`;
+		return rich && chalk.level > 0
+			? `${chalk.bold.cyan("📡 warelay")} ${chalk.white(version)} ${chalk.gray("—")} ${chalk.green(TAGLINE)}`
+			: base;
+	};
+
+	program.configureHelp({
+		optionTerm: (option) => chalk.yellow(option.flags),
+		commandTerm: (cmd) => chalk.green(cmd.name()),
+	});
+
+	program.configureOutput({
+		writeOut: (str) => {
+			const colored = str
+				.replace(/^Usage:/gm, chalk.bold.cyan("Usage:"))
+				.replace(/^Options:/gm, chalk.bold.cyan("Options:"))
+				.replace(/^Commands:/gm, chalk.bold.cyan("Commands:"));
+			process.stdout.write(colored);
+		},
+		writeErr: (str) => process.stderr.write(str),
+		outputError: (str, write) => write(chalk.red(str)),
+	});
+
+	if (process.argv.includes("-V") || process.argv.includes("--version")) {
+		console.log(formatIntroLine(PROGRAM_VERSION));
+		process.exit(0);
+	}
+
+	program.addHelpText("beforeAll", `\n${formatIntroLine(PROGRAM_VERSION)}\n`);
+	const examples = [
+		[
+			"warelay login --verbose",
+			"Link personal WhatsApp Web and show QR + connection logs.",
+		],
+		[
+			'warelay send --to +15551234567 --message "Hi" --provider web --json',
+			"Send via your web session and print JSON result.",
+		],
+		[
+			"warelay relay --provider auto --interval 5 --lookback 15 --verbose",
+			"Auto-reply loop: prefer Web when logged in, otherwise Twilio polling.",
+		],
+		[
+			"warelay webhook --ingress tailscale --port 42873 --path /webhook/whatsapp --verbose",
+			"Start webhook + Tailscale Funnel and update Twilio callbacks.",
+		],
+		[
+			"warelay status --limit 10 --lookback 60 --json",
+			"Show last 10 messages from the past hour as JSON.",
+		],
+	] as const;
+
+	const fmtExamples = examples
+		.map(([cmd, desc]) => `  ${chalk.green(cmd)}\n    ${chalk.gray(desc)}`)
+		.join("\n");
+
+	program.addHelpText(
+		"afterAll",
+		`\n${chalk.bold.cyan("Examples:")}\n${fmtExamples}\n`,
+	);
 
 	program
 		.command("login")
