@@ -223,6 +223,31 @@ describe("config and templating", () => {
 		expect(result?.mediaUrl).toBe("/tmp/pic.png");
 	});
 
+	it("captures MEDIA token with trailing JSON characters", async () => {
+		const runSpy = vi.spyOn(index, "runCommandWithTimeout").mockResolvedValue({
+			stdout: 'MEDIA:/tmp/pic.png"} trailing',
+			stderr: "",
+			code: 0,
+			signal: null,
+			killed: false,
+		});
+		const cfg = {
+			inbound: {
+				reply: {
+					mode: "command" as const,
+					command: ["echo", "{{Body}}"],
+				},
+			},
+		};
+		const result = await index.getReplyFromConfig(
+			{ Body: "hi", From: "+1", To: "+2" },
+			undefined,
+			cfg,
+			runSpy,
+		);
+		expect(result?.mediaUrl).toBe("/tmp/pic.png");
+	});
+
 	it("ignores invalid MEDIA lines with whitespace", async () => {
 		const runSpy = vi.spyOn(index, "runCommandWithTimeout").mockResolvedValue({
 			stdout: "hello\nMEDIA: not a url with spaces\nrest\n",

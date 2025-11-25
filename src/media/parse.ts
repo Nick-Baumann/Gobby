@@ -17,15 +17,21 @@ export function splitMediaFromOutput(raw: string): {
 	let text = trimmedRaw;
 	let mediaUrl: string | undefined;
 
-	const mediaLine = trimmedRaw.split("\n").find((line) => MEDIA_LINE_RE.test(line));
-	if (!mediaLine) {
+	let mediaLine = trimmedRaw.split("\n").find((line) => MEDIA_LINE_RE.test(line));
+	let mediaMatch = mediaLine?.match(MEDIA_TOKEN_RE) ?? trimmedRaw.match(MEDIA_TOKEN_RE);
+	if (!mediaMatch) {
 		return { text: trimmedRaw };
+	}
+	if (!mediaLine && mediaMatch) {
+		mediaLine = mediaMatch[0];
 	}
 
 	let isValidMedia = false;
-	const mediaMatch = mediaLine.match(MEDIA_TOKEN_RE);
 	if (mediaMatch?.[1]) {
-		const candidate = normalizeMediaSource(mediaMatch[1]);
+		const cleaned = mediaMatch[1]
+			.replace(/^[`"'[{(]+/, "")
+			.replace(/[`"'\\})\],]+$/, "");
+		const candidate = normalizeMediaSource(cleaned);
 		const looksLikeUrl = /^https?:\/\//i.test(candidate);
 		const looksLikePath = candidate.startsWith("/") || candidate.startsWith("./");
 		const hasWhitespace = /\s/.test(candidate);
