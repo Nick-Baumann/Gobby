@@ -341,7 +341,7 @@ describe("config and templating", () => {
 			cfg,
 			runSpy,
 		);
-			expect(first?.text).toBe("cmd output");
+		expect(first?.text).toBe("cmd output");
 		const argvFirst = runSpy.mock.calls[0][0];
 		expect(argvFirst).toEqual([
 			"echo",
@@ -357,7 +357,7 @@ describe("config and templating", () => {
 			cfg,
 			runSpy,
 		);
-			expect(second?.text).toBe("cmd output");
+		expect(second?.text).toBe("cmd output");
 		const argvSecond = runSpy.mock.calls[1][0];
 		expect(argvSecond[2]).toBe("--resume");
 	});
@@ -420,15 +420,15 @@ describe("config and templating", () => {
 			},
 		};
 
-			const result = await index.getReplyFromConfig(
-				{ Body: "hi", From: "+1", To: "+2" },
-				undefined,
-				cfg,
-				runSpy,
-			);
+		const result = await index.getReplyFromConfig(
+			{ Body: "hi", From: "+1", To: "+2" },
+			undefined,
+			cfg,
+			runSpy,
+		);
 
-			expect(result?.text).toBe("hello world");
-		});
+		expect(result?.text).toBe("hello world");
+	});
 
 	it("parses Claude JSON output even without explicit claudeOutputFormat when using claude bin", async () => {
 		const runSpy = vi.spyOn(index, "runCommandWithTimeout").mockResolvedValue({
@@ -448,17 +448,17 @@ describe("config and templating", () => {
 			},
 		};
 
-			const result = await index.getReplyFromConfig(
-				{ Body: "hi", From: "+1", To: "+2" },
-				undefined,
-				cfg,
-				runSpy,
-			);
+		const result = await index.getReplyFromConfig(
+			{ Body: "hi", From: "+1", To: "+2" },
+			undefined,
+			cfg,
+			runSpy,
+		);
 
-			expect(result?.text).toBe("Sure! What's up?");
-			const argv = runSpy.mock.calls[0][0];
-			expect(argv.at(-1)).toContain("You are Clawd (Claude)");
-			expect(argv.at(-1)).toContain("/Users/steipete/clawd");
+		expect(result?.text).toBe("Sure! What's up?");
+		const argv = runSpy.mock.calls[0][0];
+		expect(argv.at(-1)).toContain("You are Clawd (Claude)");
+		expect(argv.at(-1)).toContain("/Users/steipete/clawd");
 	});
 
 	it("serializes command auto-replies via the queue", async () => {
@@ -625,7 +625,11 @@ describe("webhook and messaging", () => {
 		const hostModule = await import("./media/host.js");
 		const hostSpy = vi
 			.spyOn(hostModule, "ensureMediaHosted")
-			.mockResolvedValue({ url: "https://ts.net/media/abc", id: "abc", size: 123 });
+			.mockResolvedValue({
+				url: "https://ts.net/media/abc",
+				id: "abc",
+				size: 123,
+			});
 		vi.spyOn(replies, "getReplyFromConfig").mockResolvedValue({
 			text: "Auto",
 			mediaUrl: "/tmp/pic.png",
@@ -923,29 +927,29 @@ describe("monitoring", () => {
 		expect(runtime.exit).toHaveBeenCalledWith(1);
 	});
 
-		it("monitorWebProvider triggers replies and stops when asked", async () => {
-			const replySpy = vi.fn();
-			const sendMediaSpy = vi.fn();
-			const listenerFactory = vi.fn(
-				async (
-					opts: Parameters<typeof index.monitorWebProvider>[1] extends undefined
-						? never
-						: NonNullable<Parameters<typeof index.monitorWebProvider>[1]>,
-				) => {
-					await opts.onMessage({
-						body: "hello",
-						from: "+1",
-						to: "+2",
-						id: "id1",
-						sendComposing: vi.fn(),
-						reply: replySpy,
-						sendMedia: sendMediaSpy,
-					});
-					return { close: vi.fn() };
-				},
-			);
-			const resolver = vi.fn().mockResolvedValue({ text: "auto" });
-			await index.monitorWebProvider(false, listenerFactory, false, resolver);
-			expect(replySpy).toHaveBeenCalledWith("auto");
-		});
+	it("monitorWebProvider triggers replies and stops when asked", async () => {
+		const replySpy = vi.fn();
+		const sendMediaSpy = vi.fn();
+		const listenerFactory = vi.fn(
+			async (
+				opts: Parameters<typeof index.monitorWebProvider>[1] extends undefined
+					? never
+					: NonNullable<Parameters<typeof index.monitorWebProvider>[1]>,
+			) => {
+				await opts.onMessage({
+					body: "hello",
+					from: "+1",
+					to: "+2",
+					id: "id1",
+					sendComposing: vi.fn(),
+					reply: replySpy,
+					sendMedia: sendMediaSpy,
+				});
+				return { close: vi.fn() };
+			},
+		);
+		const resolver = vi.fn().mockResolvedValue({ text: "auto" });
+		await index.monitorWebProvider(false, listenerFactory, false, resolver);
+		expect(replySpy).toHaveBeenCalledWith("auto");
 	});
+});

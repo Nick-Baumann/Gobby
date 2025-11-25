@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
-	getTailnetHostname,
 	ensureGoInstalled,
 	ensureTailscaledInstalled,
+	getTailnetHostname,
 } from "./tailscale.js";
 
 describe("tailscale helpers", () => {

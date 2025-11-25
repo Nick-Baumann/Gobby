@@ -1,7 +1,11 @@
 import net from "node:net";
 import { describe, expect, it, vi } from "vitest";
 
-import { ensurePortAvailable, handlePortError, PortInUseError } from "./ports.js";
+import {
+	ensurePortAvailable,
+	handlePortError,
+	PortInUseError,
+} from "./ports.js";
 
 describe("ports helpers", () => {
 	it("ensurePortAvailable rejects when port busy", async () => {

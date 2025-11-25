@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mocks must be defined via vi.hoisted to avoid TDZ with ESM hoisting.
 const { monitorWebProvider, pickProvider, logWebSelfId, monitorTwilio } =

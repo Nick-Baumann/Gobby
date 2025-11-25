@@ -38,21 +38,18 @@ describe("command queue", () => {
 			await new Promise((resolve) => setTimeout(resolve, 30));
 		});
 
-		const second = enqueueCommand(
-			async () => {},
-			{
-				warnAfterMs: 5,
-				onWait: (ms, ahead) => {
-					waited = ms;
-					queuedAhead = ahead;
-				},
+		const second = enqueueCommand(async () => {}, {
+			warnAfterMs: 5,
+			onWait: (ms, ahead) => {
+				waited = ms;
+				queuedAhead = ahead;
 			},
-		);
+		});
 
 		await Promise.all([first, second]);
 
 		expect(waited).not.toBeNull();
-		expect((waited as number)).toBeGreaterThanOrEqual(5);
+		expect(waited as number).toBeGreaterThanOrEqual(5);
 		expect(queuedAhead).toBe(0);
 	});
 });

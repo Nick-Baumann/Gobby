@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockTwilio } from "../test/mocks/twilio.js";
 import { statusCommand } from "./commands/status.js";
 import { createDefaultDeps } from "./index.js";
-import { defaultRuntime } from "./runtime.js";
 import * as providerWeb from "./provider-web.js";
+import { defaultRuntime } from "./runtime.js";
 
 vi.mock("twilio", () => {
 	const { factory } = createMockTwilio();
@@ -67,16 +67,7 @@ describe("CLI commands", () => {
 		const twilio = (await import("twilio")).default;
 		const wait = vi.spyOn(index, "waitForFinalStatus").mockResolvedValue();
 		await index.program.parseAsync(
-			[
-				"send",
-				"--to",
-				"+1555",
-				"--message",
-				"hi",
-				"--wait",
-				"0",
-				"--dry-run",
-			],
+			["send", "--to", "+1555", "--message", "hi", "--wait", "0", "--dry-run"],
 			{ from: "user" },
 		);
 		expect(twilio._client.messages.create).not.toHaveBeenCalled();
@@ -88,20 +79,11 @@ describe("CLI commands", () => {
 		twilio._client.messages.create.mockResolvedValue({ sid: "SMJSON" });
 		const logSpy = vi.spyOn(defaultRuntime, "log");
 		await index.program.parseAsync(
-			[
-				"send",
-				"--to",
-				"+1555",
-				"--message",
-				"hi",
-				"--wait",
-				"0",
-				"--json",
-			],
+			["send", "--to", "+1555", "--message", "hi", "--wait", "0", "--json"],
 			{ from: "user" },
 		);
 		expect(logSpy).toHaveBeenCalledWith(
-			expect.stringContaining("\"sid\": \"SMJSON\""),
+			expect.stringContaining('"sid": "SMJSON"'),
 		);
 	});
 

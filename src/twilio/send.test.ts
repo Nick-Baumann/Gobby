@@ -14,10 +14,19 @@ describe("twilio send helpers", () => {
 	});
 
 	it("waitForFinalStatus exits on failure", async () => {
-		const fetch = vi.fn().mockResolvedValue({ status: "failed", errorMessage: "boom" });
+		const fetch = vi
+			.fn()
+			.mockResolvedValue({ status: "failed", errorMessage: "boom" });
 		const client = { messages: vi.fn(() => ({ fetch })) } as never;
-		const runtime = { log: console.log, error: () => {}, exit: vi.fn(() => { throw new Error("exit"); }) } as never;
-		await expect(waitForFinalStatus(client, "SM1", 1, 0.01, runtime)).rejects.toBeInstanceOf(Error);
+		const runtime = {
+			log: console.log,
+			error: () => {},
+			exit: vi.fn(() => {
+				throw new Error("exit");
+			}),
+		} as never;
+		await expect(
+			waitForFinalStatus(client, "SM1", 1, 0.01, runtime),
+		).rejects.toBeInstanceOf(Error);
 	});
 });
-

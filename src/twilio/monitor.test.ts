@@ -18,12 +18,24 @@ describe("monitorTwilio", () => {
 			},
 		]);
 		const autoReplyIfConfigured = vi.fn().mockResolvedValue(undefined);
-		const readEnv = vi.fn(() => ({ accountSid: "AC", whatsappFrom: "whatsapp:+1", auth: { accountSid: "AC", authToken: "t" } }));
-		const createClient = vi.fn(() => ({ messages: { create: vi.fn() } } as never));
+		const readEnv = vi.fn(() => ({
+			accountSid: "AC",
+			whatsappFrom: "whatsapp:+1",
+			auth: { accountSid: "AC", authToken: "t" },
+		}));
+		const createClient = vi.fn(
+			() => ({ messages: { create: vi.fn() } }) as never,
+		);
 		const sleep = vi.fn().mockResolvedValue(undefined);
 
 		await monitorTwilio(0, 0, {
-			deps: { autoReplyIfConfigured, listRecentMessages, readEnv, createClient, sleep },
+			deps: {
+				autoReplyIfConfigured,
+				listRecentMessages,
+				readEnv,
+				createClient,
+				sleep,
+			},
 			maxIterations: 1,
 		});
 
@@ -31,4 +43,3 @@ describe("monitorTwilio", () => {
 		expect(autoReplyIfConfigured).toHaveBeenCalledTimes(1);
 	});
 });
-
