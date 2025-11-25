@@ -29,6 +29,11 @@ Small CLI to send, receive, auto-reply, and inspect WhatsApp messages over **Twi
 | `warelay up` | Turn on webhook + Tailscale Funnel + Twilio callback | `--port <port>` `--path <path>` `--verbose` `--yes` `--dry-run` |
 | `warelay web:login` (`login`) | Link personal WhatsApp Web via QR | `--verbose` |
 
+### Sending images (new)
+- Twilio: `warelay send --to +1... --message "Hi" --media ./pic.jpg --serve-media` (needs `warelay webhook`/`up` or `--serve-media` to auto-host via Funnel; max 5 MB).
+- Web: `warelay send --provider web --media ./pic.jpg --message "Hi"` (local path or URL; no hosting needed).
+- Auto-replies can attach `mediaUrl` in `~/.warelay/warelay.json` (used alongside `text` when present).
+
 ## Providers
 - **Twilio (default):** needs `.env` creds + WhatsApp-enabled number; supports delivery tracking, polling, webhooks, and auto-reply typing indicators.
 - **Web (`--provider web`):** uses your personal WhatsApp via Baileys; supports send/receive + auto-reply, but no delivery-status wait; cache lives in `~/.warelay/credentials/` (rerun `web:login` if logged out).
