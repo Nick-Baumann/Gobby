@@ -1,5 +1,4 @@
-# 📡 warelay — WhatsApp Relay CLI
-Send, receive, and auto-reply on WhatsApp—Twilio-backed or QR-linked.
+# 📡 warelay — Send, receive, and auto-reply on WhatsApp—Twilio-backed or QR-linked.
 
 Send, receive, auto-reply, and inspect WhatsApp messages over **Twilio** or your personal **WhatsApp Web** session. Ships with a one-command webhook setup (Tailscale Funnel + Twilio callback) and a configurable auto-reply engine (plain text or command/Claude driven).
 
