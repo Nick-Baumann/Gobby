@@ -290,23 +290,14 @@ const mediaNote =
 			);
 			const rawStdout = stdout.trim();
 			let mediaFromCommand: string | undefined;
-			const { text: trimmedText, mediaUrl: mediaDirect } =
-				splitMediaFromOutput(rawStdout);
-			mediaFromCommand = mediaDirect;
-			if (isVerbose()) {
-				logVerbose(
-					mediaFromCommand
-						? `MEDIA token extracted from stdout: ${mediaFromCommand}`
-						: "No MEDIA token extracted from stdout",
-				);
-			}
-			let trimmed = trimmedText;
+			let trimmed = rawStdout;
 			if (stderr?.trim()) {
 				logVerbose(`Command auto-reply stderr: ${stderr.trim()}`);
 			}
+			let parsed: ClaudeJsonParseResult | undefined;
 			if (trimmed && (reply.claudeOutputFormat === "json" || isClaudeInvocation)) {
 				// Claude JSON mode: extract the human text for both logging and reply while keeping metadata.
-				const parsed = parseClaudeJson(trimmed);
+				parsed = parseClaudeJson(trimmed);
 				if (parsed?.parsed && isVerbose()) {
 					const summary = summarizeClaudeMetadata(parsed.parsed);
 					if (summary) logVerbose(`Claude JSON meta: ${summary}`);
@@ -319,20 +310,24 @@ const mediaNote =
 						`Claude JSON parsed -> ${parsed.text.slice(0, 120)}${parsed.text.length > 120 ? "…" : ""}`,
 					);
 					trimmed = parsed.text.trim();
-					if (!mediaFromCommand) {
-						const { mediaUrl: mediaFromParsed } = splitMediaFromOutput(
-							parsed.text,
-						);
-						if (mediaFromParsed) {
-							mediaFromCommand = mediaFromParsed;
-							logVerbose(
-								`MEDIA token extracted after JSON parse: ${mediaFromParsed}`,
-							);
-						}
-					}
 				} else {
 					logVerbose("Claude JSON parse failed; returning raw stdout");
 				}
+			}
+			// Run media extraction once on the final human text (post-JSON parse if available).
+			const { text: cleanedText, mediaUrl: mediaFound } =
+				splitMediaFromOutput(trimmed);
+			trimmed = cleanedText;
+			if (mediaFound) {
+				mediaFromCommand = mediaFound;
+				if (isVerbose()) logVerbose(`MEDIA token extracted: ${mediaFound}`);
+			} else if (isVerbose()) {
+				logVerbose("No MEDIA token extracted from final text");
+			}
+			if (!trimmed && !mediaFromCommand) {
+				const meta = parsed ? summarizeClaudeMetadata(parsed.parsed) : undefined;
+				trimmed = `(command produced no output${meta ? `; ${meta}` : ""})`;
+				logVerbose("No text/media produced; injecting fallback notice to user");
 			}
 			logVerbose(
 				`Command auto-reply stdout (trimmed): ${trimmed || "<empty>"}`,

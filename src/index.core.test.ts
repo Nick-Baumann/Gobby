@@ -274,6 +274,32 @@ describe("config and templating", () => {
 		expect(result?.mediaUrl).toBeUndefined();
 	});
 
+	it("injects fallback text when command returns nothing", async () => {
+		const runSpy = vi.spyOn(index, "runCommandWithTimeout").mockResolvedValue({
+			stdout: "",
+			stderr: "",
+			code: 0,
+			signal: null,
+			killed: false,
+		});
+		const cfg = {
+			inbound: {
+				reply: {
+					mode: "command" as const,
+					command: ["echo", "{{Body}}"],
+				},
+			},
+		};
+		const result = await index.getReplyFromConfig(
+			{ Body: "hi", From: "+1", To: "+2" },
+			undefined,
+			cfg,
+			runSpy,
+		);
+		expect(result?.text).toContain("command produced no output");
+		expect(result?.mediaUrl).toBeUndefined();
+	});
+
 	it("splitMediaFromOutput strips media token and preserves text", () => {
 		const { text, mediaUrl } = splitMediaFromOutput(
 			"line1\nMEDIA:https://x/y.png\nline2",
