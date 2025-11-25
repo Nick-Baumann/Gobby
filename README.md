@@ -69,7 +69,7 @@ Small CLI to send, receive, auto-reply, and inspect WhatsApp messages over **Twi
 
 ### Claude CLI setup (how we run it)
 1) Install the official Claude CLI (e.g., `brew install anthropic-ai/cli/claude` or follow the Anthropic docs) and run `claude login` so it can read your API key.
-2) In `warelay.json`, set `reply.mode` to `"command"` and point `command[0]` to `"claude"`; set `claudeOutputFormat` to `"text"` (or `"json"/`"stream-json"` if you want warelay to parse and trim the JSON output).
+2) In `warelay.json`, set `reply.mode` to `"command"` and point `command[0]` to `"claude"`; set `claudeOutputFormat` to `"text"` (or `"json"`/`"stream-json"` if you want warelay to parse and trim the JSON output).
 3) (Optional) Add `bodyPrefix` to inject a system prompt and `session` settings to keep multi-turn context (`/new` resets by default).
 4) Run `pnpm warelay relay --provider auto` (or `--provider web|twilio`) and send a WhatsApp message; warelay will queue the Claude call, stream typing indicators (Twilio provider), parse the result, and send back the text.
 
@@ -77,7 +77,7 @@ Small CLI to send, receive, auto-reply, and inspect WhatsApp messages over **Twi
 | Key | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `inbound.allowFrom` | `string[]` | empty | E.164 numbers allowed to trigger auto-reply (no `whatsapp:`). |
-| `inbound.reply.mode` | `"text" | "command"` | — | Reply style. |
+| `inbound.reply.mode` | `"text"` \| `"command"` | — | Reply style. |
 | `inbound.reply.text` | `string` | — | Used when `mode=text`; templating supported. |
 | `inbound.reply.command` | `string[]` | — | argv for `mode=command`; each element templated. Stdout (trimmed) is sent. |
 | `inbound.reply.template` | `string` | — | Injected as argv[1] (prompt prefix) before the body. |
