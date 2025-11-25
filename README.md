@@ -1,4 +1,4 @@
-# 📡 warelay — Send, receive, and auto-reply on WhatsApp—Twilio-backed or QR-linked.
+# 📡 warelay — Send, receive, and auto-reply on WhatsApp.
 
 <p align="center">
   <img src="README-header.png" alt="warelay header" width="640">
