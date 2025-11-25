@@ -146,6 +146,31 @@ describe("config and templating", () => {
 		expect(result?.mediaUrl).toBe("https://example.com/img.jpg");
 	});
 
+	it("extracts first MEDIA token even with trailing text", async () => {
+		const runSpy = vi.spyOn(index, "runCommandWithTimeout").mockResolvedValue({
+			stdout: "hello\nMEDIA:/tmp/pic.png extra words here\n",
+			stderr: "",
+			code: 0,
+			signal: null,
+			killed: false,
+		});
+		const cfg = {
+			inbound: {
+				reply: {
+					mode: "command" as const,
+					command: ["echo", "{{Body}}"],
+				},
+			},
+		};
+		const result = await index.getReplyFromConfig(
+			{ Body: "hi", From: "+1", To: "+2" },
+			undefined,
+			cfg,
+			runSpy,
+		);
+		expect(result?.mediaUrl).toBe("/tmp/pic.png");
+	});
+
 	it("ignores invalid MEDIA lines with whitespace", async () => {
 		const runSpy = vi.spyOn(index, "runCommandWithTimeout").mockResolvedValue({
 			stdout: "hello\nMEDIA: not a url with spaces\nrest\n",

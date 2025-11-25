@@ -24,10 +24,16 @@ import { sendTypingIndicator } from "../twilio/typing.js";
 import type { TwilioRequester } from "../twilio/types.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import { logError } from "../logger.js";
+import { ensureMediaHosted } from "../media/host.js";
 
 type GetReplyOptions = {
 	onReplyStart?: () => Promise<void> | void;
 };
+
+function normalizeMediaSource(src: string) {
+	if (src.startsWith("file://")) return src.replace("file://", "");
+	return src;
+}
 
 function summarizeClaudeMetadata(payload: unknown): string | undefined {
 	if (!payload || typeof payload !== "object") return undefined;
@@ -295,8 +301,8 @@ const mediaNote =
 			if (mediaLine) {
 				const after = mediaLine.replace(/^MEDIA:\s*/i, "");
 				const parts = after.trim().split(/\s+/);
-				if (parts.length === 1 && parts[0]) {
-					mediaFromCommand = parts[0];
+				if (parts[0]) {
+					mediaFromCommand = normalizeMediaSource(parts[0]);
 				}
 				trimmed = rawStdout
 					.split("\n")
@@ -310,10 +316,14 @@ const mediaNote =
 				const looksLikeUrl = mediaFromCommand
 					? /^https?:\/\//i.test(mediaFromCommand)
 					: false;
+				const looksLikePath = mediaFromCommand
+					? mediaFromCommand.startsWith("/") || mediaFromCommand.startsWith("./")
+					: false;
 				if (
 					!mediaFromCommand ||
 					hasWhitespace ||
-					(!looksLikeUrl && mediaFromCommand.length > 1024)
+					(!looksLikeUrl && !looksLikePath) ||
+					mediaFromCommand.length > 1024
 				) {
 					mediaFromCommand = undefined;
 				}
@@ -440,11 +450,16 @@ export async function autoReplyIfConfigured(
 	}
 
 	try {
+		let mediaUrl = replyResult.mediaUrl;
+		if (mediaUrl && !/^https?:\/\//i.test(mediaUrl)) {
+			const hosted = await ensureMediaHosted(mediaUrl);
+			mediaUrl = hosted.url;
+		}
 		await client.messages.create({
 			from: replyFrom,
 			to: replyTo,
 			body: replyResult.text ?? "",
-			...(replyResult.mediaUrl ? { mediaUrl: [replyResult.mediaUrl] } : {}),
+			...(mediaUrl ? { mediaUrl: [mediaUrl] } : {}),
 		});
 		if (isVerbose()) {
 			console.log(
