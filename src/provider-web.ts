@@ -367,18 +367,47 @@ export async function monitorWebProvider(
 					onReplyStart: msg.sendComposing,
 				},
 			);
-			if (!replyResult || (!replyResult.text && !replyResult.mediaUrl)) return;
+			if (!replyResult || (!replyResult.text && !replyResult.mediaUrl)) {
+				logVerbose(
+					"Skipping auto-reply: no text/media returned from resolver",
+				);
+				return;
+			}
 			try {
 				if (replyResult.mediaUrl) {
 					logVerbose(
 						`Web auto-reply media detected: ${replyResult.mediaUrl}`,
 					);
-					const media = await loadWebMedia(replyResult.mediaUrl);
-					await msg.sendMedia({
-						image: media.buffer,
-						caption: replyResult.text || undefined,
-						mimetype: media.contentType,
-					});
+					try {
+						const media = await loadWebMedia(replyResult.mediaUrl);
+						if (isVerbose()) {
+							logVerbose(
+								`Web auto-reply media size: ${(media.buffer.length / (1024 * 1024)).toFixed(2)}MB`,
+							);
+						}
+						await msg.sendMedia({
+							image: media.buffer,
+							caption: replyResult.text || undefined,
+							mimetype: media.contentType,
+						});
+						logInfo(
+							`✅ Sent web media reply to ${msg.from} (${(media.buffer.length / (1024 * 1024)).toFixed(2)}MB)`,
+							runtime,
+						);
+					} catch (err) {
+						console.error(
+							danger(
+								`Failed sending web media to ${msg.from}: ${String(err)}`,
+							),
+						);
+						if (replyResult.text) {
+							await msg.reply(replyResult.text);
+							logInfo(
+								`⚠️  Media skipped; sent text-only to ${msg.from}`,
+								runtime,
+							);
+						}
+					}
 				} else {
 					await msg.reply(replyResult.text ?? "");
 				}
@@ -523,6 +552,7 @@ async function downloadInboundMedia(
 async function loadWebMedia(
 	mediaUrl: string,
 ): Promise<{ buffer: Buffer; contentType?: string }> {
+	const MAX_WEB_BYTES = 16 * 1024 * 1024; // 16MB: web provider can handle larger than Twilio
 	if (mediaUrl.startsWith("file://")) {
 		mediaUrl = mediaUrl.replace("file://", "");
 	}
@@ -532,15 +562,25 @@ async function loadWebMedia(
 			throw new Error(`Failed to fetch media: HTTP ${res.status}`);
 		}
 		const array = Buffer.from(await res.arrayBuffer());
-		if (array.length > 5 * 1024 * 1024) {
-			throw new Error("Media exceeds 5MB limit");
+		if (array.length > MAX_WEB_BYTES) {
+			throw new Error(
+				`Media exceeds ${Math.floor(MAX_WEB_BYTES / (1024 * 1024))}MB limit (got ${(
+					array.length /
+					(1024 * 1024)
+				).toFixed(1)}MB)`,
+			);
 		}
 		return { buffer: array, contentType: res.headers.get("content-type") ?? undefined };
 	}
 	// Local path
 	const data = await fs.readFile(mediaUrl);
-	if (data.length > 5 * 1024 * 1024) {
-		throw new Error("Media exceeds 5MB limit");
+	if (data.length > MAX_WEB_BYTES) {
+		throw new Error(
+			`Media exceeds ${Math.floor(MAX_WEB_BYTES / (1024 * 1024))}MB limit (got ${(
+				data.length /
+				(1024 * 1024)
+			).toFixed(1)}MB)`,
+		);
 	}
 	return { buffer: data };
 }

@@ -1,7 +1,8 @@
 // Shared helpers for parsing MEDIA tokens from command/stdout text.
 
 export const MEDIA_LINE_RE = /\bMEDIA:/i;
-export const MEDIA_TOKEN_RE = /\bMEDIA:\s*([^\s]+)/i;
+// Allow optional wrapping backticks and punctuation after the token; capture the core token.
+export const MEDIA_TOKEN_RE = /\bMEDIA:\s*`?([^\s`]+)`?/i;
 
 export function normalizeMediaSource(src: string) {
 	if (src.startsWith("file://")) return src.replace("file://", "");
