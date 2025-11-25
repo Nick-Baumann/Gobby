@@ -341,10 +341,10 @@ function readWebSelfId() {
 	// Read the cached WhatsApp Web identity (jid + E.164) from disk if present.
 	const credsPath = path.join(WA_WEB_AUTH_DIR, "creds.json");
 	try {
-		if (!fs.existsSync(credsPath)) {
+		if (!fsSync.existsSync(credsPath)) {
 			return { e164: null, jid: null };
 		}
-		const raw = fs.readFileSync(credsPath, "utf-8");
+		const raw = fsSync.readFileSync(credsPath, "utf-8");
 		const parsed = JSON.parse(raw) as { me?: { id?: string } } | undefined;
 		const jid = parsed?.me?.id ?? null;
 		const e164 = jid ? jidToE164(jid) : null;

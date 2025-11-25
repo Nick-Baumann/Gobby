@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import fsSync from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MockBaileysSocket } from "../test/mocks/baileys.js";
 import { createMockBaileys } from "../test/mocks/baileys.js";
@@ -30,6 +31,7 @@ import {
 	createWaSocket,
 	loginWeb,
 	monitorWebInbox,
+	logWebSelfId,
 	sendMessageWeb,
 	waitForWaConnection,
 } from "./provider-web.js";
@@ -161,5 +163,29 @@ describe("provider-web", () => {
 		});
 
 		await listener.close();
+	});
+
+	it("logWebSelfId prints cached E.164 when creds exist", () => {
+		const existsSpy = vi
+			.spyOn(fsSync, "existsSync")
+			.mockReturnValue(true as never);
+		const readSpy = vi
+			.spyOn(fsSync, "readFileSync")
+			.mockReturnValue(
+				JSON.stringify({ me: { id: "12345@s.whatsapp.net" } }),
+			);
+		const runtime = {
+			log: vi.fn(),
+			error: vi.fn(),
+			exit: vi.fn(),
+		};
+
+		logWebSelfId(runtime as never);
+
+		expect(runtime.log).toHaveBeenCalledWith(
+			expect.stringContaining("+12345"),
+		);
+		existsSpy.mockRestore();
+		readSpy.mockRestore();
 	});
 });

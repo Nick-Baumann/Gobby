@@ -243,6 +243,8 @@ export async function getReplyFromConfig(
 			}
 		}
 		const finalArgv = argv;
+		const isClaudeInvocation =
+			finalArgv.length > 0 && path.basename(finalArgv[0]) === CLAUDE_BIN;
 		logVerbose(`Running command auto-reply: ${finalArgv.join(" ")}`);
 		const started = Date.now();
 		try {
@@ -255,7 +257,7 @@ export async function getReplyFromConfig(
 			if (stderr?.trim()) {
 				logVerbose(`Command auto-reply stderr: ${stderr.trim()}`);
 			}
-			if (reply.claudeOutputFormat === "json" && trimmed) {
+			if (trimmed && (reply.claudeOutputFormat === "json" || isClaudeInvocation)) {
 				// Claude JSON mode: extract the human text for both logging and reply while keeping metadata.
 				const parsed = parseClaudeJson(trimmed);
 				if (parsed?.parsed && isVerbose()) {

@@ -209,6 +209,34 @@ describe("config and templating", () => {
 
 		expect(result).toBe("hello world");
 	});
+
+	it("parses Claude JSON output even without explicit claudeOutputFormat when using claude bin", async () => {
+		const runSpy = vi.spyOn(index, "runCommandWithTimeout").mockResolvedValue({
+			stdout: '{"result":"Sure! What\'s up?"}\n',
+			stderr: "",
+			code: 0,
+			signal: null,
+			killed: false,
+		});
+		const cfg = {
+			inbound: {
+				reply: {
+					mode: "command" as const,
+					command: ["claude", "{{Body}}"],
+					// No claudeOutputFormat set on purpose
+				},
+			},
+		};
+
+		const result = await index.getReplyFromConfig(
+			{ Body: "hi", From: "+1", To: "+2" },
+			undefined,
+			cfg,
+			runSpy,
+		);
+
+		expect(result).toBe("Sure! What's up?");
+	});
 });
 
 describe("twilio interactions", () => {

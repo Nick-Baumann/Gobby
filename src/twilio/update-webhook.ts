@@ -1,7 +1,8 @@
-import { success, isVerbose, warn } from "../globals.js";
+import { isVerbose, success, warn } from "../globals.js";
+import { logError, logInfo } from "../logger.js";
 import { readEnv } from "../env.js";
 import { normalizeE164 } from "../utils.js";
-import type { RuntimeEnv } from "../runtime.js";
+import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import { createClient } from "./client.js";
 import type { TwilioSenderListClient, TwilioRequester } from "./types.js";
 
@@ -43,6 +44,7 @@ export async function setMessagingServiceWebhook(
 	client: TwilioSenderListClient,
 	url: string,
 	method: "POST" | "GET",
+	runtime: RuntimeEnv = defaultRuntime,
 ): Promise<boolean> {
 	const msid = await findMessagingServiceSid(client);
 	if (!msid) return false;
@@ -53,10 +55,9 @@ export async function setMessagingServiceWebhook(
 		});
 		const fetched = await client.messaging.v1.services(msid).fetch();
 		const stored = fetched?.inboundRequestUrl;
-		console.log(
-			success(
-				`✅ Messaging Service webhook set to ${stored ?? url} (service ${msid})`,
-			),
+		logInfo(
+			`✅ Messaging Service webhook set to ${stored ?? url} (service ${msid})`,
+			runtime,
 		);
 		return true;
 	} catch {
@@ -96,18 +97,19 @@ export async function updateWebhook(
 		const storedUrl =
 			fetched?.webhook?.callback_url || fetched?.webhook?.fallback_url;
 		if (storedUrl) {
-			console.log(success(`✅ Twilio sender webhook set to ${storedUrl}`));
+			logInfo(`✅ Twilio sender webhook set to ${storedUrl}`, runtime);
 			return;
 		}
 		if (isVerbose())
-			console.error(
+			logError(
 				"Sender updated but webhook callback_url missing; will try fallbacks",
+				runtime,
 			);
 	} catch (err) {
 		if (isVerbose())
-			console.error(
-				"channelsSenders request update failed, will try client helpers",
-				err,
+			logError(
+				`channelsSenders request update failed, will try client helpers: ${String(err)}`,
+				runtime,
 			);
 	}
 
@@ -127,18 +129,19 @@ export async function updateWebhook(
 		const storedUrl =
 			fetched?.webhook?.callback_url || fetched?.webhook?.fallback_url;
 		if (storedUrl) {
-			console.log(success(`✅ Twilio sender webhook set to ${storedUrl}`));
+			logInfo(`✅ Twilio sender webhook set to ${storedUrl}`, runtime);
 			return;
 		}
 		if (isVerbose())
-			console.error(
+			logError(
 				"Form update succeeded but callback_url missing; will try helper fallback",
+				runtime,
 			);
 	} catch (err) {
 		if (isVerbose())
-			console.error(
-				"Form channelsSenders update failed, will try helper fallback",
-				err,
+			logError(
+				`Form channelsSenders update failed, will try helper fallback: ${String(err)}`,
+				runtime,
 			);
 	}
 
@@ -154,18 +157,17 @@ export async function updateWebhook(
 				.fetch();
 			const storedUrl =
 				fetched?.webhook?.callback_url || fetched?.webhook?.fallback_url;
-			console.log(
-				success(
-					`✅ Twilio sender webhook set to ${storedUrl ?? url} (helper API)`,
-				),
+			logInfo(
+				`✅ Twilio sender webhook set to ${storedUrl ?? url} (helper API)`,
+				runtime,
 			);
 			return;
 		}
 	} catch (err) {
 		if (isVerbose())
-			console.error(
-				"channelsSenders helper update failed, will try phone number fallback",
-				err,
+			logError(
+				`channelsSenders helper update failed, will try phone number fallback: ${String(err)}`,
+				runtime,
 			);
 	}
 
@@ -177,14 +179,14 @@ export async function updateWebhook(
 				smsUrl: url,
 				smsMethod: method,
 			});
-			console.log(success(`✅ Phone webhook set to ${url} (number ${phoneSid})`));
+			logInfo(`✅ Phone webhook set to ${url} (number ${phoneSid})`, runtime);
 			return;
 		}
 	} catch (err) {
 		if (isVerbose())
-			console.error(
-				"Incoming phone number webhook update failed; no more fallbacks",
-				err,
+			logError(
+				`Incoming phone number webhook update failed; no more fallbacks: ${String(err)}`,
+				runtime,
 			);
 	}
 
