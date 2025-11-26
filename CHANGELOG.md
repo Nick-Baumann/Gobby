@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.1 — Unreleased
+## 1.2.0 — Unreleased
 
 ### Changes
 - Web relay now supports configurable command heartbeats (`inbound.reply.heartbeatMinutes`, default 30m) that ping Claude with a `HEARTBEAT_OK` sentinel; outbound messages are skipped when the token is returned, and normal/verbose logs record each heartbeat tick.

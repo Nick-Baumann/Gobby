@@ -182,6 +182,10 @@ Examples:
     .option("--provider <provider>", "auto | web", "auto")
     .option("--to <number>", "Override target E.164; defaults to allowFrom[0]")
     .option(
+      "--session-id <id>",
+      "Force a session id for this heartbeat (resumes a specific Claude session)",
+    )
+    .option(
       "--all",
       "Send heartbeat to all active sessions (or allowFrom entries when none)",
       false,
@@ -194,6 +198,7 @@ Examples:
   warelay heartbeat                 # uses web session + first allowFrom contact
   warelay heartbeat --verbose       # prints detailed heartbeat logs
   warelay heartbeat --to +1555123   # override destination
+  warelay heartbeat --session-id <uuid> --to +1555123   # resume a specific session
   warelay heartbeat --all           # send to every active session recipient or allowFrom entry`,
     )
     .action(async (opts) => {
@@ -246,6 +251,7 @@ Examples:
             to,
             verbose: Boolean(opts.verbose),
             runtime: defaultRuntime,
+            sessionId: opts.sessionId,
           });
         }
       } catch {
