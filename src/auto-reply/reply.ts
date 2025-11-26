@@ -148,7 +148,8 @@ export async function getReplyFromConfig(
   const allowFrom = cfg.inbound?.allowFrom;
   if (Array.isArray(allowFrom) && allowFrom.length > 0) {
     const from = (ctx.From ?? "").replace(/^whatsapp:/, "");
-    if (!allowFrom.includes(from)) {
+    // Support "*" as wildcard to allow all senders
+    if (!allowFrom.includes("*") && !allowFrom.includes(from)) {
       logVerbose(
         `Skipping auto-reply: sender ${from || "<unknown>"} not in allowFrom list`,
       );
