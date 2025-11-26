@@ -395,7 +395,7 @@ export async function getReplyFromConfig(
         },
       );
       const rawStdout = stdout.trim();
-      let mediaFromCommand: string | undefined;
+      let mediaFromCommand: string[] | undefined;
       let trimmed = rawStdout;
       if (stderr?.trim()) {
         logVerbose(`Command auto-reply stderr: ${stderr.trim()}`);
@@ -538,18 +538,13 @@ export async function autoReplyIfConfigured(
   if (mediaUrl) ctx.MediaUrl = mediaUrl;
 
   // Optional audio transcription before building reply.
-  if (cfg.inbound?.transcribeAudio && message.media?.length) {
-    const media = message.media[0];
+  const mediaField = (message as { media?: unknown }).media;
+  const mediaItems = Array.isArray(mediaField) ? mediaField : [];
+  if (cfg.inbound?.transcribeAudio && mediaItems.length) {
+    const media = mediaItems[0];
     const contentType = (media as { contentType?: string }).contentType;
     if (contentType?.startsWith("audio")) {
-      const transcribed = await transcribeInboundAudio(
-        cfg,
-        {
-          mediaUrl: mediaUrl ?? undefined,
-          contentType,
-        },
-        runtime,
-      );
+      const transcribed = await transcribeInboundAudio(cfg, ctx, runtime);
       if (transcribed?.text) {
         ctx.Body = transcribed.text;
         ctx.MediaType = contentType;
