@@ -43,6 +43,8 @@ Install from npm (global): `npm install -g warelay` (Node 22+). Then choose **on
 | `warelay send` | Send a WhatsApp message (Twilio or Web) | `--to <e164>` `--message <text>` `--wait <sec>` `--poll <sec>` `--provider twilio\|web` `--json` `--dry-run` `--verbose` |
 | `warelay relay` | Auto-reply loop (poll Twilio or listen on Web) | `--provider <auto\|twilio\|web>` `--interval <sec>` `--lookback <min>` `--verbose` |
 | `warelay status` | Show recent sent/received messages | `--limit <n>` `--lookback <min>` `--json` `--verbose` |
+| `warelay heartbeat` | Trigger one heartbeat poll (web) | `--provider <auto\|web>` `--to <e164?>` `--verbose` |
+| `warelay relay:tmux:heartbeat` | Start relay in tmux and fire a heartbeat on start (web) | _no flags_ |
 | `warelay webhook` | Run inbound webhook (`ingress=tailscale` updates Twilio; `none` is local-only) | `--ingress tailscale\|none` `--port <port>` `--path <path>` `--reply <text>` `--verbose` `--yes` `--dry-run` |
 | `warelay login` | Link personal WhatsApp Web via QR | `--verbose` |
 
@@ -111,11 +113,17 @@ Best practice: use a dedicated WhatsApp account (separate SIM/eSIM or business a
       bodyPrefix: "You are a concise WhatsApp assistant.\n\n",
       command: ["claude", "--dangerously-skip-permissions", "{{BodyStripped}}"],
       claudeOutputFormat: "text",
-      session: { scope: "per-sender", resetTriggers: ["/new"], idleMinutes: 60 }
+      session: { scope: "per-sender", resetTriggers: ["/new"], idleMinutes: 60 },
+      heartbeatMinutes: 30 // optional; pings Claude every 30m and only sends if it omits HEARTBEAT_OK
     }
   }
 }
 ```
+
+#### Heartbeat pings (command mode)
+- When `heartbeatMinutes` is set (default 30 for `mode: "command"`), the relay periodically runs your command/Claude session with a heartbeat prompt.
+- If Claude replies exactly `HEARTBEAT_OK`, the message is suppressed; otherwise the reply (or media) is forwarded. Suppressions are still logged so you know the heartbeat ran.
+- Trigger one manually with `warelay heartbeat` (web provider only). Use `--heartbeat-now` to fire once at relay start.
 
 ### Logging (optional)
 - File logs are written to `/tmp/warelay/warelay.log` by default. Levels: `silent | fatal | error | warn | info | debug | trace` (CLI `--verbose` forces `debug`). Web-provider inbound/outbound entries include message bodies and auto-reply text for easier auditing.

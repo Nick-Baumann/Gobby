@@ -3,7 +3,9 @@
 ## 1.1.1 — Unreleased
 
 ### Changes
-- Placeholder for upcoming patch fixes.
+- Web relay now supports configurable command heartbeats (`inbound.reply.heartbeatMinutes`, default 30m) that ping Claude with a `HEARTBEAT_OK` sentinel; outbound messages are skipped when the token is returned, and normal/verbose logs record each heartbeat tick.
+- New `warelay heartbeat` CLI triggers a one-off heartbeat (web provider, auto-detects logged-in session; optional `--to` override). Relay gains `--heartbeat-now` to fire an immediate heartbeat on startup.
+- Added `warelay relay:tmux:heartbeat` helper to start relay in tmux and emit a startup heartbeat automatically.
 
 ## 1.1.0 — 2025-11-26
 
