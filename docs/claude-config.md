@@ -9,13 +9,14 @@
 **This setup gives an AI full access to your computer.** Before you proceed, understand what you're signing up for:
 
 - 🔓 **`--dangerously-skip-permissions`** means Claude can run *any* shell command without asking
-- 💸 **Costs add up fast** - Opus 4.5 with extended thinking on every message isn't cheap
 - 🤖 **AI makes mistakes** - it might delete files, send emails, or do things you didn't intend
 - 🔥 **Heartbeats run autonomously** - your AI acts even when you're not watching
 - 📱 **WhatsApp is not encrypted E2E here** - messages pass through your Mac in plaintext
 
+**The good news:** We use Claude Code CLI, so you can reuse your existing [Claude Pro/Max subscription](https://claude.ai) - no separate API costs!
+
 **Start conservative:**
-1. Use `claude-sonnet-4-5` instead of Opus (faster, cheaper, still great)
+1. Use Sonnet instead of Opus for faster responses (still great!)
 2. Skip `--dangerously-skip-permissions` until you trust the setup
 3. Set `heartbeatMinutes: 0` to disable proactive pings initially
 4. Use a test phone number in `allowFrom` first
