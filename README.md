@@ -12,6 +12,9 @@
 
 Send, receive, auto-reply, and inspect WhatsApp messages over **Twilio** or your personal **WhatsApp Web** session. Ships with a one-command webhook setup (Tailscale Funnel + Twilio callback) and a configurable auto-reply engine (plain text or command/Claude driven).
 
+I'm using warelay to run **my personal, pro-active assistant, Clawd**.
+Follow me on Twitter - @steipete, this project is brand-new and there's a lot to discover.
+
 ## Quick Start (pick your engine)
 Install from npm (global): `npm install -g warelay` (Node 22+). Then choose **one** path:
 
