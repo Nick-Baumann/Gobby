@@ -114,6 +114,52 @@ describe("runCommandReply", () => {
     expect(finalArgv.at(-1)).not.toContain("You are Clawd (Claude)");
   });
 
+  it("prepends identity on first turn when sendSystemOnce=true", async () => {
+    const captures: ReplyPayload[] = [];
+    const runner = makeRunner({ stdout: "ok" }, captures);
+    await runCommandReply({
+      reply: {
+        mode: "command",
+        command: ["claude", "{{Body}}"],
+        claudeOutputFormat: "json",
+      },
+      templatingCtx: noopTemplateCtx,
+      sendSystemOnce: true,
+      isNewSession: true,
+      isFirstTurnInSession: true,
+      systemSent: false,
+      timeoutMs: 1000,
+      timeoutSeconds: 1,
+      commandRunner: runner,
+      enqueue: enqueueImmediate,
+    });
+    const finalArgv = captures[0].argv as string[];
+    expect(finalArgv.at(-1)).toContain("You are Clawd (Claude)");
+  });
+
+  it("still prepends identity if resume session but systemSent=false", async () => {
+    const captures: ReplyPayload[] = [];
+    const runner = makeRunner({ stdout: "ok" }, captures);
+    await runCommandReply({
+      reply: {
+        mode: "command",
+        command: ["claude", "{{Body}}"],
+        claudeOutputFormat: "json",
+      },
+      templatingCtx: noopTemplateCtx,
+      sendSystemOnce: true,
+      isNewSession: false,
+      isFirstTurnInSession: false,
+      systemSent: false,
+      timeoutMs: 1000,
+      timeoutSeconds: 1,
+      commandRunner: runner,
+      enqueue: enqueueImmediate,
+    });
+    const finalArgv = captures[0].argv as string[];
+    expect(finalArgv.at(-1)).toContain("You are Clawd (Claude)");
+  });
+
   it("picks session resume args when not new", async () => {
     const captures: ReplyPayload[] = [];
     const runner = makeRunner({ stdout: "hi" }, captures);
