@@ -1,6 +1,6 @@
-# Building Your Own AI Personal Assistant with Warelay
+# Building Your Own AI Personal Assistant with warelay
 
-> **TL;DR:** Warelay lets you turn Claude into a proactive personal assistant that lives in your pocket via WhatsApp. It can check in on you, remember context across conversations, run commands on your Mac, and even wake you up with music. This doc shows you how.
+> **TL;DR:** warelay lets you turn Claude into a proactive personal assistant that lives in your pocket via WhatsApp. It can check in on you, remember context across conversations, run commands on your Mac, and even wake you up with music. This doc shows you how.
 
 ---
 
