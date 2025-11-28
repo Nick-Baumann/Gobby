@@ -38,4 +38,20 @@ describe("web media loading", () => {
     expect(result.buffer.length).toBeLessThanOrEqual(cap);
     expect(result.buffer.length).toBeLessThan(buffer.length);
   });
+
+  it("sniffs mime before extension when loading local files", async () => {
+    const pngBuffer = await sharp({
+      create: { width: 2, height: 2, channels: 3, background: "#00ff00" },
+    })
+      .png()
+      .toBuffer();
+    const wrongExt = path.join(os.tmpdir(), `warelay-media-${Date.now()}.bin`);
+    tmpFiles.push(wrongExt);
+    await fs.writeFile(wrongExt, pngBuffer);
+
+    const result = await loadWebMedia(wrongExt, 1024 * 1024);
+
+    expect(result.kind).toBe("image");
+    expect(result.contentType).toBe("image/jpeg");
+  });
 });
