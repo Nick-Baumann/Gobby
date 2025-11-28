@@ -13,7 +13,7 @@
 Send, receive, auto-reply, and inspect WhatsApp messages over **Twilio** or your personal **WhatsApp Web** session. Ships with a one-command webhook setup (Tailscale Funnel + Twilio callback) and a configurable auto-reply engine (plain text or command/Claude driven).
 
 ### Clawd (personal assistant)
-I'm using warelay to run my personal, pro-active assistant, **Clawd**. Follow me on Twitter: [@steipete](https://twitter.com/steipete). This project is brand-new and there's a lot to discover. See the exact Claude setup in [`docs/claude-config.md`](https://github.com/steipete/warelay/blob/main/docs/claude-config.md).
+I'm using warelay to run my personal, pro-active assistant, **Clawd**. Follow me on Twitter: [@steipete](https://twitter.com/steipete). This project is brand-new and there's a lot to discover. See the exact Claude setup in [`docs/clawd.md`](https://github.com/steipete/warelay/blob/main/docs/clawd.md).
 
 I'm using warelay to run **my personal, pro-active assistant, Clawd**.
 Follow me on Twitter - @steipete, this project is brand-new and there's a lot to discover.
