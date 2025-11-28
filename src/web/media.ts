@@ -1,5 +1,4 @@
 import fs from "node:fs/promises";
-import path from "node:path";
 import sharp from "sharp";
 
 import { isVerbose, logVerbose } from "../globals.js";
@@ -8,6 +7,7 @@ import {
   maxBytesForKind,
   mediaKindFromMime,
 } from "../media/constants.js";
+import { detectMime } from "../media/mime.js";
 
 export async function loadWebMedia(
   mediaUrl: string,
@@ -45,7 +45,11 @@ export async function loadWebMedia(
       throw new Error(`Failed to fetch media: HTTP ${res.status}`);
     }
     const array = Buffer.from(await res.arrayBuffer());
-    const contentType = res.headers.get("content-type");
+    const contentType = detectMime({
+      buffer: array,
+      headerMime: res.headers.get("content-type"),
+      filePath: mediaUrl,
+    });
     const kind = mediaKindFromMime(contentType);
     const cap = Math.min(
       maxBytes ?? maxBytesForKind(kind),
@@ -66,24 +70,7 @@ export async function loadWebMedia(
 
   // Local path
   const data = await fs.readFile(mediaUrl);
-  const ext = path.extname(mediaUrl);
-  const mime =
-    (ext &&
-      (
-        {
-          ".jpg": "image/jpeg",
-          ".jpeg": "image/jpeg",
-          ".png": "image/png",
-          ".webp": "image/webp",
-          ".gif": "image/gif",
-          ".ogg": "audio/ogg",
-          ".opus": "audio/ogg",
-          ".mp3": "audio/mpeg",
-          ".mp4": "video/mp4",
-          ".pdf": "application/pdf",
-        } as Record<string, string | undefined>
-      )[ext.toLowerCase()]) ??
-    undefined;
+  const mime = detectMime({ buffer: data, filePath: mediaUrl });
   const kind = mediaKindFromMime(mime);
   const cap = Math.min(
     maxBytes ?? maxBytesForKind(kind),

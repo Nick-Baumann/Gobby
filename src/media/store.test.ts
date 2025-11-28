@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import sharp from "sharp";
 
 const realOs = await vi.importActual<typeof import("node:os")>("node:os");
 const HOME = path.join(realOs.tmpdir(), "warelay-home-test");
@@ -35,6 +36,16 @@ describe("media store", () => {
     const savedStat = await fs.stat(saved.path);
     expect(savedStat.size).toBe(buf.length);
     expect(saved.contentType).toBe("text/plain");
+    expect(saved.path.endsWith(".txt")).toBe(true);
+
+    const jpeg = await sharp({
+      create: { width: 2, height: 2, channels: 3, background: "#123456" },
+    })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+    const savedJpeg = await store.saveMediaBuffer(jpeg, "image/jpeg");
+    expect(savedJpeg.contentType).toBe("image/jpeg");
+    expect(savedJpeg.path.endsWith(".jpg")).toBe(true);
 
     const huge = Buffer.alloc(5 * 1024 * 1024 + 1);
     await expect(store.saveMediaBuffer(huge)).rejects.toThrow(
@@ -50,11 +61,29 @@ describe("media store", () => {
     expect(saved.size).toBe(10);
     const savedStat = await fs.stat(saved.path);
     expect(savedStat.isFile()).toBe(true);
+    expect(path.extname(saved.path)).toBe(".txt");
 
     // make the file look old and ensure cleanOldMedia removes it
     const past = Date.now() - 10_000;
     await fs.utimes(saved.path, past / 1000, past / 1000);
     await store.cleanOldMedia(1);
     await expect(fs.stat(saved.path)).rejects.toThrow();
+  });
+
+  it("renames media based on detected mime even when extension is wrong", async () => {
+    const pngBytes = await sharp({
+      create: { width: 2, height: 2, channels: 3, background: "#00ff00" },
+    })
+      .png()
+      .toBuffer();
+    const bogusExt = path.join(HOME, "image-wrong.bin");
+    await fs.writeFile(bogusExt, pngBytes);
+
+    const saved = await store.saveMediaSource(bogusExt);
+    expect(saved.contentType).toBe("image/png");
+    expect(path.extname(saved.path)).toBe(".png");
+
+    const buf = await fs.readFile(saved.path);
+    expect(buf.equals(pngBytes)).toBe(true);
   });
 });

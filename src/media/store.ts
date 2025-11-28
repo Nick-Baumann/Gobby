@@ -6,6 +6,8 @@ import os from "node:os";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 
+import { detectMime, extensionForMime } from "./mime.js";
+
 const MEDIA_DIR = path.join(os.homedir(), ".warelay", "media");
 const MAX_BYTES = 5 * 1024 * 1024; // 5MB
 const DEFAULT_TTL_MS = 2 * 60 * 1000; // 2 minutes
@@ -43,23 +45,42 @@ async function downloadToFile(
   url: string,
   dest: string,
   headers?: Record<string, string>,
-) {
-  await new Promise<void>((resolve, reject) => {
+): Promise<{ headerMime?: string; sniffBuffer: Buffer; size: number }>
+/**
+ * Download media to disk while capturing the first few KB for mime sniffing.
+ */
+{
+  return await new Promise((resolve, reject) => {
     const req = request(url, { headers }, (res) => {
       if (!res.statusCode || res.statusCode >= 400) {
         reject(new Error(`HTTP ${res.statusCode ?? "?"} downloading media`));
         return;
       }
       let total = 0;
+      const sniffChunks: Buffer[] = [];
+      let sniffLen = 0;
       const out = createWriteStream(dest);
       res.on("data", (chunk) => {
         total += chunk.length;
+        if (sniffLen < 16384) {
+          sniffChunks.push(chunk);
+          sniffLen += chunk.length;
+        }
         if (total > MAX_BYTES) {
           req.destroy(new Error("Media exceeds 5MB limit"));
         }
       });
       pipeline(res, out)
-        .then(() => resolve())
+        .then(() => {
+          const sniffBuffer = Buffer.concat(sniffChunks, Math.min(sniffLen, 16384));
+          const rawHeader = res.headers["content-type"];
+          const headerMime = Array.isArray(rawHeader) ? rawHeader[0] : rawHeader;
+          resolve({
+            headerMime,
+            sniffBuffer,
+            size: total,
+          });
+        })
         .catch(reject);
     });
     req.on("error", reject);
@@ -83,11 +104,22 @@ export async function saveMediaSource(
   await fs.mkdir(dir, { recursive: true });
   await cleanOldMedia();
   const id = crypto.randomUUID();
-  const dest = path.join(dir, id);
   if (looksLikeUrl(source)) {
-    await downloadToFile(source, dest, headers);
-    const stat = await fs.stat(dest);
-    return { id, path: dest, size: stat.size };
+    const tempDest = path.join(dir, `${id}.tmp`);
+    const { headerMime, sniffBuffer, size } = await downloadToFile(
+      source,
+      tempDest,
+      headers,
+    );
+    const mime = detectMime({
+      buffer: sniffBuffer,
+      headerMime,
+      filePath: source,
+    });
+    const ext = extensionForMime(mime) ?? path.extname(new URL(source).pathname);
+    const finalDest = path.join(dir, ext ? `${id}${ext}` : id);
+    await fs.rename(tempDest, finalDest);
+    return { id, path: finalDest, size, contentType: mime };
   }
   // local path
   const stat = await fs.stat(source);
@@ -97,8 +129,12 @@ export async function saveMediaSource(
   if (stat.size > MAX_BYTES) {
     throw new Error("Media exceeds 5MB limit");
   }
-  await fs.copyFile(source, dest);
-  return { id, path: dest, size: stat.size };
+  const buffer = await fs.readFile(source);
+  const mime = detectMime({ buffer, filePath: source });
+  const ext = extensionForMime(mime) ?? path.extname(source);
+  const dest = path.join(dir, ext ? `${id}${ext}` : id);
+  await fs.writeFile(dest, buffer);
+  return { id, path: dest, size: stat.size, contentType: mime };
 }
 
 export async function saveMediaBuffer(
@@ -112,7 +148,9 @@ export async function saveMediaBuffer(
   const dir = path.join(MEDIA_DIR, subdir);
   await fs.mkdir(dir, { recursive: true });
   const id = crypto.randomUUID();
-  const dest = path.join(dir, id);
+  const mime = detectMime({ buffer, headerMime: contentType });
+  const ext = extensionForMime(mime);
+  const dest = path.join(dir, ext ? `${id}${ext}` : id);
   await fs.writeFile(dest, buffer);
-  return { id, path: dest, size: buffer.byteLength, contentType };
+  return { id, path: dest, size: buffer.byteLength, contentType: mime };
 }
