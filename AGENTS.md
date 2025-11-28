@@ -21,6 +21,7 @@
 - Framework: Vitest with V8 coverage thresholds (70% lines/branches/functions/statements).
 - Naming: match source names with `*.test.ts`; e2e in `*.e2e.test.ts`.
 - Run `pnpm test` (or `pnpm test:coverage`) before pushing when you touch logic.
+- Pure test additions/fixes generally do **not** need a changelog entry unless they alter user-facing behavior or the user asks for one.
 
 ## Commit & Pull Request Guidelines
 - Follow concise, action-oriented commit messages (e.g., `CLI: add verbose flag to send`).
