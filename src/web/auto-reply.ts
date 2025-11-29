@@ -562,12 +562,26 @@ export async function monitorWebProvider(
 
         lastInboundMsg = msg;
 
+        // Build timestamp prefix if enabled
+        let timestampStr = "";
+        if (cfg.inbound?.timestampPrefix) {
+          const tz = cfg.inbound?.timestampTimezone ?? "UTC";
+          const now = new Date();
+          try {
+            // Format: "Nov 29 06:30" - compact but informative
+            timestampStr = `[${now.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: tz })} ${now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: tz })}] `;
+          } catch {
+            // Fallback to UTC if timezone invalid
+            timestampStr = `[${now.toISOString().slice(5, 16).replace("T", " ")}] `;
+          }
+        }
+
         // Prefix body with marker in same-phone mode so the assistant knows to prefix replies
         // The marker can be customized via config (default: "[same-phone]")
         const samePhoneMarker = cfg.inbound?.samePhoneMarker ?? "[same-phone]";
         const bodyForCommand = isSamePhoneMode
-          ? `${samePhoneMarker} ${msg.body}`
-          : msg.body;
+          ? `${timestampStr}${samePhoneMarker} ${msg.body}`
+          : `${timestampStr}${msg.body}`;
 
         const replyResult = await (replyResolver ?? getReplyFromConfig)(
           {
