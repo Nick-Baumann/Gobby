@@ -8,10 +8,11 @@ import {
   downloadMediaMessage,
 } from "@whiskeysockets/baileys";
 
+import { loadConfig } from "../config/config.js";
 import { isVerbose, logVerbose } from "../globals.js";
 import { getChildLogger } from "../logging.js";
 import { saveMediaBuffer } from "../media/store.js";
-import { jidToE164 } from "../utils.js";
+import { jidToE164, normalizeE164 } from "../utils.js";
 import {
   createWaSocket,
   getStatusCode,
@@ -94,6 +95,20 @@ export async function monitorWebInbox(options: {
       }
       const from = jidToE164(remoteJid);
       if (!from) continue;
+
+      // Filter unauthorized senders early to prevent wasted processing
+      // and potential session corruption from Bad MAC errors
+      const cfg = loadConfig();
+      const allowFrom = cfg.inbound?.allowFrom;
+      const isSamePhone = from === selfE164;
+
+      if (!isSamePhone && Array.isArray(allowFrom) && allowFrom.length > 0) {
+        if (!allowFrom.includes("*") && !allowFrom.map(normalizeE164).includes(from)) {
+          logVerbose(`Blocked unauthorized sender ${from} (not in allowFrom list)`);
+          continue; // Skip processing entirely
+        }
+      }
+
       let body = extractText(msg.message ?? undefined);
       if (!body) {
         body = extractMediaPlaceholder(msg.message ?? undefined);

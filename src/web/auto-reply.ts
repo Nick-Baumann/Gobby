@@ -512,9 +512,14 @@ export async function monitorWebProvider(
     const startedAt = Date.now();
     let heartbeat: NodeJS.Timeout | null = null;
     let replyHeartbeatTimer: NodeJS.Timeout | null = null;
+    let watchdogTimer: NodeJS.Timeout | null = null;
     let lastMessageAt: number | null = null;
     let handledMessages = 0;
     let lastInboundMsg: WebInboundMsg | null = null;
+
+    // Watchdog to detect stuck message processing (e.g., event emitter died)
+    const MESSAGE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes without any messages
+    const WATCHDOG_CHECK_MS = 60 * 1000; // Check every minute
 
     const listener = await (listenerFactory ?? monitorWebInbox)({
       verbose,
@@ -673,6 +678,7 @@ export async function monitorWebProvider(
     const closeListener = async () => {
       if (heartbeat) clearInterval(heartbeat);
       if (replyHeartbeatTimer) clearInterval(replyHeartbeatTimer);
+      if (watchdogTimer) clearInterval(watchdogTimer);
       try {
         await listener.close();
       } catch (err) {
@@ -683,18 +689,52 @@ export async function monitorWebProvider(
     if (keepAlive) {
       heartbeat = setInterval(() => {
         const authAgeMs = getWebAuthAgeMs();
-        heartbeatLogger.info(
-          {
-            connectionId,
-            reconnectAttempts,
-            messagesHandled: handledMessages,
-            lastMessageAt,
-            authAgeMs,
-            uptimeMs: Date.now() - startedAt,
-          },
-          "web relay heartbeat",
-        );
+        const minutesSinceLastMessage = lastMessageAt
+          ? Math.floor((Date.now() - lastMessageAt) / 60000)
+          : null;
+
+        const logData = {
+          connectionId,
+          reconnectAttempts,
+          messagesHandled: handledMessages,
+          lastMessageAt,
+          authAgeMs,
+          uptimeMs: Date.now() - startedAt,
+          ...(minutesSinceLastMessage !== null && minutesSinceLastMessage > 30
+            ? { minutesSinceLastMessage }
+            : {}),
+        };
+
+        // Warn if no messages in 30+ minutes
+        if (minutesSinceLastMessage && minutesSinceLastMessage > 30) {
+          heartbeatLogger.warn(logData, "⚠️ web relay heartbeat - no messages in 30+ minutes");
+        } else {
+          heartbeatLogger.info(logData, "web relay heartbeat");
+        }
       }, heartbeatSeconds * 1000);
+
+      // Watchdog: Auto-restart if no messages received for MESSAGE_TIMEOUT_MS
+      watchdogTimer = setInterval(() => {
+        if (lastMessageAt) {
+          const timeSinceLastMessage = Date.now() - lastMessageAt;
+          if (timeSinceLastMessage > MESSAGE_TIMEOUT_MS) {
+            const minutesSinceLastMessage = Math.floor(timeSinceLastMessage / 60000);
+            heartbeatLogger.warn(
+              {
+                connectionId,
+                minutesSinceLastMessage,
+                lastMessageAt: new Date(lastMessageAt),
+                messagesHandled: handledMessages,
+              },
+              "Message timeout detected - forcing reconnect",
+            );
+            console.error(
+              `⚠️  No messages received in ${minutesSinceLastMessage}m - restarting connection`,
+            );
+            closeListener(); // Trigger reconnect
+          }
+        }
+      }, WATCHDOG_CHECK_MS);
     }
 
     const runReplyHeartbeat = async () => {

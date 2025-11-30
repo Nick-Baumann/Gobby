@@ -5,6 +5,14 @@ import path from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+vi.mock("../config/config.js", () => ({
+  loadConfig: vi.fn().mockReturnValue({
+    inbound: {
+      allowFrom: ["*"], // Allow all in tests
+    },
+  }),
+}));
+
 const HOME = path.join(
   os.tmpdir(),
   `warelay-inbound-media-${crypto.randomUUID()}`,

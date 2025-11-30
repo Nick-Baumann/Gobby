@@ -9,6 +9,14 @@ vi.mock("../media/store.js", () => ({
   }),
 }));
 
+vi.mock("../config/config.js", () => ({
+  loadConfig: vi.fn().mockReturnValue({
+    inbound: {
+      allowFrom: ["*"], // Allow all in tests
+    },
+  }),
+}));
+
 vi.mock("./session.js", () => {
   const { EventEmitter } = require("node:events");
   const ev = new EventEmitter();
