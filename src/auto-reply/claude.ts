@@ -160,3 +160,6 @@ export function parseClaudeJsonText(raw: string): string | undefined {
   const parsed = parseClaudeJson(raw);
   return parsed?.text;
 }
+
+// Re-export from command-reply for backwards compatibility
+export { summarizeClaudeMetadata } from "./command-reply.js";
