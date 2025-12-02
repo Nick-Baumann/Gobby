@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.3 — Unreleased
+## 1.3.0 — Unreleased
 
 ### Bug Fixes
 - **Empty result field handling:** Fixed bug where Claude CLI returning `result: ""` (empty string) would cause raw JSON to be sent to WhatsApp instead of being treated as valid empty output. Changed truthy check to explicit type check in `command-reply.ts`.
