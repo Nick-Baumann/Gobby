@@ -762,7 +762,7 @@ describe("config and templating", () => {
         reply: {
           mode: "command" as const,
           command: ["claude", "{{Body}}"],
-          claudeOutputFormat: "text" as const,
+          agent: { kind: "claude", format: "text" as const },
         },
       },
     };
@@ -802,7 +802,7 @@ describe("config and templating", () => {
         reply: {
           mode: "command" as const,
           command: ["claude", "{{Body}}"],
-          claudeOutputFormat: "json" as const,
+          agent: { kind: "claude", format: "json" as const },
         },
       },
     };
@@ -830,7 +830,7 @@ describe("config and templating", () => {
         reply: {
           mode: "command" as const,
           command: ["claude", "{{Body}}"],
-          // No claudeOutputFormat set on purpose
+          agent: { kind: "claude" },
         },
       },
     };

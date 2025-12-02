@@ -5,8 +5,9 @@ import path from "node:path";
 import JSON5 from "json5";
 import { z } from "zod";
 
+import type { AgentKind } from "../agents/index.js";
+
 export type ReplyMode = "text" | "command";
-export type ClaudeOutputFormat = "text" | "json" | "stream-json";
 export type SessionScope = "per-sender" | "global";
 
 export type SessionConfig = {
@@ -56,18 +57,22 @@ export type WarelayConfig = {
     };
     reply?: {
       mode: ReplyMode;
-      text?: string; // for mode=text, can contain {{Body}}
-      command?: string[]; // for mode=command, argv with templates
-      cwd?: string; // working directory for command execution
-      template?: string; // prepend template string when building command/prompt
-      timeoutSeconds?: number; // optional command timeout; defaults to 600s
-      bodyPrefix?: string; // optional string prepended to Body before templating
-      mediaUrl?: string; // optional media attachment (path or URL)
+      text?: string;
+      command?: string[];
+      cwd?: string;
+      template?: string;
+      timeoutSeconds?: number;
+      bodyPrefix?: string;
+      mediaUrl?: string;
       session?: SessionConfig;
-      claudeOutputFormat?: ClaudeOutputFormat; // when command starts with `claude`, force an output format
-      mediaMaxMb?: number; // optional cap for outbound media (default 5MB)
-      typingIntervalSeconds?: number; // how often to refresh typing indicator while command runs
-      heartbeatMinutes?: number; // auto-ping cadence for command mode
+      mediaMaxMb?: number;
+      typingIntervalSeconds?: number;
+      heartbeatMinutes?: number;
+      agent?: {
+        kind: AgentKind;
+        format?: "text" | "json";
+        identityPrefix?: string;
+      };
     };
   };
   web?: WebConfig;
@@ -105,13 +110,17 @@ const ReplySchema = z
       })
       .optional(),
     heartbeatMinutes: z.number().int().nonnegative().optional(),
-    claudeOutputFormat: z
-      .union([
-        z.literal("text"),
-        z.literal("json"),
-        z.literal("stream-json"),
-        z.undefined(),
-      ])
+    agent: z
+      .object({
+        kind: z.union([
+          z.literal("claude"),
+          z.literal("opencode"),
+          z.literal("pi"),
+          z.literal("codex"),
+        ]),
+        format: z.union([z.literal("text"), z.literal("json")]).optional(),
+        identityPrefix: z.string().optional(),
+      })
       .optional(),
   })
   .refine(

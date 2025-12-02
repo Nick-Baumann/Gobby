@@ -18,7 +18,7 @@ import { monitorWebInbox } from "./inbound.js";
 import { sendViaIpc, startIpcServer, stopIpcServer } from "./ipc.js";
 import { loadWebMedia } from "./media.js";
 import { sendMessageWeb } from "./outbound.js";
-import { getQueueSize } from "../process/command-queue.js";
+import { enqueueCommand, getQueueSize } from "../process/command-queue.js";
 import {
   computeBackoff,
   newConnectionId,
@@ -621,19 +621,21 @@ export async function monitorWebProvider(
         : new Date().toISOString();
       console.log(`\n[${tsDisplay}] ${from} -> ${latest.to}: ${combinedBody}`);
 
-      const replyResult = await (replyResolver ?? getReplyFromConfig)(
-        {
-          Body: combinedBody,
-          From: latest.from,
-          To: latest.to,
-          MessageSid: latest.id,
-          MediaPath: latest.mediaPath,
-          MediaUrl: latest.mediaUrl,
-          MediaType: latest.mediaType,
-        },
-        {
-          onReplyStart: latest.sendComposing,
-        },
+      const replyResult = await enqueueCommand(() =>
+        (replyResolver ?? getReplyFromConfig)(
+          {
+            Body: combinedBody,
+            From: latest.from,
+            To: latest.to,
+            MessageSid: latest.id,
+            MediaPath: latest.mediaPath,
+            MediaUrl: latest.mediaUrl,
+            MediaType: latest.mediaType,
+          },
+          {
+            onReplyStart: latest.sendComposing,
+          },
+        ),
       );
 
       if (
@@ -917,19 +919,24 @@ export async function monitorWebProvider(
             "reply heartbeat start",
           );
         }
-        const replyResult = await (replyResolver ?? getReplyFromConfig)(
-          {
-            Body: HEARTBEAT_PROMPT,
-            From: lastInboundMsg.from,
-            To: lastInboundMsg.to,
-            MessageSid: snapshot.entry?.sessionId,
-            MediaPath: undefined,
-            MediaUrl: undefined,
-            MediaType: undefined,
-          },
-          {
-            onReplyStart: lastInboundMsg.sendComposing,
-          },
+        const hbFrom = lastInboundMsg.from;
+        const hbTo = lastInboundMsg.to;
+        const hbComposing = lastInboundMsg.sendComposing;
+        const replyResult = await enqueueCommand(() =>
+          (replyResolver ?? getReplyFromConfig)(
+            {
+              Body: HEARTBEAT_PROMPT,
+              From: hbFrom,
+              To: hbTo,
+              MessageSid: snapshot.entry?.sessionId,
+              MediaPath: undefined,
+              MediaUrl: undefined,
+              MediaType: undefined,
+            },
+            {
+              onReplyStart: hbComposing,
+            },
+          ),
         );
 
         if (

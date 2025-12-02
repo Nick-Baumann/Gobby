@@ -70,7 +70,7 @@ describe("runCommandReply", () => {
       reply: {
         mode: "command",
         command: ["claude", "{{Body}}"],
-        claudeOutputFormat: "json",
+        agent: { kind: "claude", format: "json" },
       },
       templatingCtx: noopTemplateCtx,
       sendSystemOnce: false,
@@ -98,7 +98,7 @@ describe("runCommandReply", () => {
       reply: {
         mode: "command",
         command: ["claude", "{{Body}}"],
-        claudeOutputFormat: "json",
+        agent: { kind: "claude", format: "json" },
       },
       templatingCtx: noopTemplateCtx,
       sendSystemOnce: true,
@@ -121,7 +121,7 @@ describe("runCommandReply", () => {
       reply: {
         mode: "command",
         command: ["claude", "{{Body}}"],
-        claudeOutputFormat: "json",
+        agent: { kind: "claude", format: "json" },
       },
       templatingCtx: noopTemplateCtx,
       sendSystemOnce: true,
@@ -144,7 +144,7 @@ describe("runCommandReply", () => {
       reply: {
         mode: "command",
         command: ["claude", "{{Body}}"],
-        claudeOutputFormat: "json",
+        agent: { kind: "claude", format: "json" },
       },
       templatingCtx: noopTemplateCtx,
       sendSystemOnce: true,
@@ -167,6 +167,7 @@ describe("runCommandReply", () => {
       reply: {
         mode: "command",
         command: ["cli", "{{Body}}"],
+        agent: { kind: "claude" },
         session: {
           sessionArgNew: ["--new", "{{SessionId}}"],
           sessionArgResume: ["--resume", "{{SessionId}}"],
@@ -192,7 +193,7 @@ describe("runCommandReply", () => {
       throw { stdout: "partial output here", killed: true, signal: "SIGKILL" };
     });
     const { payload, meta } = await runCommandReply({
-      reply: { mode: "command", command: ["echo", "hi"] },
+      reply: { mode: "command", command: ["echo", "hi"], agent: { kind: "claude" } },
       templatingCtx: noopTemplateCtx,
       sendSystemOnce: false,
       isNewSession: true,
@@ -213,7 +214,7 @@ describe("runCommandReply", () => {
       throw { stdout: "", killed: true, signal: "SIGKILL" };
     });
     const { payload } = await runCommandReply({
-      reply: { mode: "command", command: ["echo", "hi"], cwd: "/tmp/work" },
+      reply: { mode: "command", command: ["echo", "hi"], cwd: "/tmp/work", agent: { kind: "claude" } },
       templatingCtx: noopTemplateCtx,
       sendSystemOnce: false,
       isNewSession: true,
@@ -235,7 +236,7 @@ describe("runCommandReply", () => {
       stdout: `hi\nMEDIA:${tmp}\nMEDIA:https://example.com/img.jpg`,
     });
     const { payload } = await runCommandReply({
-      reply: { mode: "command", command: ["echo", "hi"], mediaMaxMb: 1 },
+      reply: { mode: "command", command: ["echo", "hi"], mediaMaxMb: 1, agent: { kind: "claude" } },
       templatingCtx: noopTemplateCtx,
       sendSystemOnce: false,
       isNewSession: true,
@@ -259,7 +260,7 @@ describe("runCommandReply", () => {
       reply: {
         mode: "command",
         command: ["claude", "{{Body}}"],
-        claudeOutputFormat: "json",
+        agent: { kind: "claude", format: "json" },
       },
       templatingCtx: noopTemplateCtx,
       sendSystemOnce: false,
@@ -271,14 +272,14 @@ describe("runCommandReply", () => {
       commandRunner: runner,
       enqueue: enqueueImmediate,
     });
-    expect(meta.claudeMeta).toContain("duration=50ms");
-    expect(meta.claudeMeta).toContain("tool_calls=1");
+    expect(meta.agentMeta?.extra?.summary).toContain("duration=50ms");
+    expect(meta.agentMeta?.extra?.summary).toContain("tool_calls=1");
   });
 
   it("captures queue wait metrics in meta", async () => {
     const runner = makeRunner({ stdout: "ok" });
     const { meta } = await runCommandReply({
-      reply: { mode: "command", command: ["echo", "{{Body}}"] },
+      reply: { mode: "command", command: ["echo", "{{Body}}"], agent: { kind: "claude" } },
       templatingCtx: noopTemplateCtx,
       sendSystemOnce: false,
       isNewSession: true,
@@ -303,7 +304,7 @@ describe("runCommandReply", () => {
       reply: {
         mode: "command",
         command: ["claude", "{{Body}}"],
-        claudeOutputFormat: "json",
+        agent: { kind: "claude", format: "json" },
       },
       templatingCtx: noopTemplateCtx,
       sendSystemOnce: false,
@@ -328,7 +329,7 @@ describe("runCommandReply", () => {
       reply: {
         mode: "command",
         command: ["claude", "{{Body}}"],
-        claudeOutputFormat: "json",
+        agent: { kind: "claude", format: "json" },
       },
       templatingCtx: noopTemplateCtx,
       sendSystemOnce: false,
@@ -353,7 +354,7 @@ describe("runCommandReply", () => {
       reply: {
         mode: "command",
         command: ["claude", "{{Body}}"],
-        claudeOutputFormat: "json",
+        agent: { kind: "claude", format: "json" },
       },
       templatingCtx: noopTemplateCtx,
       sendSystemOnce: false,

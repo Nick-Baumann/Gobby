@@ -1,18 +1,14 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { getAgentSpec } from "../agents/index.js";
+import type { AgentMeta } from "../agents/types.js";
 import type { WarelayConfig } from "../config/config.js";
 import { isVerbose, logVerbose } from "../globals.js";
 import { logError } from "../logger.js";
 import { splitMediaFromOutput } from "../media/parse.js";
 import { enqueueCommand } from "../process/command-queue.js";
 import type { runCommandWithTimeout } from "../process/exec.js";
-import {
-  CLAUDE_BIN,
-  CLAUDE_IDENTITY_PREFIX,
-  type ClaudeJsonParseResult,
-  parseClaudeJson,
-} from "./claude.js";
 import { applyTemplate, type TemplateContext } from "./templating.js";
 import type { ReplyPayload } from "./types.js";
 
@@ -42,7 +38,7 @@ export type CommandReplyMeta = {
   exitCode?: number | null;
   signal?: string | null;
   killed?: boolean;
-  claudeMeta?: string;
+  agentMeta?: AgentMeta;
 };
 
 export type CommandReplyResult = {
@@ -119,6 +115,8 @@ export async function runCommandReply(
   if (!reply.command?.length) {
     throw new Error("reply.command is required for mode=command");
   }
+  const agentCfg = reply.agent ?? { kind: "claude" };
+  const agent = getAgentSpec(agentCfg.kind as any);
 
   let argv = reply.command.map((part) => applyTemplate(part, templatingCtx));
   const templatePrefix =
@@ -129,66 +127,47 @@ export async function runCommandReply(
     argv = [argv[0], templatePrefix, ...argv.slice(1)];
   }
 
-  // Ensure Claude commands can emit plain text by forcing --output-format when configured.
-  if (
-    reply.claudeOutputFormat &&
-    argv.length > 0 &&
-    path.basename(argv[0]) === CLAUDE_BIN
-  ) {
-    const hasOutputFormat = argv.some(
-      (part) =>
-        part === "--output-format" || part.startsWith("--output-format="),
-    );
-    const insertBeforeBody = Math.max(argv.length - 1, 0);
-    if (!hasOutputFormat) {
-      argv = [
-        ...argv.slice(0, insertBeforeBody),
-        "--output-format",
-        reply.claudeOutputFormat,
-        ...argv.slice(insertBeforeBody),
-      ];
-    }
-    const hasPrintFlag = argv.some(
-      (part) => part === "-p" || part === "--print",
-    );
-    if (!hasPrintFlag) {
-      const insertIdx = Math.max(argv.length - 1, 0);
-      argv = [...argv.slice(0, insertIdx), "-p", ...argv.slice(insertIdx)];
-    }
-  }
+  // Default body index is last arg
+  let bodyIndex = Math.max(argv.length - 1, 0);
 
-  // Inject session args if configured (use resume for existing, session-id for new)
+  // Session args prepared (templated) and injected generically
   if (reply.session) {
+    const defaultNew =
+      agentCfg.kind === "claude"
+        ? ["--session-id", "{{SessionId}}"]
+        : ["--session", "{{SessionId}}"];
+    const defaultResume =
+      agentCfg.kind === "claude"
+        ? ["--resume", "{{SessionId}}"]
+        : ["--session", "{{SessionId}}"];
     const sessionArgList = (
       isNewSession
-        ? (reply.session.sessionArgNew ?? ["--session-id", "{{SessionId}}"])
-        : (reply.session.sessionArgResume ?? ["--resume", "{{SessionId}}"])
-    ).map((part) => applyTemplate(part, templatingCtx));
+        ? reply.session.sessionArgNew ?? defaultNew
+        : reply.session.sessionArgResume ?? defaultResume
+    ).map((p) => applyTemplate(p, templatingCtx));
     if (sessionArgList.length) {
       const insertBeforeBody = reply.session.sessionArgBeforeBody ?? true;
       const insertAt =
         insertBeforeBody && argv.length > 1 ? argv.length - 1 : argv.length;
-      argv = [
-        ...argv.slice(0, insertAt),
-        ...sessionArgList,
-        ...argv.slice(insertAt),
-      ];
+      argv = [...argv.slice(0, insertAt), ...sessionArgList, ...argv.slice(insertAt)];
+      bodyIndex = Math.max(argv.length - 1, 0);
     }
   }
 
-  let finalArgv = argv;
-  const isClaudeInvocation =
-    finalArgv.length > 0 && path.basename(finalArgv[0]) === CLAUDE_BIN;
-  const shouldPrependIdentity =
-    isClaudeInvocation && !(sendSystemOnce && systemSent);
-  if (shouldPrependIdentity && finalArgv.length > 0) {
-    const bodyIdx = finalArgv.length - 1;
-    const existingBody = finalArgv[bodyIdx] ?? "";
-    finalArgv = [
-      ...finalArgv.slice(0, bodyIdx),
-      [CLAUDE_IDENTITY_PREFIX, existingBody].filter(Boolean).join("\n\n"),
-    ];
-  }
+  const shouldApplyAgent = agent.isInvocation(argv);
+  const finalArgv = shouldApplyAgent
+    ? agent.buildArgs({
+        argv,
+        bodyIndex,
+        isNewSession,
+        sessionId: templatingCtx.SessionId,
+        sendSystemOnce,
+        systemSent,
+        identityPrefix: agentCfg.identityPrefix,
+        format: agentCfg.format,
+      })
+    : argv;
+
   logVerbose(
     `Running command auto-reply: ${finalArgv.join(" ")}${reply.cwd ? ` (cwd: ${reply.cwd})` : ""}`,
   );
@@ -217,28 +196,12 @@ export async function runCommandReply(
     if (stderr?.trim()) {
       logVerbose(`Command auto-reply stderr: ${stderr.trim()}`);
     }
-    let parsed: ClaudeJsonParseResult | undefined;
-    if (
-      trimmed &&
-      (reply.claudeOutputFormat === "json" || isClaudeInvocation)
-    ) {
-      parsed = parseClaudeJson(trimmed);
-      if (parsed?.parsed && isVerbose()) {
-        const summary = summarizeClaudeMetadata(parsed.parsed);
-        if (summary) logVerbose(`Claude JSON meta: ${summary}`);
-        logVerbose(
-          `Claude JSON raw: ${JSON.stringify(parsed.parsed, null, 2)}`,
-        );
-      }
-      if (typeof parsed?.text === "string") {
-        logVerbose(
-          `Claude JSON parsed -> ${parsed.text.slice(0, 120)}${parsed.text.length > 120 ? "…" : ""}`,
-        );
-        trimmed = parsed.text.trim();
-      } else {
-        logVerbose("Claude JSON parse failed; returning raw stdout");
-      }
+
+    const parsed = trimmed ? agent.parseOutput(trimmed) : undefined;
+    if (parsed && parsed.text !== undefined) {
+      trimmed = parsed.text.trim();
     }
+
     const { text: cleanedText, mediaUrls: mediaFound } =
       splitMediaFromOutput(trimmed);
     trimmed = cleanedText;
@@ -249,7 +212,7 @@ export async function runCommandReply(
       logVerbose("No MEDIA token extracted from final text");
     }
     if (!trimmed && !mediaFromCommand) {
-      const meta = parsed ? summarizeClaudeMetadata(parsed.parsed) : undefined;
+      const meta = parsed?.meta?.extra?.summary ?? undefined;
       trimmed = `(command produced no output${meta ? `; ${meta}` : ""})`;
       logVerbose("No text/media produced; injecting fallback notice to user");
     }
@@ -271,9 +234,7 @@ export async function runCommandReply(
           exitCode: code,
           signal,
           killed,
-          claudeMeta: parsed
-            ? summarizeClaudeMetadata(parsed.parsed)
-            : undefined,
+          agentMeta: parsed?.meta,
         },
       };
     }
@@ -291,9 +252,7 @@ export async function runCommandReply(
           exitCode: code,
           signal,
           killed,
-          claudeMeta: parsed
-            ? summarizeClaudeMetadata(parsed.parsed)
-            : undefined,
+          agentMeta: parsed?.meta,
         },
       };
     }
@@ -341,7 +300,7 @@ export async function runCommandReply(
       exitCode: code,
       signal,
       killed,
-      claudeMeta: parsed ? summarizeClaudeMetadata(parsed.parsed) : undefined,
+      agentMeta: parsed?.meta,
     };
     if (isVerbose()) {
       logVerbose(`Command auto-reply meta: ${JSON.stringify(meta)}`);
