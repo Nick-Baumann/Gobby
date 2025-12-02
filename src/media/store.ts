@@ -1,5 +1,3 @@
-// ABOUTME: Media storage utilities - downloads from URLs and saves to disk
-// ABOUTME: Handles both remote URLs (with redirect support) and local file paths
 import crypto from "node:crypto";
 import { createWriteStream } from "node:fs";
 import fs from "node:fs/promises";
