@@ -641,6 +641,115 @@ describe("config and templating", () => {
     expect(ack?.text).toBe("Thinking level set to high.");
   });
 
+  it("enables verbose via directive-only and skips command", async () => {
+    const runSpy = vi.spyOn(index, "runCommandWithTimeout").mockResolvedValue({
+      stdout: "ok",
+      stderr: "",
+      code: 0,
+      signal: null,
+      killed: false,
+    });
+    const cfg = {
+      inbound: {
+        reply: {
+          mode: "command" as const,
+          command: ["echo", "{{Body}}"],
+          agent: { kind: "claude" },
+        },
+      },
+    };
+
+    const ack = await index.getReplyFromConfig(
+      { Body: "/v:on", From: "+1", To: "+2" },
+      undefined,
+      cfg,
+      runSpy,
+    );
+
+    expect(runSpy).not.toHaveBeenCalled();
+    expect(ack?.text).toBe("Verbose logging enabled.");
+  });
+
+  it("rejects invalid verbose directive-only and preserves state", async () => {
+    const runSpy = vi.spyOn(index, "runCommandWithTimeout").mockResolvedValue({
+      stdout: "ok",
+      stderr: "",
+      code: 0,
+      signal: null,
+      killed: false,
+    });
+    const storeDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "warelay-session-"),
+    );
+    const storePath = path.join(storeDir, "sessions.json");
+    const cfg = {
+      inbound: {
+        reply: {
+          mode: "command" as const,
+          command: ["echo", "{{Body}}"],
+          agent: { kind: "claude" },
+          session: { store: storePath },
+        },
+      },
+    };
+
+    const ack = await index.getReplyFromConfig(
+      { Body: "/verbose maybe", From: "+1", To: "+2" },
+      undefined,
+      cfg,
+      runSpy,
+    );
+
+    expect(runSpy).not.toHaveBeenCalled();
+    expect(ack?.text).toContain("Unrecognized verbose level");
+
+    await index.getReplyFromConfig(
+      { Body: "hi", From: "+1", To: "+2" },
+      undefined,
+      cfg,
+      runSpy,
+    );
+    expect(runSpy).toHaveBeenCalledTimes(1);
+    const args = runSpy.mock.calls[0][0] as string[];
+    const bodyArg = args[args.length - 1];
+    expect(bodyArg).toBe("hi");
+  });
+
+  it("shows tool results when verbose is on for pi", async () => {
+    const rpcSpy = vi.spyOn(tauRpc, "runPiRpc").mockResolvedValue({
+      stdout:
+        '{"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"summary"}]}}\n' +
+        '{"type":"message_end","message":{"role":"tool_result","content":[{"type":"text","text":"ls output"}]}}',
+      stderr: "",
+      code: 0,
+      signal: null,
+      killed: false,
+    });
+    const cfg = {
+      inbound: {
+        reply: {
+          mode: "command" as const,
+          command: ["pi", "--mode", "json", "{{Body}}"],
+          agent: { kind: "pi" },
+        },
+      },
+    };
+
+    const res = await index.getReplyFromConfig(
+      { Body: "/v on hi", From: "+1", To: "+2" },
+      undefined,
+      cfg,
+    );
+
+    expect(rpcSpy).toHaveBeenCalled();
+    const payloads = Array.isArray(res) ? res : res ? [res] : [];
+    expect(payloads.length).toBeGreaterThanOrEqual(2);
+    expect(payloads[0]?.text).toContain("summary");
+    expect(payloads.find((p) => p.text?.includes("🛠️"))?.text).toContain(
+      "ls output",
+    );
+  });
+
   it("treats directive-only even when bracket prefixes are present", async () => {
     const runSpy = vi.spyOn(index, "runCommandWithTimeout").mockResolvedValue({
       stdout: "ok",

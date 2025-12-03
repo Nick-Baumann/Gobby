@@ -24,5 +24,11 @@
 - **Pi/Tau**: injects `--thinking <level>` (skipped for `off`).
 - **Claude & other text agents**: appends the cue word to the prompt text as above.
 
+## Verbose directives (/verbose or /v)
+- Levels: `on|full` or `off` (default).
+- Directive-only message toggles session verbose and replies `Verbose logging enabled.` / `Verbose logging disabled.`; invalid levels return a hint without changing state.
+- Inline directive affects only that message; session/global defaults apply otherwise.
+- When verbose is on, agents that emit structured tool results (Pi/Tau, other JSON agents) send each tool result back as its own message, prefixed with `🛠️`.
+
 ## Heartbeats
 - Heartbeat probe body is `HEARTBEAT /think:high`, so it always asks for max thinking on the probe. Inline directive wins; session/global defaults are used only when no directive is present.

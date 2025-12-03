@@ -61,6 +61,7 @@ export type WarelayConfig = {
       command?: string[];
       heartbeatCommand?: string[];
       thinkingDefault?: "off" | "minimal" | "low" | "medium" | "high";
+      verboseDefault?: "off" | "on";
       cwd?: string;
       template?: string;
       timeoutSeconds?: number;
@@ -97,6 +98,7 @@ const ReplySchema = z
         z.literal("high"),
       ])
       .optional(),
+    verboseDefault: z.union([z.literal("off"), z.literal("on")]).optional(),
     cwd: z.string().optional(),
     template: z.string().optional(),
     timeoutSeconds: z.number().int().positive().optional(),

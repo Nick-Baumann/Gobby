@@ -9,6 +9,7 @@ type PiAssistantMessage = {
   model?: string;
   provider?: string;
   stopReason?: string;
+  toolCallId?: string;
 };
 
 function parsePiJson(raw: string): AgentParseResult {
@@ -16,6 +17,7 @@ function parsePiJson(raw: string): AgentParseResult {
 
   // Collect only completed assistant messages (skip streaming updates/toolcalls).
   const texts: string[] = [];
+  const toolResults: string[] = [];
   let lastAssistant: PiAssistantMessage | undefined;
   let lastPushed: string | undefined;
 
@@ -26,12 +28,17 @@ function parsePiJson(raw: string): AgentParseResult {
         message?: PiAssistantMessage;
       };
 
+      const isToolResult =
+        (ev.type === "message" || ev.type === "message_end") &&
+        ev.message?.role &&
+        typeof ev.message.role === "string" &&
+        ev.message.role.toLowerCase().includes("tool");
       const isAssistantMessage =
         (ev.type === "message" || ev.type === "message_end") &&
         ev.message?.role === "assistant" &&
         Array.isArray(ev.message.content);
 
-      if (!isAssistantMessage) continue;
+      if (!isAssistantMessage && !isToolResult) continue;
 
       const msg = ev.message as PiAssistantMessage;
       const msgText = msg.content
@@ -40,10 +47,19 @@ function parsePiJson(raw: string): AgentParseResult {
         .join("\n")
         .trim();
 
-      if (msgText && msgText !== lastPushed) {
-        texts.push(msgText);
-        lastPushed = msgText;
-        lastAssistant = msg;
+      if (isAssistantMessage) {
+        if (msgText && msgText !== lastPushed) {
+          texts.push(msgText);
+          lastPushed = msgText;
+          lastAssistant = msg;
+        }
+      } else if (isToolResult && msg.content) {
+        const toolText = msg.content
+          ?.filter((c) => c?.type === "text" && typeof c.text === "string")
+          .map((c) => c.text)
+          .join("\n")
+          .trim();
+        if (toolText) toolResults.push(toolText);
       }
     } catch {
       // ignore malformed lines
@@ -60,7 +76,7 @@ function parsePiJson(raw: string): AgentParseResult {
         }
       : undefined;
 
-  return { texts, meta };
+  return { texts, toolResults: toolResults.length ? toolResults : undefined, meta };
 }
 
 export const piSpec: AgentSpec = {

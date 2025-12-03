@@ -34,6 +34,7 @@ type CommandReplyParams = {
   commandRunner: typeof runCommandWithTimeout;
   enqueue?: EnqueueRunner;
   thinkLevel?: ThinkLevel;
+  verboseLevel?: "off" | "on";
 };
 
 export type CommandReplyMeta = {
@@ -141,6 +142,7 @@ export async function runCommandReply(
     commandRunner,
     enqueue = enqueueCommand,
     thinkLevel,
+    verboseLevel,
   } = params;
 
   if (!reply.command?.length) {
@@ -301,6 +303,8 @@ export async function runCommandReply(
     // Collect one message per assistant text from parseOutput (tau RPC can emit many).
     const parsedTexts =
       parsed?.texts?.map((t) => t.trim()).filter(Boolean) ?? [];
+    const parsedToolResults =
+      parsed?.toolResults?.map((t) => t.trim()).filter(Boolean) ?? [];
 
     type ReplyItem = { text: string; media?: string[] };
     const replyItems: ReplyItem[] = [];
@@ -312,6 +316,18 @@ export async function runCommandReply(
         text: cleanedText,
         media: mediaFound?.length ? mediaFound : undefined,
       });
+    }
+
+    if (verboseLevel === "on") {
+      for (const tr of parsedToolResults) {
+        const prefixed = `🛠️ ${tr}`;
+        const { text: cleanedText, mediaUrls: mediaFound } =
+          splitMediaFromOutput(prefixed);
+        replyItems.push({
+          text: cleanedText,
+          media: mediaFound?.length ? mediaFound : undefined,
+        });
+      }
     }
 
     // If parser gave nothing, fall back to raw stdout as a single message.

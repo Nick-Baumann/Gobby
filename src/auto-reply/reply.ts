@@ -34,6 +34,7 @@ const ABORT_TRIGGERS = new Set(["stop", "esc", "abort", "wait", "exit"]);
 const ABORT_MEMORY = new Map<string, boolean>();
 
 type ThinkLevel = "off" | "minimal" | "low" | "medium" | "high";
+type VerboseLevel = "off" | "on";
 
 function normalizeThinkLevel(raw?: string | null): ThinkLevel | undefined {
 	if (!raw) return undefined;
@@ -47,6 +48,14 @@ function normalizeThinkLevel(raw?: string | null): ThinkLevel | undefined {
 	if (["high", "ultra", "ultrathink", "think-hard", "thinkhardest", "highest", "max"].includes(key))
 		return "high";
 	if (["think"].includes(key)) return "minimal";
+	return undefined;
+}
+
+function normalizeVerboseLevel(raw?: string | null): VerboseLevel | undefined {
+	if (!raw) return undefined;
+	const key = raw.toLowerCase();
+	if (["off", "false", "no", "0"].includes(key)) return "off";
+	if (["on", "full", "true", "yes", "1"].includes(key)) return "on";
 	return undefined;
 }
 
@@ -68,6 +77,26 @@ function extractThinkDirective(body?: string): {
 	return {
 		cleaned,
 		thinkLevel,
+		rawLevel: match?.[1],
+		hasDirective: !!match,
+	};
+}
+
+function extractVerboseDirective(body?: string): {
+	cleaned: string;
+	verboseLevel?: VerboseLevel;
+	rawLevel?: string;
+	hasDirective: boolean;
+} {
+	if (!body) return { cleaned: "", hasDirective: false };
+	const match = body.match(/\/(?:verbose|v)\s*:?\s*([a-zA-Z-]+)\b/i);
+	const verboseLevel = normalizeVerboseLevel(match?.[1]);
+	const cleaned = match
+		? body.replace(match[0], "").replace(/\s+/g, " ").trim()
+		: body.trim();
+	return {
+		cleaned,
+		verboseLevel,
 		rawLevel: match?.[1],
 		hasDirective: !!match,
 	};
@@ -156,6 +185,7 @@ export async function getReplyFromConfig(
   let abortedLastRun = false;
 
   let persistedThinking: string | undefined;
+  let persistedVerbose: string | undefined;
 
   if (sessionCfg) {
     const trimmedBody = (ctx.Body ?? "").trim();
@@ -185,6 +215,7 @@ export async function getReplyFromConfig(
       systemSent = entry.systemSent ?? false;
       abortedLastRun = entry.abortedLastRun ?? false;
       persistedThinking = entry.thinkingLevel;
+      persistedVerbose = entry.verboseLevel;
     } else {
       sessionId = crypto.randomUUID();
       isNewSession = true;
@@ -198,6 +229,7 @@ export async function getReplyFromConfig(
       systemSent,
       abortedLastRun,
       thinkingLevel: persistedThinking,
+      verboseLevel: persistedVerbose,
     };
     sessionStore[sessionKey] = sessionEntry;
     await saveSessionStore(storePath, sessionStore);
@@ -216,13 +248,24 @@ export async function getReplyFromConfig(
 		rawLevel: rawThinkLevel,
 		hasDirective: hasThinkDirective,
 	} = extractThinkDirective(sessionCtx.BodyStripped ?? sessionCtx.Body ?? "");
-	sessionCtx.Body = thinkCleaned;
-	sessionCtx.BodyStripped = thinkCleaned;
+	const {
+		cleaned: verboseCleaned,
+		verboseLevel: inlineVerbose,
+		rawLevel: rawVerboseLevel,
+		hasDirective: hasVerboseDirective,
+	} = extractVerboseDirective(thinkCleaned);
+	sessionCtx.Body = verboseCleaned;
+	sessionCtx.BodyStripped = verboseCleaned;
 
 	let resolvedThinkLevel =
 		inlineThink ??
 		(sessionEntry?.thinkingLevel as ThinkLevel | undefined) ??
 		(reply?.thinkingDefault as ThinkLevel | undefined);
+
+	let resolvedVerboseLevel =
+		inlineVerbose ??
+		(sessionEntry?.verboseLevel as VerboseLevel | undefined) ??
+		(reply?.verboseDefault as VerboseLevel | undefined);
 
 	const directiveOnly = (() => {
 		if (!hasThinkDirective) return false;
@@ -254,6 +297,38 @@ export async function getReplyFromConfig(
 			inlineThink === "off"
 				? "Thinking disabled."
 				: `Thinking level set to ${inlineThink}.`;
+		cleanupTyping();
+		return { text: ack };
+	}
+
+	const verboseDirectiveOnly = (() => {
+		if (!hasVerboseDirective) return false;
+		if (!verboseCleaned) return true;
+		const stripped = verboseCleaned.replace(/\[[^\]]+\]\s*/g, "").trim();
+		return stripped.length === 0;
+	})();
+
+	if (verboseDirectiveOnly) {
+		if (!inlineVerbose) {
+			cleanupTyping();
+			return {
+				text: `Unrecognized verbose level "${rawVerboseLevel ?? ""}". Valid levels: off, on.`,
+			};
+		}
+		if (sessionEntry && sessionStore && sessionKey) {
+			if (inlineVerbose === "off") {
+				delete sessionEntry.verboseLevel;
+			} else {
+				sessionEntry.verboseLevel = inlineVerbose;
+			}
+			sessionEntry.updatedAt = Date.now();
+			sessionStore[sessionKey] = sessionEntry;
+			await saveSessionStore(storePath, sessionStore);
+		}
+		const ack =
+			inlineVerbose === "off"
+				? "Verbose logging disabled."
+				: "Verbose logging enabled.";
 		cleanupTyping();
 		return { text: ack };
 	}
@@ -445,6 +520,7 @@ export async function getReplyFromConfig(
         timeoutSeconds,
         commandRunner,
         thinkLevel: resolvedThinkLevel,
+        verboseLevel: resolvedVerboseLevel,
       });
       const payloadArray = runResult.payloads ?? [];
       const meta = runResult.meta;

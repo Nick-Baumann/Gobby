@@ -14,6 +14,7 @@ export type SessionEntry = {
 	systemSent?: boolean;
 	abortedLastRun?: boolean;
 	thinkingLevel?: string;
+	verboseLevel?: string;
 };
 
 export const SESSION_STORE_DEFAULT = path.join(CONFIG_DIR, "sessions.json");
