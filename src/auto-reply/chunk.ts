@@ -38,7 +38,10 @@ export function chunkText(text: string, limit: number): string[] {
     // If we broke on whitespace/newline, skip that separator; for hard breaks keep it.
     const brokeOnSeparator =
       breakIdx < remaining.length && /\s/.test(remaining[breakIdx]);
-    const nextStart = Math.min(remaining.length, breakIdx + (brokeOnSeparator ? 1 : 0));
+    const nextStart = Math.min(
+      remaining.length,
+      breakIdx + (brokeOnSeparator ? 1 : 0),
+    );
     remaining = remaining.slice(nextStart).trimStart();
   }
 

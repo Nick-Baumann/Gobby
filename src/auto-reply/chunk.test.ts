@@ -29,7 +29,8 @@ describe("chunkText", () => {
   });
 
   it("otherwise breaks at the last whitespace under the limit", () => {
-    const text = "This is a message that should break nicely near a word boundary.";
+    const text =
+      "This is a message that should break nicely near a word boundary.";
     const chunks = chunkText(text, 30);
     expect(chunks[0].length).toBeLessThanOrEqual(30);
     expect(chunks[1].length).toBeLessThanOrEqual(30);
