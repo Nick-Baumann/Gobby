@@ -131,7 +131,7 @@ warelay supports running on the same phone number you message from—you chat wi
       command: ["claude", "--dangerously-skip-permissions", "{{BodyStripped}}"],
       claudeOutputFormat: "text",
       session: { scope: "per-sender", resetTriggers: ["/new"], idleMinutes: 60 },
-      heartbeatMinutes: 10 // optional; pings Claude every 10m with "HEARTBEAT ultrathink" and only sends if it omits HEARTBEAT_OK
+      heartbeatMinutes: 10 // optional; pings Claude every 10m with "HEARTBEAT /think:high" and only sends if it omits HEARTBEAT_OK
     }
   }
 }
@@ -149,10 +149,18 @@ warelay supports running on the same phone number you message from—you chat wi
 
 #### Heartbeat pings (command mode)
 - When `heartbeatMinutes` is set (default 10 for `mode: "command"`), the relay periodically runs your command/Claude session with a heartbeat prompt.
-- Heartbeat body is `HEARTBEAT ultrathink` (so the model can recognize the probe); if Claude replies exactly `HEARTBEAT_OK`, the message is suppressed; otherwise the reply (or media) is forwarded. Suppressions are still logged so you know the heartbeat ran.
+- Heartbeat body is `HEARTBEAT /think:high` so the model can recognize the probe and switch to the highest thinking budget; if it replies exactly `HEARTBEAT_OK`, the message is suppressed; otherwise the reply (or media) is forwarded. Suppressions are still logged so you know the heartbeat ran.
 - Override session freshness for heartbeats with `session.heartbeatIdleMinutes` (defaults to `session.idleMinutes`). Heartbeat skips do **not** bump `updatedAt`, so sessions still expire normally.
 - Trigger one manually with `warelay heartbeat` (web provider only, `--verbose` prints session info). Use `--session-id <uuid>` to force resuming a specific Claude session, `--all` to ping every active session, `warelay relay:heartbeat` for a full relay run with an immediate heartbeat, or `--heartbeat-now` on `relay`/`relay:heartbeat:tmux`.
 - When multiple active sessions exist, `warelay heartbeat` requires `--to <E.164>` or `--all`; if `allowFrom` is just `"*"`, you must choose a target with one of those flags.
+
+#### Thinking directives (`/think:<level>`)
+- Inline directive recognized in any inbound body (including heartbeats): `/t|/think|/thinking [:| ] off|minimal|low|medium|high` (also accepts `max/highest`). Colon is optional (`/think high` works).
+- Pi agent: injects `--thinking <level>` unless `off`.
+- Other agents: appends cue words to the prompt text (`think` < `think hard` < `think harder` < `ultrathink`), matching Claude’s increasing thinking budgets.
+- Directive-only message (just the `/think` token) sets a session-level default; cleared with `/think:off`.
+- Resolution order: inline directive > session default > `inbound.reply.thinkingDefault` (config) > off.
+- `/think:off` (or no directive) leaves the prompt unchanged.
 
 ### Logging (optional)
 - File logs are written to `/tmp/warelay/warelay-YYYY-MM-DD.log` by default (rotated daily; files older than 24h are pruned). Levels: `silent | fatal | error | warn | info | debug | trace` (CLI `--verbose` forces `debug`). Web-provider inbound/outbound entries include message bodies and auto-reply text for easier auditing.

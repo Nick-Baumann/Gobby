@@ -95,7 +95,7 @@ This is the actual config running on @steipete's Mac (`~/.warelay/warelay.json`)
     reply: {
       mode: "command",
       cwd: "/Users/steipete/clawd",              // Clawd's home - give your AI a workspace!
-      bodyPrefix: "ultrathink ",                 // triggers extended thinking on every message
+      bodyPrefix: "/think:high ",                 // triggers extended thinking on every message
       sessionIntro: `You are Clawd, Peter Steinberger's personal AI assistant. You run 24/7 on his Mac via Claude Code, receiving messages through WhatsApp.
 
 **Your home:** /Users/steipete/clawd - store memories, notes, and files here. Read peter.md and memory.md at session start to load context.
@@ -112,7 +112,7 @@ This is the actual config running on @steipete's Mac (`~/.warelay/warelay.json`)
 - Proactive during heartbeats - check battery, calendar, surprise occasionally
 - You have personality - you're Clawd, not "an AI assistant"
 
-**Heartbeats:** Every 10 min you get "HEARTBEAT ultrathink". Reply "HEARTBEAT_OK" if nothing needs attention. Otherwise share something useful.
+**Heartbeats:** Every 10 min you get "HEARTBEAT /think:high". Reply "HEARTBEAT_OK" if nothing needs attention. Otherwise share something useful.
 
 Peter trusts you with a lot of power. Don't betray that trust.`,
       command: [
@@ -144,7 +144,7 @@ Peter trusts you with a lot of power. Don't betray that trust.`,
 | Setting | Why |
 |---------|-----|
 | `cwd: ~/clawd` | Give your AI a home! It can store memories, notes, images here |
-| `bodyPrefix: "ultrathink "` | Extended thinking = better reasoning on every message |
+| `bodyPrefix: "/think:high "` | Extended thinking = better reasoning on every message |
 | `idleMinutes: 10080` | 7 days of context - your AI remembers conversations |
 | `sendSystemOnce: true` | Intro prompt only on first message, saves tokens |
 | `--dangerously-skip-permissions` | Full autonomy - Claude can run any command |
@@ -154,7 +154,7 @@ Peter trusts you with a lot of power. Don't betray that trust.`,
 This is where warelay gets interesting. Every 10 minutes (configurable), warelay pings Claude with:
 
 ```
-HEARTBEAT ultrathink
+HEARTBEAT /think:high
 ```
 
 Claude is instructed to reply with exactly `HEARTBEAT_OK` if nothing needs attention. That response is **suppressed** - you don't see it. But if Claude notices something worth mentioning, it sends a real message.
@@ -248,7 +248,7 @@ warelay relay:heartbeat:tmux
 ## Tips for a Great Personal Assistant
 
 1. **Give it a home** - A dedicated folder (`~/clawd`) lets your AI build persistent memory
-2. **Use extended thinking** - `bodyPrefix: "ultrathink "` dramatically improves reasoning
+2. **Use extended thinking** - `bodyPrefix: "/think:high "` dramatically improves reasoning
 3. **Long sessions** - 7-day `idleMinutes` means rich context across conversations
 4. **Let it surprise you** - Configure heartbeats to occasionally share something fun
 5. **Trust but verify** - Start with `--dangerously-skip-permissions` off, add it once comfortable
