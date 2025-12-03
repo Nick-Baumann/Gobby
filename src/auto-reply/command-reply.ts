@@ -641,6 +641,9 @@ export async function runCommandReply(
         return "🛠️";
       };
 
+      const stripToolPrefix = (text: string) =>
+        text.replace(/^\[🛠️ [^\]]+\]\s*/, "");
+
       const formatPreview = (texts: string[]) => {
         const joined = texts.join(" ").trim();
         if (!joined) return "";
@@ -651,7 +654,7 @@ export async function runCommandReply(
       for (const tr of aggregated) {
         const prefix = formatToolAggregate(tr.toolName, tr.metas);
         const preview = formatPreview(tr.previews);
-        const decorated = `${emojiForTool(tr.toolName)} ${prefix}${preview}`;
+        const decorated = `${emojiForTool(tr.toolName)} ${stripToolPrefix(prefix)}${preview}`;
         const { text: cleanedText, mediaUrls: mediaFound } =
           splitMediaFromOutput(decorated);
         replyItems.push({
