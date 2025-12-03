@@ -26,7 +26,6 @@ import {
 } from "./templating.js";
 import { isAudio, transcribeInboundAudio } from "./transcription.js";
 import type { GetReplyOptions, ReplyPayload } from "./types.js";
-import { triggerWarelayRestart } from "../infra/restart.js";
 
 export type { GetReplyOptions, ReplyPayload } from "./types.js";
 

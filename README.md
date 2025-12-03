@@ -38,6 +38,7 @@ Install from npm (global): `npm install -g warelay` (Node 22+). Then choose **on
 ## Main Features
 - **Two providers:** Twilio (default) for reliable delivery + status; Web provider for quick personal sends/receives via QR login.
 - **Auto-replies:** Static templates or external commands (Claude-aware), with per-sender or global sessions and `/new` resets.
+- **Group chats (web):** Replies only when mentioned, keep group sessions separate from DMs, inject recent group history, and suffix the triggering sender (`[from: Name (+E164)]`) so your agent knows who spoke.
 - Claude setup guide: see `docs/claude-config.md` for the exact Claude CLI configuration we support.
 - **Webhook in one go:** `warelay webhook --ingress tailscale` enables Tailscale Funnel, runs the webhook server, and updates the Twilio sender callback URL.
 - **Polling fallback:** `relay` polls Twilio when webhooks aren’t available; works headless.
@@ -198,6 +199,19 @@ warelay supports running on the same phone number you message from—you chat wi
 | `inbound.groupChat.requireMention` | `boolean` (default: `true`) | When `true`, group chats only trigger replies if the bot is mentioned. |
 | `inbound.groupChat.mentionPatterns` | `string[]` (default: `[]`) | Extra regex patterns to detect mentions (e.g., `"@mybot"`). |
 | `inbound.groupChat.historyLimit` | `number` (default: `50`) | Max recent group messages kept for context before the next reply. |
+
+Example group config for Clawd UK (`+447511247203`):
+
+```json5
+{
+  inbound: {
+    groupChat: {
+      requireMention: true,
+      mentionPatterns: ["@?clawd", "@?clawd\\s*uk", "@?clawdbot", "\\+?447511247203"]
+    }
+  }
+}
+```
 | `inbound.reply.mode` | `"text"` \| `"command"` (default: —) | Reply style. |
 | `inbound.reply.text` | `string` (default: —) | Used when `mode=text`; templating supported. |
 | `inbound.reply.command` | `string[]` (default: —) | Argv for `mode=command`; each element templated. Stdout (trimmed) is sent. |

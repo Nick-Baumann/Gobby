@@ -1068,6 +1068,7 @@ describe("web auto-reply", () => {
     expect(payload.Body).toContain("Chat messages since your last reply");
     expect(payload.Body).toContain("Alice: hello group");
     expect(payload.Body).toContain("@bot ping");
+    expect(payload.Body).toContain("[from: Bob (+222)]");
   });
 
   it("emits heartbeat logs with connection metadata", async () => {
