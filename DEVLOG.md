@@ -191,3 +191,4 @@ A running notebook of changes, observations, and small experiments.
 - 2025-11-27: noticed a slow path in MCTS expand
 - 2025-11-27: added one more validation check
 - 2025-11-27: tightened the coach prompt
+- 2025-12-03: discovered another sicilian line
