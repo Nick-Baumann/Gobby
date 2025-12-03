@@ -36,32 +36,34 @@ const ABORT_MEMORY = new Map<string, boolean>();
 type ThinkLevel = "off" | "minimal" | "low" | "medium" | "high";
 
 function normalizeThinkLevel(raw?: string | null): ThinkLevel | undefined {
-  if (!raw) return undefined;
-  const key = raw.toLowerCase();
-  if (["off"].includes(key)) return "off";
-  if (["min", "minimal"].includes(key)) return "minimal";
-  if (["low", "thinkhard", "think-hard", "think_hard"].includes(key))
-    return "low";
-  if (["med", "medium", "thinkharder", "think-harder", "harder"].includes(key))
-    return "medium";
-  if (
-    ["high", "ultra", "ultrathink", "think-hard", "thinkhardest"].includes(key)
-  )
-    return "high";
-  if (["think"].includes(key)) return "minimal";
-  return undefined;
+	if (!raw) return undefined;
+	const key = raw.toLowerCase();
+	if (["off"].includes(key)) return "off";
+	if (["min", "minimal"].includes(key)) return "minimal";
+	if (["low", "thinkhard", "think-hard", "think_hard"].includes(key))
+		return "low";
+	if (["med", "medium", "thinkharder", "think-harder", "harder"].includes(key))
+		return "medium";
+	if (["high", "ultra", "ultrathink", "think-hard", "thinkhardest", "highest", "max"].includes(key))
+		return "high";
+	if (["think"].includes(key)) return "minimal";
+	return undefined;
 }
 
 function extractThinkDirective(body?: string): {
-  cleaned: string;
-  thinkLevel?: ThinkLevel;
+	cleaned: string;
+	thinkLevel?: ThinkLevel;
 } {
-  if (!body) return { cleaned: "" };
-  const re = /\/think:([a-zA-Z-]+)/i;
-  const match = body.match(re);
-  const thinkLevel = normalizeThinkLevel(match?.[1]);
-  const cleaned = match ? body.replace(match[0], "").trim() : body;
-  return { cleaned, thinkLevel };
+	if (!body) return { cleaned: "" };
+	// Match the longest keyword first to avoid partial captures (e.g. "/think:high")
+	const match = body.match(
+		/\/(?:thinking|think|t)\s*:?\s*([a-zA-Z-]+)\b/i,
+	);
+	const thinkLevel = normalizeThinkLevel(match?.[1]);
+	const cleaned = match
+		? body.replace(match[0], "").replace(/\s+/g, " ").trim()
+		: body.trim();
+	return { cleaned, thinkLevel };
 }
 
 function isAbortTrigger(text?: string): boolean {
@@ -146,6 +148,8 @@ export async function getReplyFromConfig(
   let systemSent = false;
   let abortedLastRun = false;
 
+  let persistedThinking: string | undefined;
+
   if (sessionCfg) {
     const trimmedBody = (ctx.Body ?? "").trim();
     for (const trigger of resetTriggers) {
@@ -173,6 +177,7 @@ export async function getReplyFromConfig(
       sessionId = entry.sessionId;
       systemSent = entry.systemSent ?? false;
       abortedLastRun = entry.abortedLastRun ?? false;
+      persistedThinking = entry.thinkingLevel;
     } else {
       sessionId = crypto.randomUUID();
       isNewSession = true;
@@ -185,6 +190,7 @@ export async function getReplyFromConfig(
       updatedAt: Date.now(),
       systemSent,
       abortedLastRun,
+      thinkingLevel: persistedThinking,
     };
     sessionStore[sessionKey] = sessionEntry;
     await saveSessionStore(storePath, sessionStore);
@@ -197,11 +203,32 @@ export async function getReplyFromConfig(
     IsNewSession: isNewSession ? "true" : "false",
   };
 
-  const { cleaned: thinkCleaned, thinkLevel } = extractThinkDirective(
-    sessionCtx.BodyStripped ?? sessionCtx.Body ?? "",
-  );
-  sessionCtx.Body = thinkCleaned;
-  sessionCtx.BodyStripped = thinkCleaned;
+	const { cleaned: thinkCleaned, thinkLevel: inlineThink } = extractThinkDirective(
+		sessionCtx.BodyStripped ?? sessionCtx.Body ?? "",
+	);
+	sessionCtx.Body = thinkCleaned;
+	sessionCtx.BodyStripped = thinkCleaned;
+
+	let resolvedThinkLevel =
+		inlineThink ??
+		(sessionEntry?.thinkingLevel as ThinkLevel | undefined) ??
+		(reply?.thinkingDefault as ThinkLevel | undefined);
+
+	// Directive-only message => persist session thinking level and return ack
+	if (inlineThink && !thinkCleaned) {
+		if (sessionEntry && sessionStore && sessionKey) {
+			if (inlineThink === "off") {
+				delete sessionEntry.thinkingLevel;
+			} else {
+				sessionEntry.thinkingLevel = inlineThink;
+			}
+			sessionEntry.updatedAt = Date.now();
+			sessionStore[sessionKey] = sessionEntry;
+			await saveSessionStore(storePath, sessionStore);
+		}
+		cleanupTyping();
+		return { text: `Thinking level set to ${inlineThink}` };
+	}
 
   // Optional allowlist by origin number (E.164 without whatsapp: prefix)
   const allowFrom = cfg.inbound?.allowFrom;
@@ -319,12 +346,22 @@ export async function getReplyFromConfig(
     mediaNote && reply?.mode === "command"
       ? "To send an image back, add a line like: MEDIA:https://example.com/image.jpg (no spaces). Keep caption in the text body."
       : undefined;
-  const commandBody = mediaNote
+  let commandBody = mediaNote
     ? [mediaNote, mediaReplyHint, prefixedBody ?? ""]
         .filter(Boolean)
         .join("\n")
         .trim()
     : prefixedBody;
+
+  // Fallback: if a stray leading level token remains, consume it
+  if (!resolvedThinkLevel && commandBody) {
+    const parts = commandBody.split(/\s+/);
+    const maybeLevel = normalizeThinkLevel(parts[0]);
+    if (maybeLevel) {
+      resolvedThinkLevel = maybeLevel;
+      commandBody = parts.slice(1).join(" ").trim();
+    }
+  }
   const templatingCtx: TemplateContext = {
     ...sessionCtx,
     Body: commandBody,
@@ -379,7 +416,7 @@ export async function getReplyFromConfig(
         timeoutMs,
         timeoutSeconds,
         commandRunner,
-        thinkLevel,
+        thinkLevel: resolvedThinkLevel,
       });
       const payloadArray = runResult.payloads ?? [];
       const meta = runResult.meta;

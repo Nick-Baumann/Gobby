@@ -7,6 +7,7 @@ import type { MessageInstance } from "twilio/lib/rest/api/v2010/account/message.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockTwilio } from "../test/mocks/twilio.js";
 import * as exec from "./process/exec.js";
+import * as tauRpc from "./process/tau-rpc.js";
 import { withWhatsAppPrefix } from "./utils.js";
 
 // Mock config to avoid loading real user config
@@ -346,6 +347,66 @@ describe("config and templating", () => {
     expect(result?.text).toBe("caption before caption after");
   });
 
+  it("uses heartbeatCommand only for heartbeat polls", async () => {
+    const runSpy = vi.spyOn(index, "runCommandWithTimeout").mockResolvedValue({
+      stdout: "ok",
+      stderr: "",
+      code: 0,
+      signal: null,
+      killed: false,
+    });
+    const cfg = {
+      inbound: {
+        reply: {
+          mode: "command" as const,
+          command: ["echo", "normal {{Body}}"],
+          heartbeatCommand: ["echo", "heartbeat {{Body}}"],
+        },
+      },
+    };
+
+    await index.getReplyFromConfig(
+      { Body: "PING", From: "+1", To: "+2" },
+      { isHeartbeat: true },
+      cfg,
+      runSpy,
+    );
+    expect(runSpy).toHaveBeenCalledWith(
+      ["echo", "heartbeat PING"],
+      expect.any(Object),
+    );
+  });
+
+  it("falls back to default command for non-heartbeat calls", async () => {
+    const runSpy = vi.spyOn(index, "runCommandWithTimeout").mockResolvedValue({
+      stdout: "ok",
+      stderr: "",
+      code: 0,
+      signal: null,
+      killed: false,
+    });
+    const cfg = {
+      inbound: {
+        reply: {
+          mode: "command" as const,
+          command: ["echo", "normal {{Body}}"],
+          heartbeatCommand: ["echo", "heartbeat {{Body}}"],
+        },
+      },
+    };
+
+    await index.getReplyFromConfig(
+      { Body: "PING", From: "+1", To: "+2" },
+      undefined,
+      cfg,
+      runSpy,
+    );
+    expect(runSpy).toHaveBeenCalledWith(
+      ["echo", "normal PING"],
+      expect.any(Object),
+    );
+  });
+
   it("captures MEDIA wrapped in backticks", async () => {
     const runSpy = vi.spyOn(index, "runCommandWithTimeout").mockResolvedValue({
       stdout: "MEDIA:`/tmp/pic.png` cool",
@@ -394,6 +455,331 @@ describe("config and templating", () => {
       runSpy,
     );
     expect(result?.mediaUrl).toBe("/tmp/pic.png");
+  });
+
+  it("injects --thinking for pi when /think directive is present", async () => {
+    const rpcSpy = vi.spyOn(tauRpc, "runPiRpc").mockResolvedValue({
+      stdout: "ok",
+      stderr: "",
+      code: 0,
+      signal: null,
+      killed: false,
+    });
+    const cfg = {
+      inbound: {
+        reply: {
+          mode: "command" as const,
+          command: ["pi", "--mode", "json", "{{Body}}"],
+          agent: { kind: "pi" },
+        },
+      },
+    };
+    await index.getReplyFromConfig(
+      { Body: "/think:high hello", From: "+1", To: "+2" },
+      undefined,
+      cfg,
+    );
+    expect(rpcSpy).toHaveBeenCalled();
+    const args = rpcSpy.mock.calls[0][0].argv;
+    expect(args).toContain("--thinking");
+    expect(args).toContain("high");
+    expect(rpcSpy.mock.calls[0][0].prompt).toBe("hello");
+  });
+
+  it("rewrites /think directive to textual cue for non-pi agents", async () => {
+    const runSpy = vi.spyOn(index, "runCommandWithTimeout").mockResolvedValue({
+      stdout: "ok",
+      stderr: "",
+      code: 0,
+      signal: null,
+      killed: false,
+    });
+    const cfg = {
+      inbound: {
+        reply: {
+          mode: "command" as const,
+          command: ["echo", "{{Body}}"],
+          agent: { kind: "claude" },
+        },
+      },
+    };
+    await index.getReplyFromConfig(
+      { Body: "/think:medium hi there", From: "+1", To: "+2" },
+      undefined,
+      cfg,
+      runSpy,
+    );
+    expect(runSpy).toHaveBeenCalled();
+    const args = runSpy.mock.calls[0][0] as string[];
+    expect(args[1]).toBe("hi there think harder");
+  });
+
+  it("treats /think:off as no-op for non-pi agents", async () => {
+    const runSpy = vi.spyOn(index, "runCommandWithTimeout").mockResolvedValue({
+      stdout: "ok",
+      stderr: "",
+      code: 0,
+      signal: null,
+      killed: false,
+    });
+    const cfg = {
+      inbound: {
+        reply: {
+          mode: "command" as const,
+          command: ["echo", "{{Body}}"],
+          agent: { kind: "claude" },
+        },
+      },
+    };
+    await index.getReplyFromConfig(
+      { Body: "/think:off hi there", From: "+1", To: "+2" },
+      undefined,
+      cfg,
+      runSpy,
+    );
+    expect(runSpy).toHaveBeenCalled();
+    const args = runSpy.mock.calls[0][0] as string[];
+    expect(args[1]).toBe("hi there");
+  });
+
+  it("treats /think:off as no-op for pi (no --thinking injected)", async () => {
+    const rpcSpy = vi.spyOn(tauRpc, "runPiRpc").mockResolvedValue({
+      stdout: "ok",
+      stderr: "",
+      code: 0,
+      signal: null,
+      killed: false,
+    });
+    const cfg = {
+      inbound: {
+        reply: {
+          mode: "command" as const,
+          command: ["pi", "--mode", "json", "{{Body}}"],
+          agent: { kind: "pi" },
+        },
+      },
+    };
+    await index.getReplyFromConfig(
+      { Body: "/think:off hello", From: "+1", To: "+2" },
+      undefined,
+      cfg,
+    );
+    expect(rpcSpy).toHaveBeenCalled();
+    const args = rpcSpy.mock.calls[0][0].argv;
+    expect(args).not.toContain("--thinking");
+    expect(rpcSpy.mock.calls[0][0].prompt).toBe("hello");
+  });
+
+  it("persists session thinking level when directive-only message is sent", async () => {
+    const runSpy = vi.spyOn(index, "runCommandWithTimeout").mockResolvedValue({
+      stdout: "ok",
+      stderr: "",
+      code: 0,
+      signal: null,
+      killed: false,
+    });
+    const storeDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "warelay-session-"),
+    );
+    const storePath = path.join(storeDir, "sessions.json");
+    const cfg = {
+      inbound: {
+        reply: {
+          mode: "command" as const,
+          command: ["echo", "{{Body}}"],
+          agent: { kind: "claude" },
+          session: { store: storePath },
+        },
+      },
+    };
+
+    await index.getReplyFromConfig(
+      { Body: "/think:medium", From: "+1", To: "+2" },
+      undefined,
+      cfg,
+      runSpy,
+    );
+
+    await index.getReplyFromConfig(
+      { Body: "hi there", From: "+1", To: "+2" },
+      undefined,
+      cfg,
+      runSpy,
+    );
+
+    expect(runSpy).toHaveBeenCalledTimes(1);
+    const args = runSpy.mock.calls[0][0] as string[];
+    expect(args.join(" ")).toContain("hi there think harder");
+  });
+
+  it("uses global thinkingDefault when no directive or session override", async () => {
+    const runSpy = vi.spyOn(index, "runCommandWithTimeout").mockResolvedValue({
+      stdout: "ok",
+      stderr: "",
+      code: 0,
+      signal: null,
+      killed: false,
+    });
+    const cfg = {
+      inbound: {
+        reply: {
+          mode: "command" as const,
+          command: ["echo", "{{Body}}"],
+          agent: { kind: "claude" },
+          thinkingDefault: "low" as const,
+        },
+      },
+    };
+    await index.getReplyFromConfig(
+      { Body: "hello", From: "+1", To: "+2" },
+      undefined,
+      cfg,
+      runSpy,
+    );
+    expect(runSpy).toHaveBeenCalled();
+    const args = runSpy.mock.calls[0][0] as string[];
+    expect(args[1]).toBe("hello think hard");
+  });
+
+  it("accepts spaced directive form '/think high' and applies cue", async () => {
+    const runSpy = vi.spyOn(index, "runCommandWithTimeout").mockResolvedValue({
+      stdout: "ok",
+      stderr: "",
+      code: 0,
+      signal: null,
+      killed: false,
+    });
+    const cfg = {
+      inbound: {
+        reply: {
+          mode: "command" as const,
+          command: ["echo", "{{Body}}"],
+          agent: { kind: "claude" },
+        },
+      },
+    };
+    await index.getReplyFromConfig(
+      { Body: "/think high hello world", From: "+1", To: "+2" },
+      undefined,
+      cfg,
+      runSpy,
+    );
+    expect(runSpy).toHaveBeenCalled();
+    const args = runSpy.mock.calls[0][0] as string[];
+    expect(args[1]).toBe("hello world ultrathink");
+  });
+
+  it("accepts shorthand '/t:medium' and applies cue", async () => {
+    const runSpy = vi.spyOn(index, "runCommandWithTimeout").mockResolvedValue({
+      stdout: "ok",
+      stderr: "",
+      code: 0,
+      signal: null,
+      killed: false,
+    });
+    const cfg = {
+      inbound: {
+        reply: {
+          mode: "command" as const,
+          command: ["echo", "{{Body}}"],
+          agent: { kind: "claude" },
+        },
+      },
+    };
+    await index.getReplyFromConfig(
+      { Body: "/t:medium greetings", From: "+1", To: "+2" },
+      undefined,
+      cfg,
+      runSpy,
+    );
+    expect(runSpy).toHaveBeenCalled();
+    const args = runSpy.mock.calls[0][0] as string[];
+    expect(args[1]).toBe("greetings think harder");
+  });
+
+  it("stores session thinking for pi and injects on next message", async () => {
+    const rpcSpy = vi.spyOn(tauRpc, "runPiRpc").mockResolvedValue({
+      stdout: "ok",
+      stderr: "",
+      code: 0,
+      signal: null,
+      killed: false,
+    });
+    const storeDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "warelay-session-"),
+    );
+    const storePath = path.join(storeDir, "sessions.json");
+    const cfg = {
+      inbound: {
+        reply: {
+          mode: "command" as const,
+          command: ["pi", "--mode", "json", "{{Body}}"],
+          agent: { kind: "pi" },
+          session: { store: storePath },
+        },
+      },
+    };
+
+    await index.getReplyFromConfig(
+      { Body: "/thinking max", From: "+1", To: "+2" },
+      undefined,
+      cfg,
+    );
+
+    await index.getReplyFromConfig(
+      { Body: "next run", From: "+1", To: "+2" },
+      undefined,
+      cfg,
+    );
+
+    expect(rpcSpy).toHaveBeenCalled();
+    const args = rpcSpy.mock.calls[0][0].argv;
+    expect(args).toContain("--thinking");
+    expect(args).toContain("high");
+  });
+
+  it("clears stored thinking when directive-only /think:off is sent", async () => {
+    const rpcSpy = vi.spyOn(tauRpc, "runPiRpc").mockResolvedValue({
+      stdout: "ok",
+      stderr: "",
+      code: 0,
+      signal: null,
+      killed: false,
+    });
+    const storeDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "warelay-session-"),
+    );
+    const storePath = path.join(storeDir, "sessions.json");
+    const cfg = {
+      inbound: {
+        reply: {
+          mode: "command" as const,
+          command: ["pi", "--mode", "json", "{{Body}}"],
+          agent: { kind: "pi" },
+          session: { store: storePath },
+        },
+      },
+    };
+
+    await index.getReplyFromConfig(
+      { Body: "/think:medium", From: "+1", To: "+2" },
+      undefined,
+      cfg,
+    );
+    await index.getReplyFromConfig(
+      { Body: "/think:off", From: "+1", To: "+2" },
+      undefined,
+      cfg,
+    );
+    rpcSpy.mockClear();
+    await index.getReplyFromConfig(
+      { Body: "plain text", From: "+1", To: "+2" },
+      undefined,
+      cfg,
+    );
+    expect(rpcSpy).toHaveBeenCalled();
+    const args = rpcSpy.mock.calls[0][0].argv;
+    expect(args).not.toContain("--thinking");
   });
 
   it("ignores invalid MEDIA lines with whitespace", async () => {

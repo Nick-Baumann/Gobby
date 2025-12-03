@@ -59,6 +59,8 @@ export type WarelayConfig = {
       mode: ReplyMode;
       text?: string;
       command?: string[];
+      heartbeatCommand?: string[];
+      thinkingDefault?: "off" | "minimal" | "low" | "medium" | "high";
       cwd?: string;
       template?: string;
       timeoutSeconds?: number;
@@ -85,6 +87,16 @@ const ReplySchema = z
     mode: z.union([z.literal("text"), z.literal("command")]),
     text: z.string().optional(),
     command: z.array(z.string()).optional(),
+    heartbeatCommand: z.array(z.string()).optional(),
+    thinkingDefault: z
+      .union([
+        z.literal("off"),
+        z.literal("minimal"),
+        z.literal("low"),
+        z.literal("medium"),
+        z.literal("high"),
+      ])
+      .optional(),
     cwd: z.string().optional(),
     template: z.string().optional(),
     timeoutSeconds: z.number().int().positive().optional(),
@@ -125,10 +137,13 @@ const ReplySchema = z
       .optional(),
   })
   .refine(
-    (val) => (val.mode === "text" ? Boolean(val.text) : Boolean(val.command)),
+    (val) =>
+      val.mode === "text"
+        ? Boolean(val.text)
+        : Boolean(val.command || val.heartbeatCommand),
     {
       message:
-        "reply.text is required for mode=text; reply.command is required for mode=command",
+        "reply.text is required for mode=text; reply.command or reply.heartbeatCommand is required for mode=command",
     },
   );
 
