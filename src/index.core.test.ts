@@ -641,6 +641,52 @@ describe("config and templating", () => {
     expect(ack?.text).toBe("Thinking level set to high.");
   });
 
+  it("treats directive-only even when bracket prefixes are present", async () => {
+    const runSpy = vi.spyOn(index, "runCommandWithTimeout").mockResolvedValue({
+      stdout: "ok",
+      stderr: "",
+      code: 0,
+      signal: null,
+      killed: false,
+    });
+    const storeDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "warelay-session-"),
+    );
+    const storePath = path.join(storeDir, "sessions.json");
+    const cfg = {
+      inbound: {
+        reply: {
+          mode: "command" as const,
+          command: ["echo", "{{Body}}"],
+          agent: { kind: "claude" },
+          session: { store: storePath },
+        },
+      },
+    };
+
+    const ack = await index.getReplyFromConfig(
+      { Body: "[Dec 1 00:00] [🦞 same-phone] /think:high", From: "+1", To: "+2" },
+      undefined,
+      cfg,
+      runSpy,
+    );
+
+    expect(runSpy).not.toHaveBeenCalled();
+    expect(ack?.text).toBe("Thinking level set to high.");
+
+    await index.getReplyFromConfig(
+      { Body: "hello", From: "+1", To: "+2" },
+      undefined,
+      cfg,
+      runSpy,
+    );
+
+    expect(runSpy).toHaveBeenCalledTimes(1);
+    const args = runSpy.mock.calls[0][0] as string[];
+    const bodyArg = args[args.length - 1];
+    expect(bodyArg).toBe("hello ultrathink");
+  });
+
   it("rejects invalid directive-only think level without changing state", async () => {
     const runSpy = vi.spyOn(index, "runCommandWithTimeout").mockResolvedValue({
       stdout: "ok",

@@ -224,8 +224,16 @@ export async function getReplyFromConfig(
 		(sessionEntry?.thinkingLevel as ThinkLevel | undefined) ??
 		(reply?.thinkingDefault as ThinkLevel | undefined);
 
+	const directiveOnly = (() => {
+		if (!hasThinkDirective) return false;
+		if (!thinkCleaned) return true;
+		// Ignore bracketed prefixes (timestamps, same-phone markers, etc.)
+		const stripped = thinkCleaned.replace(/\[[^\]]+\]\s*/g, "").trim();
+		return stripped.length === 0;
+	})();
+
 	// Directive-only message => persist session thinking level and return ack
-	if (hasThinkDirective && !thinkCleaned) {
+	if (directiveOnly) {
 		if (!inlineThink) {
 			cleanupTyping();
 			return {
