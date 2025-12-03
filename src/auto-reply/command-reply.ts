@@ -15,6 +15,7 @@ import { applyTemplate, type TemplateContext } from "./templating.js";
 import {
   formatToolAggregate,
   shortenMeta,
+  TOOL_RESULT_FLUSH_COUNT,
   TOOL_RESULT_DEBOUNCE_MS,
 } from "./tool-meta.js";
 import type { ReplyPayload } from "./types.js";
@@ -66,6 +67,7 @@ type ToolMessageLike = {
   role?: string;
   details?: Record<string, unknown>;
   arguments?: Record<string, unknown>;
+  content?: unknown;
 };
 
 function inferToolName(message?: ToolMessageLike): string | undefined {
@@ -89,6 +91,78 @@ function inferToolName(message?: ToolMessageLike): string | undefined {
 
 function inferToolMeta(message?: ToolMessageLike): string | undefined {
   if (!message) return undefined;
+  // Special handling for edit tool: surface change kind + path + summary.
+  if (
+    (message.toolName ?? message.name)?.toLowerCase?.() === "edit" ||
+    message.role === "tool_result:edit"
+  ) {
+    const details = message.details ?? message.arguments;
+    const diff =
+      details && typeof details.diff === "string" ? details.diff : undefined;
+
+    // Count added/removed lines to infer change kind.
+    let added = 0;
+    let removed = 0;
+    if (diff) {
+      for (const line of diff.split("\n")) {
+        const trimmed = line.trimStart();
+        if (trimmed.startsWith("+++")) continue;
+        if (trimmed.startsWith("---")) continue;
+        if (trimmed.startsWith("+")) added += 1;
+        else if (trimmed.startsWith("-")) removed += 1;
+      }
+    }
+    let changeKind = "edit";
+    if (added > 0 && removed > 0) changeKind = "insert+replace";
+    else if (added > 0) changeKind = "insert";
+    else if (removed > 0) changeKind = "delete";
+
+    // Try to extract a file path from content text or details.path.
+    const contentText = (() => {
+      const raw = (message as { content?: unknown })?.content;
+      if (!Array.isArray(raw)) return undefined;
+      const texts = raw
+        .map((c) =>
+          typeof c === "string"
+            ? c
+            : typeof (c as { text?: unknown }).text === "string"
+              ? ((c as { text?: string }).text ?? "")
+              : "",
+        )
+        .filter(Boolean);
+      return texts.join(" ");
+    })();
+
+    const pathFromDetails =
+      details && typeof details.path === "string" ? details.path : undefined;
+    const pathFromContent =
+      contentText?.match(/\s(?:in|at)\s+(\S+)/)?.[1] ?? undefined;
+    const pathVal = pathFromDetails ?? pathFromContent;
+    const shortPath = pathVal ? shortenMeta(pathVal) : undefined;
+
+    // Pick a short summary from the first added line in the diff.
+    const summary = (() => {
+      if (!diff) return undefined;
+      const addedLine = diff
+        .split("\n")
+        .map((l) => l.trimStart())
+        .find((l) => l.startsWith("+") && !l.startsWith("+++"));
+      if (!addedLine) return undefined;
+      const cleaned = addedLine.replace(/^\+\s*\d*\s*/, "").trim();
+      if (!cleaned) return undefined;
+      const markdownStripped = cleaned.replace(/^[#>*-]\s*/, "");
+      if (cleaned.startsWith("#")) {
+        return `Add ${markdownStripped}`;
+      }
+      return markdownStripped;
+    })();
+
+    const parts: string[] = [`→ ${changeKind}`];
+    if (shortPath) parts.push(`@ ${shortPath}`);
+    if (summary) parts.push(`| ${summary}`);
+    return parts.join(" ");
+  }
+
   const details = message.details ?? message.arguments;
   const pathVal =
     details && typeof details.path === "string" ? details.path : undefined;
@@ -431,6 +505,13 @@ export async function runCommandReply(
                       }
                       if (!pendingToolName) pendingToolName = toolName;
                       if (meta) pendingMetas.push(meta);
+                      if (
+                        TOOL_RESULT_FLUSH_COUNT > 0 &&
+                        pendingMetas.length >= TOOL_RESULT_FLUSH_COUNT
+                      ) {
+                        flushPendingTool();
+                        return;
+                      }
                       if (pendingTimer) clearTimeout(pendingTimer);
                       pendingTimer = setTimeout(
                         flushPendingTool,

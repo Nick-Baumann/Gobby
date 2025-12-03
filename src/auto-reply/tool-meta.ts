@@ -1,4 +1,5 @@
-export const TOOL_RESULT_DEBOUNCE_MS = 1000;
+export const TOOL_RESULT_DEBOUNCE_MS = 500;
+export const TOOL_RESULT_FLUSH_COUNT = 5;
 
 function shortenPath(p: string): string {
   const home = process.env.HOME;
@@ -25,9 +26,14 @@ export function formatToolAggregate(
   const prefix = `[🛠️ ${label}]`;
   if (!filtered.length) return prefix;
 
+  const rawSegments: string[] = [];
   // Group by directory and brace-collapse filenames
   const grouped: Record<string, string[]> = {};
   for (const m of filtered) {
+    if (m.includes("→")) {
+      rawSegments.push(m);
+      continue;
+    }
     const parts = m.split("/");
     if (parts.length > 1) {
       const dir = parts.slice(0, -1).join("/");
@@ -46,7 +52,8 @@ export function formatToolAggregate(
     return `${dir}/${brace}`;
   });
 
-  return `${prefix} ${segments.join("; ")}`;
+  const allSegments = [...rawSegments, ...segments];
+  return `${prefix} ${allSegments.join("; ")}`;
 }
 
 export function formatToolPrefix(toolName?: string, meta?: string) {
