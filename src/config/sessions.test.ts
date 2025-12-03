@@ -16,4 +16,10 @@ describe("sessions", () => {
   it("global scope returns global", () => {
     expect(deriveSessionKey("global", { From: "+1" })).toBe("global");
   });
+
+  it("keeps group chats distinct", () => {
+    expect(
+      deriveSessionKey("per-sender", { From: "12345-678@g.us" }),
+    ).toBe("group:12345-678@g.us");
+  });
 });
