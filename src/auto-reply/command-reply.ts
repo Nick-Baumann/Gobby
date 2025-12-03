@@ -13,11 +13,9 @@ import type { runCommandWithTimeout } from "../process/exec.js";
 import { runPiRpc } from "../process/tau-rpc.js";
 import { applyTemplate, type TemplateContext } from "./templating.js";
 import {
-  TOOL_RESULT_DEBOUNCE_MS,
-  createToolDebouncer,
   formatToolAggregate,
-  formatToolPrefix,
   shortenMeta,
+  TOOL_RESULT_DEBOUNCE_MS,
 } from "./tool-meta.js";
 import type { ReplyPayload } from "./types.js";
 
@@ -60,9 +58,6 @@ export type CommandReplyResult = {
   meta: CommandReplyMeta;
 };
 
-// Debounce window for coalescing successive tool_result messages (ms)
-const TOOL_RESULT_DEBOUNCE_MS = 1000;
-
 type ToolMessageLike = {
   name?: string;
   toolName?: string;
@@ -85,7 +80,7 @@ function inferToolName(message?: ToolMessageLike): string | undefined {
     .filter(Boolean);
   if (candidates.length) return candidates[0];
 
-  if (message.role && message.role.includes(":")) {
+  if (message.role?.includes(":")) {
     const suffix = message.role.split(":").slice(1).join(":").trim();
     if (suffix) return suffix;
   }
@@ -95,10 +90,16 @@ function inferToolName(message?: ToolMessageLike): string | undefined {
 function inferToolMeta(message?: ToolMessageLike): string | undefined {
   if (!message) return undefined;
   const details = message.details ?? message.arguments;
-  const pathVal = details && typeof details.path === "string" ? details.path : undefined;
-  const offset = details && typeof details.offset === "number" ? details.offset : undefined;
-  const limit = details && typeof details.limit === "number" ? details.limit : undefined;
-  const command = details && typeof details.command === "string" ? details.command : undefined;
+  const pathVal =
+    details && typeof details.path === "string" ? details.path : undefined;
+  const offset =
+    details && typeof details.offset === "number" ? details.offset : undefined;
+  const limit =
+    details && typeof details.limit === "number" ? details.limit : undefined;
+  const command =
+    details && typeof details.command === "string"
+      ? details.command
+      : undefined;
 
   const formatPath = shortenPath;
 

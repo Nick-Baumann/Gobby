@@ -23,17 +23,12 @@ type PiAssistantMessage = {
 };
 
 function inferToolName(msg: PiAssistantMessage): string | undefined {
-  const candidates = [
-    msg.toolName,
-    msg.name,
-    msg.toolCallId,
-    msg.tool_call_id,
-  ]
+  const candidates = [msg.toolName, msg.name, msg.toolCallId, msg.tool_call_id]
     .map((c) => (typeof c === "string" ? c.trim() : ""))
     .filter(Boolean);
   if (candidates.length) return candidates[0];
 
-  if (msg.role && msg.role.includes(":")) {
+  if (msg.role?.includes(":")) {
     const suffix = msg.role.split(":").slice(1).join(":").trim();
     if (suffix) return suffix;
   }
@@ -43,10 +38,16 @@ function inferToolName(msg: PiAssistantMessage): string | undefined {
 
 function deriveToolMeta(msg: PiAssistantMessage): string | undefined {
   const details = msg.details ?? msg.arguments;
-  const pathVal = details && typeof details.path === "string" ? details.path : undefined;
-  const offset = details && typeof details.offset === "number" ? details.offset : undefined;
-  const limit = details && typeof details.limit === "number" ? details.limit : undefined;
-  const command = details && typeof details.command === "string" ? details.command : undefined;
+  const pathVal =
+    details && typeof details.path === "string" ? details.path : undefined;
+  const offset =
+    details && typeof details.offset === "number" ? details.offset : undefined;
+  const limit =
+    details && typeof details.limit === "number" ? details.limit : undefined;
+  const command =
+    details && typeof details.command === "string"
+      ? details.command
+      : undefined;
 
   if (pathVal) {
     if (offset !== undefined && limit !== undefined) {

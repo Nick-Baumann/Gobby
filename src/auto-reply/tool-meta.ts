@@ -2,7 +2,8 @@ export const TOOL_RESULT_DEBOUNCE_MS = 1000;
 
 function shortenPath(p: string): string {
   const home = process.env.HOME;
-  if (home && (p === home || p.startsWith(`${home}/`))) return p.replace(home, "~");
+  if (home && (p === home || p.startsWith(`${home}/`)))
+    return p.replace(home, "~");
   return p;
 }
 
@@ -31,9 +32,11 @@ export function formatToolAggregate(
     if (parts.length > 1) {
       const dir = parts.slice(0, -1).join("/");
       const base = parts.at(-1) ?? m;
-      (grouped[dir] ||= []).push(base);
+      if (!grouped[dir]) grouped[dir] = [];
+      grouped[dir].push(base);
     } else {
-      (grouped["."] ||= []).push(m);
+      if (!grouped["."]) grouped["."] = [];
+      grouped["."].push(m);
     }
   }
 
