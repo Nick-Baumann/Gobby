@@ -15,11 +15,16 @@ export type AgentMeta = {
   extra?: Record<string, unknown>;
 };
 
+export type AgentToolResult = {
+  text: string;
+  toolName?: string;
+};
+
 export type AgentParseResult = {
   // Plural to support agents that emit multiple assistant turns per prompt.
   texts?: string[];
   mediaUrls?: string[];
-  toolResults?: string[];
+  toolResults?: Array<string | AgentToolResult>;
   meta?: AgentMeta;
 };
 

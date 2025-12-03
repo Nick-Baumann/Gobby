@@ -67,6 +67,15 @@ describe("agent buildArgs + parseOutput helpers", () => {
     expect((parsed.meta?.usage as { output?: number })?.output).toBe(5);
   });
 
+  it("piSpec carries tool names when present", () => {
+    const stdout =
+      '{"type":"message_end","message":{"role":"tool_result","name":"bash","content":[{"type":"text","text":"ls output"}]}}';
+    const parsed = piSpec.parseOutput(stdout);
+    const tool = parsed.toolResults?.[0] as { text?: string; toolName?: string };
+    expect(tool?.text).toBe("ls output");
+    expect(tool?.toolName).toBe("bash");
+  });
+
   it("codexSpec parses agent_message and aggregates usage", () => {
     const stdout = [
       '{"type":"item.completed","item":{"type":"agent_message","text":"hi there"}}',

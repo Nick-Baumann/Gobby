@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { type AgentKind, getAgentSpec } from "../agents/index.js";
-import type { AgentMeta } from "../agents/types.js";
+import type { AgentMeta, AgentToolResult } from "../agents/types.js";
 import type { WarelayConfig } from "../config/config.js";
 import { isVerbose, logVerbose } from "../globals.js";
 import { logError } from "../logger.js";
@@ -52,6 +52,51 @@ export type CommandReplyResult = {
   payloads?: ReplyPayload[];
   meta: CommandReplyMeta;
 };
+
+type ToolMessageLike = {
+  name?: string;
+  toolName?: string;
+  tool_call_id?: string;
+  toolCallId?: string;
+  role?: string;
+};
+
+function inferToolName(message?: ToolMessageLike): string | undefined {
+  if (!message) return undefined;
+  const candidates = [
+    message.toolName,
+    message.name,
+    message.toolCallId,
+    message.tool_call_id,
+  ]
+    .map((c) => (typeof c === "string" ? c.trim() : ""))
+    .filter(Boolean);
+  if (candidates.length) return candidates[0];
+
+  if (message.role && message.role.includes(":")) {
+    const suffix = message.role.split(":").slice(1).join(":").trim();
+    if (suffix) return suffix;
+  }
+  return undefined;
+}
+
+function normalizeToolResults(
+  toolResults?: Array<string | AgentToolResult>,
+): AgentToolResult[] {
+  if (!toolResults) return [];
+  return toolResults
+    .map((tr) => (typeof tr === "string" ? { text: tr } : tr))
+    .map((tr) => ({
+      text: (tr.text ?? "").trim(),
+      toolName: tr.toolName?.trim() || undefined,
+    }))
+    .filter((tr) => tr.text.length > 0);
+}
+
+function formatToolPrefix(toolName?: string) {
+  const label = toolName?.trim() || "tool";
+  return `[🛠️ ${label}]`;
+}
 
 export function summarizeClaudeMetadata(payload: unknown): string | undefined {
   if (!payload || typeof payload !== "object") return undefined;
@@ -289,23 +334,14 @@ export async function runCommandReply(
                       ev.message?.role === "tool_result" &&
                       Array.isArray(ev.message.content)
                     ) {
-                      const text = (
-                        ev.message.content as Array<{ text?: string }>
-                      )
-                        .map((c) => c.text)
-                        .filter((t): t is string => !!t)
-                        .join("\n")
-                        .trim();
-                      if (text) {
-                        const { text: cleanedText, mediaUrls: mediaFound } =
-                          splitMediaFromOutput(`🛠️ ${text}`);
-                        void onPartialReply({
-                          text: cleanedText,
-                          mediaUrls: mediaFound?.length
-                            ? mediaFound
-                            : undefined,
-                        } as ReplyPayload);
-                      }
+                      const toolName = inferToolName(ev.message);
+                      const prefix = formatToolPrefix(toolName);
+                      const { text: cleanedText, mediaUrls: mediaFound } =
+                        splitMediaFromOutput(prefix);
+                      void onPartialReply({
+                        text: cleanedText,
+                        mediaUrls: mediaFound?.length ? mediaFound : undefined,
+                      } as ReplyPayload);
                     }
                   } catch {
                     // ignore malformed lines
@@ -341,8 +377,7 @@ export async function runCommandReply(
     // Collect assistant texts and tool results from parseOutput (tau RPC can emit many).
     const parsedTexts =
       parsed?.texts?.map((t) => t.trim()).filter(Boolean) ?? [];
-    const parsedToolResults =
-      parsed?.toolResults?.map((t) => t.trim()).filter(Boolean) ?? [];
+    const parsedToolResults = normalizeToolResults(parsed?.toolResults);
 
     type ReplyItem = { text: string; media?: string[] };
     const replyItems: ReplyItem[] = [];
@@ -352,7 +387,7 @@ export async function runCommandReply(
 
     if (includeToolResultsInline) {
       for (const tr of parsedToolResults) {
-        const prefixed = `🛠️ ${tr}`;
+        const prefixed = formatToolPrefix(tr.toolName);
         const { text: cleanedText, mediaUrls: mediaFound } =
           splitMediaFromOutput(prefixed);
         replyItems.push({

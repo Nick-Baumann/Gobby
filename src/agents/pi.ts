@@ -1,6 +1,11 @@
 import path from "node:path";
 
-import type { AgentMeta, AgentParseResult, AgentSpec } from "./types.js";
+import type {
+  AgentMeta,
+  AgentParseResult,
+  AgentSpec,
+  AgentToolResult,
+} from "./types.js";
 
 type PiAssistantMessage = {
   role?: string;
@@ -9,15 +14,37 @@ type PiAssistantMessage = {
   model?: string;
   provider?: string;
   stopReason?: string;
+  name?: string;
+  toolName?: string;
+  tool_call_id?: string;
   toolCallId?: string;
 };
+
+function inferToolName(msg: PiAssistantMessage): string | undefined {
+  const candidates = [
+    msg.toolName,
+    msg.name,
+    msg.toolCallId,
+    msg.tool_call_id,
+  ]
+    .map((c) => (typeof c === "string" ? c.trim() : ""))
+    .filter(Boolean);
+  if (candidates.length) return candidates[0];
+
+  if (msg.role && msg.role.includes(":")) {
+    const suffix = msg.role.split(":").slice(1).join(":").trim();
+    if (suffix) return suffix;
+  }
+
+  return undefined;
+}
 
 function parsePiJson(raw: string): AgentParseResult {
   const lines = raw.split(/\n+/).filter((l) => l.trim().startsWith("{"));
 
   // Collect only completed assistant messages (skip streaming updates/toolcalls).
   const texts: string[] = [];
-  const toolResults: string[] = [];
+  const toolResults: AgentToolResult[] = [];
   let lastAssistant: PiAssistantMessage | undefined;
   let lastPushed: string | undefined;
 
@@ -59,7 +86,9 @@ function parsePiJson(raw: string): AgentParseResult {
           .map((c) => c.text)
           .join("\n")
           .trim();
-        if (toolText) toolResults.push(toolText);
+        if (toolText) {
+          toolResults.push({ text: toolText, toolName: inferToolName(msg) });
+        }
       }
     } catch {
       // ignore malformed lines
