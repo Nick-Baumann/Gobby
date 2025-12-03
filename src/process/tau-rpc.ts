@@ -24,7 +24,9 @@ class TauRpcClient {
   private stderr = "";
   private buffer: string[] = [];
   private idleTimer: NodeJS.Timeout | null = null;
+  private sawToolActivity = false;
   private seenAssistantEnd = false;
+  private seenAgentEnd = false;
   private readonly idleMs = 120;
   private pending:
     | {
@@ -68,15 +70,30 @@ class TauRpcClient {
     this.buffer.push(line);
     this.pending?.onEvent?.(line);
 
-    // If Tau signals the full prompt/response cycle is finished, resolve immediately.
+    // Parse the line once to track agent/tool lifecycle signals.
     try {
-      const evt = JSON.parse(line) as { type?: string };
+      const evt = JSON.parse(line) as { type?: string; message?: unknown };
+
+      // Any tool activity (calls or execution events) means we should wait for agent_end,
+      // not the first assistant message_end, to avoid truncating follow-up replies.
+      if (
+        evt?.type === "tool_execution_start" ||
+        evt?.type === "tool_execution_end" ||
+        (evt?.type === "message" &&
+          evt.message &&
+          JSON.stringify(evt.message).includes('"toolCall"'))
+      ) {
+        this.sawToolActivity = true;
+      }
+
       if (evt?.type === "agent_end") {
+        this.seenAgentEnd = true;
         if (this.idleTimer) clearTimeout(this.idleTimer);
         const pending = this.pending;
         this.pending = undefined;
         const out = this.buffer.join("\n");
         this.buffer = [];
+        this.sawToolActivity = false;
         this.seenAssistantEnd = false;
         clearTimeout(pending.timer);
         pending.resolve({ stdout: out, stderr: this.stderr, code: 0 });
@@ -101,12 +118,18 @@ class TauRpcClient {
       this.idleTimer = setTimeout(() => {
         if (!this.pending) return;
         const out = this.buffer.join("\n");
+        // If tools are in-flight, prefer waiting for agent_end to avoid dropping the
+        // post-tool assistant turn. The outer timeout still prevents hangs.
+        if (this.sawToolActivity && !this.seenAgentEnd) {
+          return;
+        }
         // Only resolve once we have at least one assistant text payload; otherwise keep waiting.
         const parsed = piSpec.parseOutput(out);
         if (parsed.texts && parsed.texts.length > 0) {
           const pending = this.pending;
           this.pending = undefined;
           this.buffer = [];
+          this.sawToolActivity = false;
           this.seenAssistantEnd = false;
           clearTimeout(pending.timer);
           pending.resolve({ stdout: out, stderr: this.stderr, code: 0 });
@@ -141,6 +164,9 @@ class TauRpcClient {
     return await new Promise<TauRpcResult>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending = undefined;
+        this.sawToolActivity = false;
+        this.seenAssistantEnd = false;
+        this.seenAgentEnd = false;
         reject(new Error(`tau rpc timed out after ${timeoutMs}ms`));
         child.kill("SIGKILL");
       }, timeoutMs);
