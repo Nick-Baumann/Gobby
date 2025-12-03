@@ -1,55 +1,53 @@
-# Group Messages Plan
+# Group messages (web provider)
 
-Goal: Enable warelay’s web provider to participate in WhatsApp group chats, replying only when mentioned and using recent group context. Keep personal (1:1) sessions separate from group sessions.
+Goal: let Clawd sit in WhatsApp groups, wake up only when pinged, and keep that thread separate from the personal DM session.
 
-## Scope & Constraints
-- Web provider only; Twilio untouched.
-- Default-safe: no unsolicited group replies unless mentioned.
-- Preserve existing direct-chat behavior and batching.
+## What’s implemented (2025-12-03)
+- Mentions required by default: real WhatsApp @-mentions (via `mentionedJids`), regex patterns, or the bot’s E.164 anywhere in the text all count.
+- Group allowlist bypass: we still enforce `allowFrom` on the participant at inbox ingest, but group JIDs themselves no longer block replies.
+- Per-group sessions: session keys look like `group:<jid>` so commands such as `/verbose on` or `/think:high` are scoped to that group; personal DM state is untouched. Heartbeats are skipped for group threads.
+- Context injection: last N (default 50) group messages are prefixed under `[Chat messages since your last reply - for context]`, with the triggering line under `[Current message - respond to this]`.
+- Sender surfacing: every group batch now ends with `[from: Sender Name (+E164)]` so Tau/Claude know who is speaking.
+- Ephemeral/view-once: we unwrap those before extracting text/mentions, so pings inside them still trigger.
 
-## Design Decisions
-- **Config**: Add `inbound.groupChat` with:
-  - `requireMention` (default: `true`)
-  - `mentionPatterns` (array of regex strings; optional)
-  - `historyLimit` (default: 50)
-- **Conversation identity**:
-  - Direct chats keyed by E.164 (`+123`).
-  - Group chats keyed by raw group JID (`<id>@g.us`) and labeled `chatType: "group"`.
-- **Mention detection**:
-  - Trust Baileys `contextInfo.mentionedJid` vs our own self JID.
-  - Fallback regex match on body using `mentionPatterns`.
-- **Group context**:
-  - Maintain per-group ring buffer of messages since last bot reply (cap `historyLimit`).
-  - When mentioned, prepend `[Chat messages since your last reply]` section with `sender: body`, then current message.
-  - Clear buffer after replying.
-- **Gating**:
-  - If `requireMention` and no mention detected, store in buffer only; no reply.
-  - Allow opt-out via `requireMention: false`.
-- **Allow list**:
-  - Group chats ignore `inbound.allowFrom` so anyone in the group can trigger a reply; we still record the sender E.164 for context.
-  - Direct chats keep enforcing `inbound.allowFrom` (same-phone bypass preserved).
-- **Heartbeats**:
-  - Skip reply heartbeats when the last inbound was a group chat; connection heartbeat still runs.
-- **Sessions**:
-  - Session key uses group conversation id so group threads don’t collide with personal sessions.
+## Config for Clawd UK (+447511247203)
+Add a `groupChat` block to `~/.warelay/warelay.json` so display-name pings work even when WhatsApp strips the visual `@` in the text body:
 
-## Implementation Steps
-1) Config/schema/docs
-   - Extend `WarelayConfig` + Zod schema with `inbound.groupChat`.
-   - Add defaults and README config table entry.
-2) Inbound plumbing (`src/web/inbound.ts`)
-   - Detect groups, surface `chatId`, `chatType`, `senderJid`, `senderE164`, `senderName`, and `mentionedJids`.
-   - Apply `allowFrom` to participant; keep mark-read with participant.
-3) Auto-reply loop (`src/web/auto-reply.ts`)
-   - Key batching/history by conversation id (group vs direct).
-   - Implement mention gating and context injection from history.
-   - Clear history after reply; cap history length.
-   - Guard heartbeats for groups.
-   - Ensure session key uses conversation id for groups.
-4) Tests
-   - Inbound: group passthrough + allowFrom on participant + mention capture.
-   - Auto-reply: mention gating, history accumulation/clear, batching by group, session separation, heartbeat skip for groups.
+```json5
+{
+  "inbound": {
+    "groupChat": {
+      "requireMention": true,
+      "historyLimit": 50,
+      "mentionPatterns": [
+        "@?clawd",
+        "@?clawd\\s*uk",
+        "@?clawdbot",
+        "\\+?447511247203"
+      ]
+    }
+  }
+}
+```
 
-## Open Questions / TODO
-- Should we expose a configurable bot self-name for pattern defaults (e.g., auto-generate `mentionPatterns` from selfJid/local number)? For now, rely on explicit config + WhatsApp mentions.
-- Do we need a max age for stored history (time-based) in addition to count-based cap? Default to count-only unless it becomes noisy.
+Notes:
+- The regexes are case-insensitive; they cover `@clawd`, `@clawd uk`, `clawdbot`, and the raw number with or without `+`/spaces.
+- WhatsApp still sends canonical mentions via `mentionedJids` when someone taps the contact, so the number fallback is rarely needed but is a good safety net.
+
+## How to use
+1) Add Clawd UK (`+447511247203`) to the group.
+2) Say `@clawd …` (or `@clawd uk`, `@clawdbot`, or include the number). Anyone in the group can trigger it.
+3) The agent prompt will include recent group context plus the trailing `[from: …]` marker so it can address the right person.
+4) Session-level directives (`/verbose on`, `/think:high`, `/new`) apply only to that group’s session; your personal DM session remains independent.
+
+## Testing / verification
+- Automated: `pnpm test -- src/web/auto-reply.test.ts --runInBand` (covers mention gating, history injection, sender suffix).
+- Manual smoke:
+  - Send an `@clawd` ping in the group and confirm a reply that references the sender name.
+  - Send a second ping and verify the history block is included then cleared on the next turn.
+  - Check `/tmp/warelay/warelay.log` at level `trace` (run relay with `--verbose`) to see `inbound web message (batched)` entries showing `from: <groupJid>` and the `[from: …]` suffix.
+
+## Known considerations
+- Heartbeats are intentionally skipped for groups to avoid noisy broadcasts.
+- Echo suppression uses the combined batch string; if you send identical text twice without mentions, only the first will get a response.
+- Session store entries will appear as `group:<jid>` in `sessions.json`; a missing entry just means the group hasn’t triggered a run yet.

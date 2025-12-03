@@ -716,6 +716,12 @@ export async function monitorWebProvider(
             .join("\\n");
           combinedBody = `[Chat messages since your last reply - for context]\\n${historyText}\\n\\n[Current message - respond to this]\\n${buildLine(latest)}`;
         }
+        // Always surface who sent the triggering message so the agent can address them.
+        const senderLabel =
+          latest.senderName && latest.senderE164
+            ? `${latest.senderName} (${latest.senderE164})`
+            : latest.senderName ?? latest.senderE164 ?? "Unknown";
+        combinedBody = `${combinedBody}\\n[from: ${senderLabel}]`;
         // Clear stored history after using it
         groupHistories.set(conversationId, []);
       }
@@ -812,10 +818,14 @@ export async function monitorWebProvider(
             }
           }
 
+          const fromDisplay =
+            latest.chatType === "group"
+              ? conversationId
+              : latest.from ?? "unknown";
           if (isVerbose()) {
             console.log(
               success(
-                `↩️  Auto-replied to ${from} (web${replyPayload.mediaUrl || replyPayload.mediaUrls?.length ? ", media" : ""}; batched ${messages.length})`,
+                `↩️  Auto-replied to ${fromDisplay} (web${replyPayload.mediaUrl || replyPayload.mediaUrls?.length ? ", media" : ""}; batched ${messages.length})`,
               ),
             );
           } else {
@@ -827,7 +837,7 @@ export async function monitorWebProvider(
           }
         } catch (err) {
           console.error(
-            danger(`Failed sending web auto-reply to ${from}: ${String(err)}`),
+            danger(`Failed sending web auto-reply to ${latest.from ?? conversationId}: ${String(err)}`),
           );
         }
       }

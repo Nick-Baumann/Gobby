@@ -1,7 +1,7 @@
 export const TOOL_RESULT_DEBOUNCE_MS = 500;
 export const TOOL_RESULT_FLUSH_COUNT = 5;
 
-function shortenPath(p: string): string {
+export function shortenPath(p: string): string {
   const home = process.env.HOME;
   if (home && (p === home || p.startsWith(`${home}/`)))
     return p.replace(home, "~");

@@ -15,6 +15,7 @@ import { applyTemplate, type TemplateContext } from "./templating.js";
 import {
   formatToolAggregate,
   shortenMeta,
+  shortenPath,
   TOOL_RESULT_FLUSH_COUNT,
   TOOL_RESULT_DEBOUNCE_MS,
 } from "./tool-meta.js";
@@ -439,7 +440,7 @@ export async function runCommandReply(
       const textBlocks = Array.isArray(msg.content)
         ? (msg.content as Array<{ type?: string; text?: string }>)
             .filter((c) => c?.type === "text" && typeof c.text === "string")
-            .map((c) => c.text.trim())
+            .map((c) => (c.text ?? "").trim())
             .filter(Boolean)
         : [];
       if (textBlocks.length === 0) return;
