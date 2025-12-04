@@ -52,6 +52,9 @@ clawdis login
 # Send a message
 clawdis send --to +1234567890 --message "Hello from the CLAWDIS!"
 
+# Talk directly to the agent (no WhatsApp send)
+clawdis agent --to +1234567890 --message "Ship checklist" --thinking high
+
 # Start the relay
 clawdis relay --verbose
 ```
@@ -119,6 +122,7 @@ clawdis relay --provider twilio
 |---------|-------------|
 | `clawdis login` | Link WhatsApp Web via QR |
 | `clawdis send` | Send a message |
+| `clawdis agent` | Talk directly to the agent (no WhatsApp send) |
 | `clawdis relay` | Start auto-reply loop |
 | `clawdis status` | Show recent messages |
 | `clawdis heartbeat` | Trigger a heartbeat |
