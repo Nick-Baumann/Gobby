@@ -1,5 +1,6 @@
 import chalk from "chalk";
 import { Command } from "commander";
+import { agentCommand } from "../commands/agent.js";
 import { sendCommand } from "../commands/send.js";
 import { statusCommand } from "../commands/status.js";
 import { webhookCommand } from "../commands/webhook.js";
@@ -94,6 +95,10 @@ export function buildProgram() {
       "warelay status --limit 10 --lookback 60 --json",
       "Show last 10 messages from the past hour as JSON.",
     ],
+    [
+      'warelay agent --to +15551234567 --message "Run summary" --thinking high',
+      "Talk directly to the agent using the same session handling, no WhatsApp send.",
+    ],
   ] as const;
 
   const fmtExamples = examples
@@ -172,6 +177,61 @@ Examples:
       const deps = createDefaultDeps();
       try {
         await sendCommand(opts, deps, defaultRuntime);
+      } catch (err) {
+        defaultRuntime.error(String(err));
+        defaultRuntime.exit(1);
+      }
+    });
+
+  program
+    .command("agent")
+    .description(
+      "Talk directly to the configured agent (no WhatsApp send, reuses sessions)",
+    )
+    .requiredOption("-m, --message <text>", "Message body for the agent")
+    .option(
+      "-t, --to <number>",
+      "Recipient number in E.164 used to derive the session key",
+    )
+    .option("--session-id <id>", "Use an explicit session id")
+    .option(
+      "--thinking <level>",
+      "Thinking level: off | minimal | low | medium | high",
+    )
+    .option("--verbose <on|off>", "Persist agent verbose level for the session")
+    .option(
+      "--deliver",
+      "Send the agent's reply back to WhatsApp (requires --to)",
+      false,
+    )
+    .option(
+      "--provider <provider>",
+      "Provider to deliver via when using --deliver (auto | web | twilio)",
+      "auto",
+    )
+    .option("--json", "Output result as JSON", false)
+    .option(
+      "--timeout <seconds>",
+      "Override agent command timeout (seconds, default 600 or config value)",
+    )
+    .addHelpText(
+      "after",
+      `
+Examples:
+  warelay agent --to +15551234567 --message "status update"
+  warelay agent --session-id 1234 --message "Summarize inbox" --thinking medium
+  warelay agent --to +15551234567 --message "Trace logs" --verbose on --json
+  warelay agent --to +15551234567 --message "Summon reply" --deliver --provider web
+`,
+    )
+    .action(async (opts) => {
+      const verboseLevel =
+        typeof opts.verbose === "string" ? opts.verbose.toLowerCase() : "";
+      setVerbose(verboseLevel === "on");
+      // Build default deps (keeps parity with other commands; future-proofing).
+      void createDefaultDeps();
+      try {
+        await agentCommand(opts, defaultRuntime);
       } catch (err) {
         defaultRuntime.error(String(err));
         defaultRuntime.exit(1);

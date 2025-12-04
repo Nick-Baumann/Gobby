@@ -26,6 +26,12 @@ import {
 } from "./templating.js";
 import { isAudio, transcribeInboundAudio } from "./transcription.js";
 import type { GetReplyOptions, ReplyPayload } from "./types.js";
+import {
+  normalizeThinkLevel,
+  normalizeVerboseLevel,
+  type ThinkLevel,
+  type VerboseLevel,
+} from "./thinking.js";
 
 export type { GetReplyOptions, ReplyPayload } from "./types.js";
 
@@ -33,42 +39,6 @@ const TWILIO_TEXT_LIMIT = 1600;
 
 const ABORT_TRIGGERS = new Set(["stop", "esc", "abort", "wait", "exit"]);
 const ABORT_MEMORY = new Map<string, boolean>();
-
-type ThinkLevel = "off" | "minimal" | "low" | "medium" | "high";
-type VerboseLevel = "off" | "on";
-
-function normalizeThinkLevel(raw?: string | null): ThinkLevel | undefined {
-  if (!raw) return undefined;
-  const key = raw.toLowerCase();
-  if (["off"].includes(key)) return "off";
-  if (["min", "minimal"].includes(key)) return "minimal";
-  if (["low", "thinkhard", "think-hard", "think_hard"].includes(key))
-    return "low";
-  if (["med", "medium", "thinkharder", "think-harder", "harder"].includes(key))
-    return "medium";
-  if (
-    [
-      "high",
-      "ultra",
-      "ultrathink",
-      "think-hard",
-      "thinkhardest",
-      "highest",
-      "max",
-    ].includes(key)
-  )
-    return "high";
-  if (["think"].includes(key)) return "minimal";
-  return undefined;
-}
-
-function normalizeVerboseLevel(raw?: string | null): VerboseLevel | undefined {
-  if (!raw) return undefined;
-  const key = raw.toLowerCase();
-  if (["off", "false", "no", "0"].includes(key)) return "off";
-  if (["on", "full", "true", "yes", "1"].includes(key)) return "on";
-  return undefined;
-}
 
 function extractThinkDirective(body?: string): {
   cleaned: string;
