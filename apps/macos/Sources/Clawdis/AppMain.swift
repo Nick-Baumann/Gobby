@@ -13,6 +13,7 @@ import SwiftUI
 import UserNotifications
 
 private let serviceName = "com.steipete.clawdis.xpc"
+private let launchdLabel = "com.steipete.clawdis"
 private let pauseDefaultsKey = "clawdis.pauseEnabled"
 
 // MARK: - App model
@@ -31,12 +32,16 @@ final class AppState: ObservableObject {
     @Published var onboardingSeen: Bool {
         didSet { UserDefaults.standard.set(onboardingSeen, forKey: "clawdis.onboardingSeen") }
     }
+    @Published var debugPaneEnabled: Bool {
+        didSet { UserDefaults.standard.set(debugPaneEnabled, forKey: "clawdis.debugPaneEnabled") }
+    }
 
     init() {
         self.isPaused = UserDefaults.standard.bool(forKey: pauseDefaultsKey)
         self.defaultSound = UserDefaults.standard.string(forKey: "clawdis.defaultSound") ?? ""
         self.launchAtLogin = SMAppService.mainApp.status == .enabled
         self.onboardingSeen = UserDefaults.standard.bool(forKey: "clawdis.onboardingSeen")
+        self.debugPaneEnabled = UserDefaults.standard.bool(forKey: "clawdis.debugPaneEnabled")
     }
 }
 
@@ -353,7 +358,7 @@ struct ClawdisApp: App {
     }
 
     var body: some Scene {
-        MenuBarExtra { menuContent } label: { CritterStatusLabel(isPaused: state.isPaused) }
+        MenuBarExtra { MenuContent(state: state) } label: { CritterStatusLabel(isPaused: state.isPaused) }
             .menuBarExtraStyle(.menu)
 
         Settings {
@@ -361,20 +366,31 @@ struct ClawdisApp: App {
                 .frame(minWidth: 520, minHeight: 460)
         }
     }
+}
 
-    @ViewBuilder
-    private var menuContent: some View {
+private struct MenuContent: View {
+    @ObservedObject var state: AppState
+    @Environment(\.openSettings) private var openSettings
+
+    var body: some View {
         Toggle(isOn: $state.isPaused) {
             Text(state.isPaused ? "Clawdis Paused" : "Pause Clawdis")
         }
-        Button("Settings…") {
-            NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
-        }
+        Button("Settings…") { open(tab: .general) }
+            .keyboardShortcut(",", modifiers: [.command])
+        Button("About Clawdis") { open(tab: .about) }
         Divider()
         Button("Test Notification") {
             Task { _ = await NotificationManager().send(title: "Clawdis", body: "Test notification", sound: nil) }
         }
         Button("Quit") { NSApplication.shared.terminate(nil) }
+    }
+
+    private func open(tab: SettingsTab) {
+        SettingsTabRouter.request(tab)
+        NSApp.activate(ignoringOtherApps: true)
+        openSettings()
+        NotificationCenter.default.post(name: .clawdisSelectSettingsTab, object: tab)
     }
 }
 
@@ -394,6 +410,8 @@ private struct CritterStatusLabel: View {
             .frame(width: 18, height: 16)
             .rotationEffect(.degrees(wiggleAngle), anchor: .center)
             .offset(x: wiggleOffset)
+            .foregroundStyle(isPaused ? .secondary : .primary)
+            .opacity(isPaused ? 0.45 : 1.0)
             .onReceive(ticker) { now in
                 guard !isPaused else {
                     resetMotion()
@@ -537,7 +555,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSXPCListenerDelegate 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         state = AppStateStore.shared
+        LaunchdManager.startClawdis()
         startListener()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        LaunchdManager.stopClawdis()
     }
 
     @MainActor
@@ -576,16 +599,41 @@ struct SettingsRootView: View {
                 .tabItem { Label("Permissions", systemImage: "lock.shield") }
                 .tag(SettingsTab.permissions)
 
-            DebugSettings()
-                .tabItem { Label("Debug", systemImage: "ant") }
-                .tag(SettingsTab.debug)
+            if state.debugPaneEnabled {
+                DebugSettings()
+                    .tabItem { Label("Debug", systemImage: "ant") }
+                    .tag(SettingsTab.debug)
+            }
 
             AboutSettings()
                 .tabItem { Label("About", systemImage: "info.circle") }
                 .tag(SettingsTab.about)
         }
-        .padding(12)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .onReceive(NotificationCenter.default.publisher(for: .clawdisSelectSettingsTab)) { note in
+            if let tab = note.object as? SettingsTab {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
+                    selectedTab = tab
+                }
+            }
+        }
+        .onAppear {
+            if let pending = SettingsTabRouter.consumePending() {
+                selectedTab = validTab(for: pending)
+            }
+        }
+        .onChange(of: state.debugPaneEnabled) { _, enabled in
+            if !enabled && selectedTab == .debug {
+                selectedTab = .general
+            }
+        }
         .task { await refreshPerms() }
+    }
+
+    private func validTab(for requested: SettingsTab) -> SettingsTab {
+        if requested == .debug && !state.debugPaneEnabled { return .general }
+        return requested
     }
 
     @MainActor
@@ -609,33 +657,64 @@ enum SettingsTab: CaseIterable {
     }
 }
 
+@MainActor
+enum SettingsTabRouter {
+    private static var pending: SettingsTab?
+
+    static func request(_ tab: SettingsTab) {
+        self.pending = tab
+    }
+
+    static func consumePending() -> SettingsTab? {
+        defer { self.pending = nil }
+        return self.pending
+    }
+}
+
+extension Notification.Name {
+    static let clawdisSelectSettingsTab = Notification.Name("clawdisSelectSettingsTab")
+}
+
 struct GeneralSettings: View {
     @ObservedObject var state: AppState
     @State private var isInstallingCLI = false
     @State private var cliStatus: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             if !state.onboardingSeen {
                 Label("Complete onboarding to finish setup", systemImage: "sparkles")
                     .foregroundColor(.accentColor)
+                    .padding(.bottom, 4)
             }
-            Toggle(isOn: $state.isPaused) { Text("Pause Clawdis (disables notifications & privileged actions)") }
-            Toggle(isOn: $state.launchAtLogin) { Text("Launch at login") }
-            HStack {
-                Text("Default sound")
-                Spacer()
-                Picker("Sound", selection: $state.defaultSound) {
-                    Text("None").tag("")
-                    Text("Glass").tag("Glass")
-                    Text("Basso").tag("Basso")
-                    Text("Ping").tag("Ping")
+
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle(isOn: $state.isPaused) { Text("Pause Clawdis (disables notifications & privileged actions)") }
+                Toggle(isOn: $state.launchAtLogin) { Text("Launch at login") }
+                #if DEBUG
+                Toggle(isOn: $state.debugPaneEnabled) { Text("Enable debug tools") }
+                    .help("Show the Debug tab with development utilities")
+                #endif
+
+                LabeledContent("Default sound") {
+                    Picker("Sound", selection: $state.defaultSound) {
+                        Text("None").tag("")
+                        Text("Glass").tag("Glass")
+                        Text("Basso").tag("Basso")
+                        Text("Ping").tag("Ping")
+                    }
+                    .labelsHidden()
+                    .frame(width: 140)
                 }
-                .labelsHidden()
-                .frame(width: 140)
             }
-            Divider().padding(.vertical, 6)
-            cliInstaller
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Color(NSColor.controlBackgroundColor)))
+
+            GroupBox("CLI helper") {
+                cliInstaller
+            }
+            .groupBoxStyle(.automatic)
+
             Spacer()
             HStack {
                 Spacer()
@@ -643,10 +722,11 @@ struct GeneralSettings: View {
                     .buttonStyle(.borderedProminent)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var cliInstaller: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 Button {
                     Task { await installCLI() }
@@ -669,6 +749,7 @@ struct GeneralSettings: View {
             Text("Symlink \"clawdis-mac\" into /usr/local/bin and /opt/homebrew/bin for scripts.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
+                .padding(.leading, 2)
         }
     }
 
@@ -676,27 +757,8 @@ struct GeneralSettings: View {
         guard !isInstallingCLI else { return }
         isInstallingCLI = true
         defer { isInstallingCLI = false }
-
-        let helper = Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/ClawdisCLI")
-        guard FileManager.default.isExecutableFile(atPath: helper.path) else {
-            await MainActor.run { cliStatus = "Helper missing in bundle; rebuild via scripts/package-mac-app.sh" }
-            return
-        }
-
-        let targets = ["/usr/local/bin/clawdis-mac", "/opt/homebrew/bin/clawdis-mac"]
-        var messages: [String] = []
-        for target in targets {
-            do {
-                try FileManager.default.createDirectory(atPath: (target as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
-                try? FileManager.default.removeItem(atPath: target)
-                try FileManager.default.createSymbolicLink(atPath: target, withDestinationPath: helper.path)
-                messages.append("Linked \(target)")
-            } catch {
-                messages.append("Failed \(target): \(error.localizedDescription)")
-            }
-        }
-        await MainActor.run {
-            cliStatus = messages.joined(separator: "; ")
+        await CLIInstaller.install { status in
+            await MainActor.run { cliStatus = status }
         }
     }
 }
@@ -707,9 +769,12 @@ struct PermissionsSettings: View {
     let showOnboarding: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             Text("Allow these so Clawdis can notify and capture when needed.")
+                .padding(.bottom, 2)
             PermissionStatusList(status: status, refresh: refresh)
+                .padding(14)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color(NSColor.controlBackgroundColor)))
             Button("Show onboarding") { showOnboarding() }
             Spacer()
         }
@@ -750,18 +815,91 @@ struct DebugSettings: View {
 }
 
 struct AboutSettings: View {
+    @State private var iconHover = false
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Clawdis Companion")
-                .font(.title2.bold())
-            let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
-            Text("Version \(version)")
-            Text("Menu bar helper for notifications, screenshots, and privileged actions.")
-                .foregroundColor(.secondary)
-            Divider()
-            Link("View repository", destination: URL(string: "https://github.com/steipete/warelay")!)
+        VStack(spacing: 10) {
+            let appIcon = NSApplication.shared.applicationIconImage ?? CritterIconRenderer.makeIcon(blink: 0)
+            Button {
+                if let url = URL(string: "https://github.com/steipete/warelay") {
+                    NSWorkspace.shared.open(url)
+                }
+            } label: {
+                Image(nsImage: appIcon)
+                    .resizable()
+                    .frame(width: 86, height: 86)
+                    .cornerRadius(18)
+                    .shadow(color: iconHover ? .accentColor.opacity(0.25) : .clear, radius: 8)
+                    .scaleEffect(iconHover ? 1.06 : 1.0)
+                    .padding(.bottom, 4)
+            }
+            .buttonStyle(.plain)
+            .onHover { hover in
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.72)) {
+                    iconHover = hover
+                }
+            }
+
+            VStack(spacing: 2) {
+                Text("Clawdis")
+                    .font(.title3.bold())
+                Text("Version \(versionString)")
+                    .foregroundStyle(.secondary)
+                Text("Menu bar companion for notifications, screenshots, and privileged agent actions.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 12)
+            }
+
+            VStack(alignment: .center, spacing: 6) {
+                AboutLinkRow(icon: "chevron.left.slash.chevron.right", title: "GitHub", url: "https://github.com/steipete/warelay")
+                AboutLinkRow(icon: "globe", title: "Website", url: "https://steipete.me")
+                AboutLinkRow(icon: "bird", title: "Twitter", url: "https://twitter.com/steipete")
+                AboutLinkRow(icon: "envelope", title: "Email", url: "mailto:peter@steipete.me")
+            }
+            .padding(.vertical, 10)
+
+            Text("© 2025 Peter Steinberger — MIT License.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .padding(.top, 6)
+
             Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 18)
+        .padding(.bottom, 22)
+    }
+
+    private var versionString: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        return build.map { "\(version) (\($0))" } ?? version
+    }
+}
+
+@MainActor
+private struct AboutLinkRow: View {
+    let icon: String
+    let title: String
+    let url: String
+
+    @State private var hovering = false
+
+    var body: some View {
+        Button {
+            if let url = URL(string: url) { NSWorkspace.shared.open(url) }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                Text(title)
+                    .underline(hovering, color: .accentColor)
+            }
+            .foregroundColor(.accentColor)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
     }
 }
 
@@ -770,7 +908,7 @@ struct PermissionStatusList: View {
     let refresh: () async -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             row(label: "Notifications", cap: .notifications, action: requestNotifications)
             row(label: "Accessibility", cap: .accessibility) {
                 openSettings("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
@@ -780,6 +918,7 @@ struct PermissionStatusList: View {
             }
             Button("Refresh status") { Task { await refresh() } }
                 .font(.footnote)
+                .padding(.top, 2)
         }
     }
 
@@ -811,92 +950,100 @@ struct PermissionStatusList: View {
     }
 }
 
-// MARK: - Permissions window stub
+enum LaunchdManager {
+    private static func runLaunchctl(_ args: [String]) {
+        let process = Process()
+        process.launchPath = "/bin/launchctl"
+        process.arguments = args
+        try? process.run()
+    }
 
-@MainActor
-final class PermissionsSheetController {
-    static let shared = PermissionsSheetController()
+    static func startClawdis() {
+        let userTarget = "gui/\(getuid())/\(launchdLabel)"
+        runLaunchctl(["kickstart", "-k", userTarget])
+    }
 
-    private var window: NSWindow?
-
-    func show(state: AppState) {
-        if let window {
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
-        }
-
-        let hosting = NSHostingController(rootView: PermissionsView())
-        let window = NSWindow(contentViewController: hosting)
-        window.title = "Permissions"
-        window.setContentSize(NSSize(width: 360, height: 220))
-        window.styleMask = [.titled, .closable, .miniaturizable]
-        window.isReleasedWhenClosed = false
-        window.center()
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        self.window = window
+    static func stopClawdis() {
+        let userTarget = "gui/\(getuid())/\(launchdLabel)"
+        runLaunchctl(["stop", userTarget])
     }
 }
 
-struct PermissionsView: View {
-    @State private var notificationStatus: String = "Unknown"
+@MainActor
+enum CLIInstaller {
+    static func install(statusHandler: @escaping @Sendable (String) async -> Void) async {
+        let helper = Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/ClawdisCLI")
+        guard FileManager.default.isExecutableFile(atPath: helper.path) else {
+            await statusHandler("Helper missing in bundle; rebuild via scripts/package-mac-app.sh")
+            return
+        }
+
+        let targets = ["/usr/local/bin/clawdis-mac", "/opt/homebrew/bin/clawdis-mac"]
+        var messages: [String] = []
+        for target in targets {
+            do {
+                try FileManager.default.createDirectory(atPath: (target as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+                try? FileManager.default.removeItem(atPath: target)
+                try FileManager.default.createSymbolicLink(atPath: target, withDestinationPath: helper.path)
+                messages.append("Linked \(target)")
+            } catch {
+                messages.append("Failed \(target): \(error.localizedDescription)")
+            }
+        }
+        await statusHandler(messages.joined(separator: "; "))
+    }
+}
+
+private struct PermissionRow: View {
+    let capability: Capability
+    let status: Bool
+    let action: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Grant the permissions below so Clawdis can help.")
-            if AppStateStore.isPausedFlag {
-                Text("Clawdis is paused. Unpause to enable actions.")
-                    .foregroundColor(.orange)
+        HStack(spacing: 12) {
+            ZStack {
+                Circle().fill(status ? Color.green.opacity(0.2) : Color.gray.opacity(0.15))
+                    .frame(width: 32, height: 32)
+                Image(systemName: icon)
+                    .foregroundStyle(status ? Color.green : Color.secondary)
             }
-            Divider()
-            HStack {
-                Text("Notifications")
-                Spacer()
-                Text(notificationStatus).foregroundColor(.secondary)
-                Button("Request") { requestNotifications() }
-            }
-            HStack {
-                Text("Accessibility")
-                Spacer()
-                Button("Open Settings") { openSettings(path: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") }
-            }
-            HStack {
-                Text("Screen Recording")
-                Spacer()
-                Button("Open Settings") { openSettings(path: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenRecording") }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.body.weight(.semibold))
+                Text(subtitle).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            Text("Tip: run 'clawdis-mac ensure-permissions --interactive' from terminal to trigger prompts.")
-                .font(.footnote)
-                .foregroundColor(.secondary)
+            if status {
+                Label("Granted", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            } else {
+                Button("Grant") { action() }
+                    .buttonStyle(.bordered)
+            }
         }
-        .padding()
-        .task { await refreshNotificationStatus() }
+        .padding(.vertical, 6)
     }
 
-    private func requestNotifications() {
-        Task {
-            let center = UNUserNotificationCenter.current()
-            _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
-            await refreshNotificationStatus()
-        }
-    }
-
-    @MainActor
-    private func refreshNotificationStatus() async {
-        let settings = await UNUserNotificationCenter.current().notificationSettings()
-        switch settings.authorizationStatus {
-        case .notDetermined: notificationStatus = "Not determined"
-        case .denied: notificationStatus = "Denied"
-        case .authorized, .provisional, .ephemeral: notificationStatus = "Authorized"
-        @unknown default: notificationStatus = "Unknown"
+    private var title: String {
+        switch capability {
+        case .notifications: return "Notifications"
+        case .accessibility: return "Accessibility"
+        case .screenRecording: return "Screen Recording"
         }
     }
 
-    private func openSettings(path: String) {
-        if let url = URL(string: path) {
-            NSWorkspace.shared.open(url)
+    private var subtitle: String {
+        switch capability {
+        case .notifications: return "Show desktop alerts for agent activity"
+        case .accessibility: return "Control UI elements when an action requires it"
+        case .screenRecording: return "Capture the screen for context or screenshots"
+        }
+    }
+
+    private var icon: String {
+        switch capability {
+        case .notifications: return "bell" 
+        case .accessibility: return "hand.raised" 
+        case .screenRecording: return "display" 
         }
     }
 }
@@ -917,7 +1064,7 @@ final class OnboardingController {
         let hosting = NSHostingController(rootView: OnboardingView())
         let window = NSWindow(contentViewController: hosting)
         window.title = "Welcome to Clawdis"
-        window.setContentSize(NSSize(width: 520, height: 420))
+        window.setContentSize(NSSize(width: 640, height: 520))
         window.styleMask = [.titled, .closable]
         window.center()
         window.makeKeyAndOrderFront(nil)
@@ -935,63 +1082,118 @@ struct OnboardingView: View {
     @State private var stepIndex = 0
     @State private var permStatus: [Capability: Bool] = [:]
     @State private var copied = false
+    @State private var isRequesting = false
+    @ObservedObject private var state = AppStateStore.shared
 
     private var steps: [OnboardingStep] {
         [
-            .init(title: "Welcome aboard", detail: "Clawdis is your macOS companion for notifications and privileged agent actions.", accent: "sparkles"),
-            .init(title: "Grant permissions", detail: "Enable Notifications, Accessibility, and Screen Recording so actions succeed.", accent: "lock.shield", showsPermissions: true),
-            .init(title: "Install the CLI", detail: "Make the helper available to scripts via a quick symlink.", accent: "terminal", showsCLI: true),
-            .init(title: "Done", detail: "You can pause Clawdis anytime from the menu. Happy automating!", accent: "hand.thumbsup")
+            .init(title: "Meet Clawdis", detail: "A focused menu bar companion for notifications, screenshots, and privileged agent actions.", systemImage: "sparkles"),
+            .init(title: "Permissions", detail: "Grant Notifications, Accessibility, and Screen Recording so tasks don't get blocked.", systemImage: "lock.shield", showsPermissions: true),
+            .init(title: "CLI helper", detail: "Install the `clawdis-mac` helper so scripts can talk to the app.", systemImage: "terminal", showsCLI: true),
+            .init(title: "Stay running", detail: "Enable launch at login so Clawdis is ready before the agent asks.", systemImage: "arrow.triangle.2.circlepath", showsLogin: true),
+            .init(title: "You're set", detail: "Keep Clawdis running, pause from the menu anytime, and re-run onboarding later if needed.", systemImage: "checkmark.seal")
         ]
     }
 
     var body: some View {
         let step = steps[stepIndex]
-        VStack(spacing: 16) {
-            header(step: step)
+        VStack(spacing: 18) {
+            heroHeader(step: step)
             contentCard(step: step)
             progressDots
             footerButtons
         }
-        .padding(20)
+        .padding(22)
+        .background(Color(NSColor.windowBackgroundColor))
         .task { await refreshPerms() }
     }
 
     @ViewBuilder
-    private func header(step: OnboardingStep) -> some View {
-        ZStack(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 14)
-                .fill(LinearGradient(colors: [Color.blue.opacity(0.9), Color.purple.opacity(0.85)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                .frame(height: 100)
-            VStack(alignment: .leading, spacing: 6) {
-                Label(step.title, systemImage: step.accent)
-                    .font(.title3.bold())
-                    .foregroundColor(.white)
-                Text(step.detail)
-                    .foregroundColor(Color.white.opacity(0.92))
-                    .font(.subheadline)
+    private func heroHeader(step: OnboardingStep) -> some View {
+        HStack(spacing: 16) {
+            ZStack {
+                LinearGradient(colors: [.accentColor.opacity(0.75), .purple.opacity(0.65)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    .frame(width: 96, height: 96)
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .shadow(color: .accentColor.opacity(0.35), radius: 12, y: 6)
+                Image(nsImage: CritterIconRenderer.makeIcon(blink: 0))
+                    .resizable()
+                    .renderingMode(.template)
+                    .foregroundStyle(.white)
+                    .frame(width: 54, height: 48)
             }
-            .padding(.horizontal, 16)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Label(step.title, systemImage: step.systemImage)
+                    .font(.title3.bold())
+                Text(step.detail)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
         }
     }
 
     @ViewBuilder
     private func contentCard(step: OnboardingStep) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             if step.showsPermissions {
-                PermissionStatusList(status: permStatus, refresh: refreshPerms)
-                    .padding(10)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(Color(NSColor.controlBackgroundColor)))
+                permissionsCard
             }
             if step.showsCLI {
                 CLIInstallCard(copied: $copied)
             }
+            if step.showsLoginToggle {
+                loginCard
+            }
             if !step.showsPermissions && !step.showsCLI {
-                Text("Keep Clawdis running in your menu bar. Use the Pause toggle anytime if you need to mute actions.")
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Keep Clawdis running in your menu bar. Pause from the menu if you need silence, or open Settings to adjust permissions later.")
+                    Button("Open Settings") {
+                        NSApp.activate(ignoringOtherApps: true)
+                        SettingsTabRouter.request(.general)
+                        NSApplication.shared.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+                    }
+                }
             }
         }
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 14).stroke(Color.gray.opacity(0.2)))
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color(NSColor.controlBackgroundColor)))
+    }
+
+    private var loginCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Launch at login")
+                .font(.headline)
+            Text("Keep the companion ready before automations start. You can change this anytime in Settings.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Toggle("Enable launch at login", isOn: $state.launchAtLogin)
+                .toggleStyle(.switch)
+                .onChange(of: state.launchAtLogin) { _, newValue in
+                    AppStateStore.updateLaunchAtLogin(enabled: newValue)
+                }
+        }
+    }
+
+    private var permissionsCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Give Clawdis the access it needs")
+                .font(.headline)
+            Text("Grant these once; the CLI will reuse the same approvals.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            ForEach(Capability.allCases, id: \.self) { cap in
+                PermissionRow(capability: cap, status: permStatus[cap] ?? false) {
+                    Task { await request(cap) }
+                }
+            }
+
+            Button("Refresh status") { Task { await refreshPerms() } }
+                .font(.footnote)
+                .padding(.top, 4)
+        }
     }
 
     private var progressDots: some View {
@@ -1016,11 +1218,10 @@ struct OnboardingView: View {
             if stepIndex > 0 {
                 Button("Back") { stepIndex = max(0, stepIndex - 1) }
             }
-            Button(stepIndex == steps.count - 1 ? "Finish" : "Next") {
-                advance()
-            }
-            .buttonStyle(.borderedProminent)
+            Button(stepIndex == steps.count - 1 ? "Finish" : "Next") { advance() }
+                .buttonStyle(.borderedProminent)
         }
+        .padding(.top, 4)
     }
 
     private func advance() {
@@ -1040,36 +1241,68 @@ struct OnboardingView: View {
     private func refreshPerms() async {
         permStatus = await PermissionManager.status()
     }
+
+    @MainActor
+    private func request(_ cap: Capability) async {
+        guard !isRequesting else { return }
+        isRequesting = true
+        defer { isRequesting = false }
+        _ = await PermissionManager.ensure([cap], interactive: true)
+        await refreshPerms()
+    }
 }
 
 struct OnboardingStep {
     let title: String
     let detail: String
-    let accent: String
+    let systemImage: String
     var showsPermissions: Bool = false
     var showsCLI: Bool = false
+    var showsLogin: Bool = false
+
+    var showsLoginToggle: Bool { showsLogin }
 }
 
 struct CLIInstallCard: View {
     @Binding var copied: Bool
+    @State private var installing = false
+    @State private var status: String?
     private let command = "ln -sf $(pwd)/apps/macos/.build/debug/ClawdisCLI /usr/local/bin/clawdis-mac"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Install the helper CLI")
                 .font(.headline)
-            Text("Run this once to expose the helper to your shell:")
-            HStack {
-                Text(command)
-                    .font(.system(.footnote, design: .monospaced))
-                    .lineLimit(2)
-                Spacer()
-                Button(copied ? "Copied" : "Copy") {
+            Text("Link `clawdis-mac` so scripts and the agent can call the companion.")
+
+            HStack(spacing: 10) {
+                Button {
+                    Task {
+                        guard !installing else { return }
+                        installing = true
+                        defer { installing = false }
+                        await CLIInstaller.install { msg in await MainActor.run { status = msg } }
+                    }
+                } label: {
+                    if installing { ProgressView() } else { Text("Install helper") }
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button(copied ? "Copied" : "Copy command") {
                     copyToPasteboard(command)
                 }
+                .disabled(installing)
             }
-            .padding(8)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Color(NSColor.controlBackgroundColor)))
+
+            if let status {
+                Text(status)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Text("You can rerun this anytime; we install into /usr/local/bin and /opt/homebrew/bin.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
         }
     }
 
