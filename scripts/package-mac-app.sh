@@ -12,7 +12,7 @@ PRODUCT="Clawdis"
 cd "$ROOT_DIR/apps/macos"
 
 echo "🔨 Building $PRODUCT (debug)"
-swift build -c debug --product "$PRODUCT" --build-path "$BUILD_PATH"
+swift build -c debug --product "$PRODUCT" --product "${PRODUCT}CLI" --build-path "$BUILD_PATH"
 
 BIN="$BUILD_PATH/debug/$PRODUCT"
 CLI_BIN="$BUILD_PATH/debug/ClawdisCLI"
@@ -39,6 +39,12 @@ cat > "$APP_ROOT/Contents/Info.plist" <<'PLIST'
     <string>15.0</string>
     <key>LSUIElement</key>
     <true/>
+    <key>NSUserNotificationUsageDescription</key>
+    <string>Clawdis needs notification permission to show alerts for agent actions.</string>
+    <key>NSScreenCaptureDescription</key>
+    <string>Clawdis captures the screen when the agent needs screenshots for context.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Clawdis may record screen or audio when requested by the agent.</string>
 </dict>
 </plist>
 PLIST
