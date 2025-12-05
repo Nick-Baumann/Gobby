@@ -842,7 +842,7 @@ struct AboutSettings: View {
     @State private var iconHover = false
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 14) {
             let appIcon = NSApplication.shared.applicationIconImage ?? CritterIconRenderer.makeIcon(blink: 0)
             Button {
                 if let url = URL(string: "https://github.com/steipete/warelay") {
@@ -851,20 +851,17 @@ struct AboutSettings: View {
             } label: {
                 Image(nsImage: appIcon)
                     .resizable()
-                    .frame(width: 86, height: 86)
+                    .frame(width: 88, height: 88)
                     .cornerRadius(18)
                     .shadow(color: iconHover ? .accentColor.opacity(0.25) : .clear, radius: 8)
                     .scaleEffect(iconHover ? 1.06 : 1.0)
-                    .padding(.bottom, 4)
             }
             .buttonStyle(.plain)
             .onHover { hover in
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.72)) {
-                    iconHover = hover
-                }
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.72)) { iconHover = hover }
             }
 
-            VStack(spacing: 2) {
+            VStack(spacing: 4) {
                 Text("Clawdis")
                     .font(.title3.bold())
                 Text("Version \(versionString)")
@@ -873,10 +870,10 @@ struct AboutSettings: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, 24)
             }
 
-            VStack(alignment: .center, spacing: 6) {
+            VStack(alignment: .center, spacing: 8) {
                 AboutLinkRow(icon: "chevron.left.slash.chevron.right", title: "GitHub", url: "https://github.com/steipete/warelay")
                 AboutLinkRow(icon: "globe", title: "Website", url: "https://steipete.me")
                 AboutLinkRow(icon: "bird", title: "Twitter", url: "https://twitter.com/steipete")
@@ -887,11 +884,11 @@ struct AboutSettings: View {
             Text("© 2025 Peter Steinberger — MIT License.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
-                .padding(.top, 6)
 
             Spacer()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(.top, 18)
         .padding(.horizontal, 18)
         .padding(.bottom, 22)
     }
