@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import * as tauRpc from "../process/tau-rpc.js";
 import { getReplyFromConfig } from "./reply.js";
 
 const baseCfg = {
@@ -11,6 +12,10 @@ const baseCfg = {
     },
   },
 };
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("trigger handling", () => {
   it("aborts even with timestamp prefix", async () => {
@@ -45,5 +50,39 @@ describe("trigger handling", () => {
     const text = Array.isArray(res) ? res[0]?.text : res?.text;
     expect(text?.startsWith("⚙️ Restarting" ?? "")).toBe(true);
     expect(runner).not.toHaveBeenCalled();
+  });
+
+  it("ignores think directives that only appear in the context wrapper", async () => {
+    const rpcMock = vi.spyOn(tauRpc, "runPiRpc").mockResolvedValue({
+      stdout:
+        '{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"ok"}]}}',
+      stderr: "",
+      code: 0,
+      signal: null,
+      killed: false,
+    });
+
+    const res = await getReplyFromConfig(
+      {
+        Body: [
+          "[Chat messages since your last reply - for context]",
+          "Peter: /thinking high [2025-12-05T21:45:00.000Z]",
+          "",
+          "[Current message - respond to this]",
+          "Give me the status",
+        ].join("\n"),
+        From: "+1002",
+        To: "+2000",
+      },
+      {},
+      baseCfg,
+    );
+
+    const text = Array.isArray(res) ? res[0]?.text : res?.text;
+    expect(text).toBe("ok");
+    expect(rpcMock).toHaveBeenCalledOnce();
+    const prompt = rpcMock.mock.calls[0]?.[0]?.prompt ?? "";
+    expect(prompt).toContain("Give me the status");
+    expect(prompt).not.toContain("/thinking high");
   });
 });

@@ -298,20 +298,33 @@ export async function getReplyFromConfig(
     IsNewSession: isNewSession ? "true" : "false",
   };
 
+  const directiveSource = stripStructuralPrefixes(
+    sessionCtx.BodyStripped ?? sessionCtx.Body ?? "",
+  );
   const {
-    cleaned: thinkCleaned,
+    cleaned: thinkCleanedDirective,
     thinkLevel: inlineThink,
     rawLevel: rawThinkLevel,
     hasDirective: hasThinkDirective,
-  } = extractThinkDirective(sessionCtx.BodyStripped ?? sessionCtx.Body ?? "");
+  } = extractThinkDirective(directiveSource);
   const {
-    cleaned: verboseCleaned,
+    cleaned: verboseCleanedDirective,
     verboseLevel: inlineVerbose,
     rawLevel: rawVerboseLevel,
     hasDirective: hasVerboseDirective,
-  } = extractVerboseDirective(thinkCleaned);
-  sessionCtx.Body = verboseCleaned;
-  sessionCtx.BodyStripped = verboseCleaned;
+  } = extractVerboseDirective(thinkCleanedDirective);
+
+  // Keep the full body (including context wrapper) for the agent, but strip
+  // directives from it separately so history remains intact.
+  const { cleaned: thinkCleanedFull } = extractThinkDirective(
+    sessionCtx.Body ?? "",
+  );
+  const { cleaned: verboseCleanedFull } = extractVerboseDirective(
+    thinkCleanedFull,
+  );
+
+  sessionCtx.Body = verboseCleanedFull;
+  sessionCtx.BodyStripped = verboseCleanedFull;
 
   const isGroup =
     typeof ctx.From === "string" &&
@@ -331,16 +344,16 @@ export async function getReplyFromConfig(
     hasThinkDirective &&
     hasVerboseDirective &&
     (() => {
-      const stripped = stripStructuralPrefixes(verboseCleaned ?? "");
+      const stripped = stripStructuralPrefixes(verboseCleanedDirective ?? "");
       const noMentions = isGroup ? stripMentions(stripped, ctx, cfg) : stripped;
       return noMentions.length === 0;
     })();
 
   const directiveOnly = (() => {
     if (!hasThinkDirective) return false;
-    if (!thinkCleaned) return true;
+    if (!thinkCleanedDirective) return true;
     // Check after stripping both think and verbose so combined directives count.
-    const stripped = stripStructuralPrefixes(verboseCleaned);
+    const stripped = stripStructuralPrefixes(verboseCleanedDirective);
     const noMentions = isGroup ? stripMentions(stripped, ctx, cfg) : stripped;
     return noMentions.length === 0;
   })();
@@ -406,8 +419,8 @@ export async function getReplyFromConfig(
 
   const verboseDirectiveOnly = (() => {
     if (!hasVerboseDirective) return false;
-    if (!verboseCleaned) return true;
-    const stripped = stripStructuralPrefixes(verboseCleaned);
+    if (!verboseCleanedDirective) return true;
+    const stripped = stripStructuralPrefixes(verboseCleanedDirective);
     const noMentions = isGroup ? stripMentions(stripped, ctx, cfg) : stripped;
     return noMentions.length === 0;
   })();
