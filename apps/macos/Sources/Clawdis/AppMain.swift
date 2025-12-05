@@ -404,10 +404,18 @@ private struct CritterStatusLabel: View {
     @State private var wiggleAngle: Double = 0
     @State private var wiggleOffset: CGFloat = 0
     @State private var nextWiggle = Date().addingTimeInterval(Double.random(in: 6.5 ... 14))
+    @State private var legWiggle: CGFloat = 0
+    @State private var nextLegWiggle = Date().addingTimeInterval(Double.random(in: 5.0 ... 11.0))
+    @State private var earWiggle: CGFloat = 0
+    @State private var nextEarWiggle = Date().addingTimeInterval(Double.random(in: 7.0 ... 14.0))
     private let ticker = Timer.publish(every: 0.35, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        Image(nsImage: CritterIconRenderer.makeIcon(blink: blinkAmount))
+        Image(nsImage: CritterIconRenderer.makeIcon(
+            blink: blinkAmount,
+            legWiggle: legWiggle,
+            earWiggle: earWiggle
+        ))
             .renderingMode(.template)
             .frame(width: 18, height: 16)
             .rotationEffect(.degrees(wiggleAngle), anchor: .center)
@@ -429,6 +437,16 @@ private struct CritterStatusLabel: View {
                     wiggle()
                     nextWiggle = now.addingTimeInterval(Double.random(in: 6.5 ... 14))
                 }
+
+                if now >= nextLegWiggle {
+                    wiggleLegs()
+                    nextLegWiggle = now.addingTimeInterval(Double.random(in: 5.0 ... 11.0))
+                }
+
+                if now >= nextEarWiggle {
+                    wiggleEars()
+                    nextEarWiggle = now.addingTimeInterval(Double.random(in: 7.0 ... 14.0))
+                }
             }
             .onChange(of: isPaused) { _, paused in
                 if paused {
@@ -436,6 +454,8 @@ private struct CritterStatusLabel: View {
                 } else {
                     nextBlink = Date().addingTimeInterval(Double.random(in: 1.5 ... 3.5))
                     nextWiggle = Date().addingTimeInterval(Double.random(in: 4.5 ... 9.5))
+                    nextLegWiggle = Date().addingTimeInterval(Double.random(in: 4.0 ... 8.0))
+                    nextEarWiggle = Date().addingTimeInterval(Double.random(in: 5.5 ... 10.5))
                 }
             }
     }
@@ -444,6 +464,8 @@ private struct CritterStatusLabel: View {
         blinkAmount = 0
         wiggleAngle = 0
         wiggleOffset = 0
+        legWiggle = 0
+        earWiggle = 0
     }
 
     private func blink() {
@@ -467,12 +489,32 @@ private struct CritterStatusLabel: View {
             }
         }
     }
+
+    private func wiggleLegs() {
+        let target = CGFloat.random(in: 0.35 ... 0.9)
+        withAnimation(.easeInOut(duration: 0.14)) {
+            legWiggle = target
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+            withAnimation(.easeOut(duration: 0.18)) { legWiggle = 0 }
+        }
+    }
+
+    private func wiggleEars() {
+        let target = CGFloat.random(in: -1.2 ... 1.2)
+        withAnimation(.interpolatingSpring(stiffness: 260, damping: 19)) {
+            earWiggle = target
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
+            withAnimation(.interpolatingSpring(stiffness: 260, damping: 19)) { earWiggle = 0 }
+        }
+    }
 }
 
 enum CritterIconRenderer {
     private static let size = NSSize(width: 18, height: 16)
 
-    static func makeIcon(blink: CGFloat) -> NSImage {
+    static func makeIcon(blink: CGFloat, legWiggle: CGFloat = 0, earWiggle: CGFloat = 0) -> NSImage {
         let image = NSImage(size: size)
         image.lockFocus()
         defer { image.unlockFocus() }
@@ -489,7 +531,7 @@ enum CritterIconRenderer {
         let bodyCorner = w * 0.09
 
         let earW = w * 0.22
-        let earH = bodyH * 0.66
+        let earH = bodyH * 0.66 * (1 - 0.08 * abs(earWiggle))
         let earCorner = earW * 0.24
 
         let legW = w * 0.11
@@ -497,7 +539,8 @@ enum CritterIconRenderer {
         let legSpacing = w * 0.085
         let legsWidth = 4 * legW + 3 * legSpacing
         let legStartX = (w - legsWidth) / 2
-        let legY = bodyY - legH + h * 0.05
+        let legLift = legH * 0.35 * legWiggle
+        let legYBase = bodyY - legH + h * 0.05
 
         let eyeOpen = max(0.05, 1 - blink)
         let eyeW = bodyW * 0.2
@@ -509,13 +552,28 @@ enum CritterIconRenderer {
 
         // Body
         ctx.addPath(CGPath(roundedRect: CGRect(x: bodyX, y: bodyY, width: bodyW, height: bodyH), cornerWidth: bodyCorner, cornerHeight: bodyCorner, transform: nil))
-        // Ears
-        ctx.addPath(CGPath(roundedRect: CGRect(x: bodyX - earW * 0.55, y: bodyY + bodyH * 0.08, width: earW, height: earH), cornerWidth: earCorner, cornerHeight: earCorner, transform: nil))
-        ctx.addPath(CGPath(roundedRect: CGRect(x: bodyX + bodyW - earW * 0.45, y: bodyY + bodyH * 0.08, width: earW, height: earH), cornerWidth: earCorner, cornerHeight: earCorner, transform: nil))
+        // Ears (tiny wiggle)
+        ctx.addPath(CGPath(roundedRect: CGRect(
+            x: bodyX - earW * 0.55 + earWiggle,
+            y: bodyY + bodyH * 0.08 + earWiggle * 0.4,
+            width: earW,
+            height: earH),
+            cornerWidth: earCorner,
+            cornerHeight: earCorner,
+            transform: nil))
+        ctx.addPath(CGPath(roundedRect: CGRect(
+            x: bodyX + bodyW - earW * 0.45 - earWiggle,
+            y: bodyY + bodyH * 0.08 - earWiggle * 0.4,
+            width: earW,
+            height: earH),
+            cornerWidth: earCorner,
+            cornerHeight: earCorner,
+            transform: nil))
         // Legs
         for i in 0 ..< 4 {
             let x = legStartX + CGFloat(i) * (legW + legSpacing)
-            let rect = CGRect(x: x, y: legY, width: legW, height: legH)
+            let lift = (i % 2 == 0 ? legLift : -legLift)
+            let rect = CGRect(x: x, y: legYBase + lift, width: legW, height: legH * (1 - 0.12 * legWiggle))
             ctx.addPath(CGPath(roundedRect: rect, cornerWidth: legW * 0.34, cornerHeight: legW * 0.34, transform: nil))
         }
         ctx.fillPath()
@@ -1080,7 +1138,7 @@ final class OnboardingController {
         let hosting = NSHostingController(rootView: OnboardingView())
         let window = NSWindow(contentViewController: hosting)
         window.title = "Welcome to Clawdis"
-        window.setContentSize(NSSize(width: 640, height: 520))
+        window.setContentSize(NSSize(width: 540, height: 420))
         window.styleMask = [.titled, .closable]
         window.center()
         window.makeKeyAndOrderFront(nil)
