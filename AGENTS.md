@@ -1,8 +1,8 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- Source code: `src/` (CLI wiring in `src/cli`, commands in `src/commands`, Twilio in `src/twilio`, Web provider in `src/provider-web.ts`, infra in `src/infra`, media pipeline in `src/media`).
-- Tests: colocated `*.test.ts` plus e2e in `src/cli/relay.e2e.test.ts`.
+- Source code: `src/` (CLI wiring in `src/cli`, commands in `src/commands`, web provider in `src/provider-web.ts`, infra in `src/infra`, media pipeline in `src/media`).
+- Tests: colocated `*.test.ts`.
 - Docs: `docs/` (images, queue, Pi config). Built output lives in `dist/`.
 
 ## Build, Test, and Development Commands
@@ -29,9 +29,8 @@
 - PRs should summarize scope, note testing performed, and mention any user-facing changes or new flags.
 
 ## Security & Configuration Tips
-- Environment: copy `.env.example`; set Twilio creds and WhatsApp sender (`TWILIO_WHATSAPP_FROM`).
-- Web provider stores creds at `~/.clawdis/credentials/` (legacy fallback: `~/.warelay/credentials/`); rerun `clawdis login` if logged out.
-- Media hosting relies on Tailscale Funnel when using Twilio; use `clawdis webhook --ingress tailscale` or `--serve-media` for local hosting.
+- Web provider stores creds at `~/.clawdis/credentials/`; rerun `clawdis login` if logged out.
+- Pi/Tau sessions live under `~/.clawdis/sessions/` by default; the base directory is not configurable.
 
 ## Agent-Specific Notes
 - Relay is managed by launchctl (label `com.steipete.clawdis`). After code changes restart with `launchctl kickstart -k gui/$UID/com.steipete.clawdis` and verify via `launchctl list | grep clawdis`. Legacy label `com.steipete.warelay` still exists for rollback; prefer the new one. Use tmux only if you spin up a temporary relay yourself and clean it up afterward.
@@ -43,10 +42,10 @@ The Claude Code Bash tool escapes `!` to `\\!` in command arguments. When using 
 
 ```bash
 # WRONG - will send "Hello\\!" with backslash
-clawdis send --provider web --to "+1234" --message 'Hello!'
+clawdis send --to "+1234" --message 'Hello!'
 
 # CORRECT - use heredoc to avoid escaping
-clawdis send --provider web --to "+1234" --message "$(cat <<'EOF'
+clawdis send --to "+1234" --message "$(cat <<'EOF'
 Hello!
 EOF
 )"

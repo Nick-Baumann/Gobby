@@ -12,7 +12,7 @@ Goal: let Clawd sit in WhatsApp groups, wake up only when pinged, and keep that 
 - New session primer: on the first turn of a group session we now prepend a short blurb to the model like `You are replying inside the WhatsApp group "<subject>". Group members: +44..., +43..., … Address the specific sender noted in the message context.` If metadata isn’t available we still tell the agent it’s a group chat.
 
 ## Config for Clawd UK (+447511247203)
-Add a `groupChat` block to `~/.warelay/warelay.json` so display-name pings work even when WhatsApp strips the visual `@` in the text body:
+Add a `groupChat` block to `~/.clawdis/clawdis.json` so display-name pings work even when WhatsApp strips the visual `@` in the text body:
 
 ```json5
 {
@@ -46,7 +46,7 @@ Notes:
 - Manual smoke:
   - Send an `@clawd` ping in the group and confirm a reply that references the sender name.
   - Send a second ping and verify the history block is included then cleared on the next turn.
-  - Check `/tmp/warelay/warelay.log` at level `trace` (run relay with `--verbose`) to see `inbound web message (batched)` entries showing `from: <groupJid>` and the `[from: …]` suffix.
+  - Check relay logs (run with `--verbose`) to see `inbound web message (batched)` entries showing `from: <groupJid>` and the `[from: …]` suffix.
 
 ## Known considerations
 - Heartbeats are intentionally skipped for groups to avoid noisy broadcasts.
