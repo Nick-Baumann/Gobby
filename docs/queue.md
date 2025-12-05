@@ -1,6 +1,6 @@
 # Command Queue (2025-11-25)
 
-We now serialize all command-based auto-replies (Twilio webhook + poller + WhatsApp Web listener) through a tiny in-process queue to prevent multiple commands from running at once.
+We now serialize all command-based auto-replies (WhatsApp Web listener) through a tiny in-process queue to prevent multiple commands from running at once.
 
 ## Why
 - Some auto-reply commands are expensive (LLM calls) and can collide when multiple inbound messages arrive close together.
@@ -14,7 +14,7 @@ We now serialize all command-based auto-replies (Twilio webhook + poller + Whats
 
 ## Scope and guarantees
 - Applies only to config-driven command replies; plain text replies are unaffected.
-- Queue is process-wide, so webhook handlers, Twilio polling, and the web inbox listener all respect the same lock.
+- Queue is process-wide, so the web inbox listener (and any future entrypoints) all respect the same lock.
 - No external dependencies or background worker threads; pure TypeScript + promises.
 
 ## Troubleshooting

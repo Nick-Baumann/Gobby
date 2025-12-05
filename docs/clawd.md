@@ -87,7 +87,7 @@ The magic is in the combination: WhatsApp's ubiquity + Claude's intelligence + w
 
 ## The Config That Powers Clawd
 
-This is the actual config running on @steipete's Mac (`~/.warelay/warelay.json`):
+This is the actual config running on @steipete's Mac (`~/.clawdis/clawdis.json`):
 
 ```json5
 {

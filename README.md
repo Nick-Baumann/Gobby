@@ -31,7 +31,7 @@ Because every space lobster needs a time-and-space machine. The Doctor has a TAR
 
 ## Features
 
-- 📱 **WhatsApp Integration** — Personal WhatsApp Web or Twilio
+- 📱 **WhatsApp Integration** — Personal WhatsApp Web (Baileys)
 - 🤖 **AI Agent Gateway** — Pi/Tau only (Pi CLI in RPC mode)
 - 💬 **Session Management** — Per-sender conversation context
 - 🔔 **Heartbeats** — Periodic check-ins for proactive AI
@@ -100,22 +100,12 @@ CLAWDIS was built for **Clawd**, a space lobster AI assistant. See the full setu
 - 👨‍💻 **Peter's Blog:** [steipete.me](https://steipete.me)
 - 🐦 **Twitter:** [@steipete](https://twitter.com/steipete)
 
-## Providers
+## Provider
 
-### WhatsApp Web (Recommended)
+### WhatsApp Web
 ```bash
 clawdis login      # Scan QR code
 clawdis relay      # Start listening
-```
-
-### Twilio
-```bash
-# Set environment variables
-export TWILIO_ACCOUNT_SID=...
-export TWILIO_AUTH_TOKEN=...
-export TWILIO_WHATSAPP_FROM=whatsapp:+1234567890
-
-clawdis relay --provider twilio
 ```
 
 ## Commands

@@ -20,7 +20,7 @@ Use `pnpm` (Node 22+) from the repo root. Keep the working tree clean before tag
 - [ ] `pnpm lint`
 - [ ] `pnpm test` (or `pnpm test:coverage` if you need coverage output)
 - [ ] `pnpm run build` (last sanity check after tests)
-- [ ] (Optional) Spot-check a Twilio/Web flow if your changes affect send/receive paths.
+- [ ] (Optional) Spot-check the web relay if your changes affect send/receive paths.
 
 5) **Publish**
 - [ ] Confirm git status is clean; commit and push as needed.
