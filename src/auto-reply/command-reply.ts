@@ -22,6 +22,36 @@ import {
 } from "./tool-meta.js";
 import type { ReplyPayload } from "./types.js";
 
+function stripRpcNoise(raw: string): string {
+  // Drop rpc streaming scaffolding (toolcall deltas, audio buffer events) before parsing.
+  const lines = raw.split(/\n+/);
+  const kept: string[] = [];
+  for (const line of lines) {
+    try {
+      const evt = JSON.parse(line);
+      const type = evt?.type;
+      const msg = evt?.message ?? evt?.assistantMessageEvent;
+      const msgType = msg?.type;
+
+      // Ignore toolcall delta chatter and input buffer append events.
+      if (type === "message_update" && msgType === "toolcall_delta") continue;
+      if (type === "input_audio_buffer.append") continue;
+
+      // Ignore assistant messages that have no text content (pure toolcall scaffolding).
+      if (msg?.role === "assistant" && Array.isArray(msg?.content)) {
+        const hasText = msg.content.some(
+          (c: unknown) => (c as { type?: string })?.type === "text",
+        );
+        if (!hasText) continue;
+      }
+    } catch {
+      // not JSON; keep as-is
+    }
+    if (line.trim()) kept.push(line);
+  }
+  return kept.join("\n");
+}
+
 type CommandReplyConfig = NonNullable<WarelayConfig["inbound"]>["reply"] & {
   mode: "command";
 };
@@ -604,7 +634,7 @@ export async function runCommandReply(
     });
     const rawStdout = stdout.trim();
     let mediaFromCommand: string[] | undefined;
-    const trimmed = rawStdout;
+    const trimmed = stripRpcNoise(rawStdout);
     if (stderr?.trim()) {
       logVerbose(`Command auto-reply stderr: ${stderr.trim()}`);
     }
