@@ -1327,8 +1327,8 @@ struct SettingsRootView: View {
                 .tabItem { Label("About", systemImage: "info.circle") }
                 .tag(SettingsTab.about)
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 16)
+        .padding(.horizontal, 28)
+        .padding(.vertical, 22)
         .frame(width: SettingsTab.windowWidth, height: SettingsTab.windowHeight, alignment: .topLeading)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onReceive(NotificationCenter.default.publisher(for: .clawdisSelectSettingsTab)) { note in
@@ -1368,7 +1368,7 @@ struct SettingsRootView: View {
 enum SettingsTab: CaseIterable {
     case general, sessions, voiceWake, permissions, debug, about
     static let windowWidth: CGFloat = 520
-    static let windowHeight: CGFloat = 520
+    static let windowHeight: CGFloat = 624
     var title: String {
         switch self {
         case .general: "General"
@@ -1718,7 +1718,7 @@ struct GeneralSettings: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 22)
     }
 
     private var activeBinding: Binding<Bool> {
