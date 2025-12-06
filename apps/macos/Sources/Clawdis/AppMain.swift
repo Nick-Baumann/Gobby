@@ -1711,6 +1711,7 @@ enum SettingsTab: CaseIterable {
         switch self {
         case .general: "General"
         case .sessions: "Sessions"
+        case .config: "Config"
         case .voiceWake: "Voice Wake"
         case .permissions: "Permissions"
         case .debug: "Debug"
