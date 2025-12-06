@@ -1,0 +1,110 @@
+import AppKit
+import SwiftUI
+
+struct GeneralSettings: View {
+    @ObservedObject var state: AppState
+    @State private var isInstallingCLI = false
+    @State private var cliStatus: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            if !self.state.onboardingSeen {
+                Text("Complete onboarding to finish setup")
+                    .font(.callout.weight(.semibold))
+                    .foregroundColor(.accentColor)
+                    .padding(.bottom, 2)
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                SettingsToggleRow(
+                    title: "Clawdis active",
+                    subtitle: "Pause to stop Clawdis background helpers and notifications.",
+                    binding: self.activeBinding)
+
+                SettingsToggleRow(
+                    title: "Launch at login",
+                    subtitle: "Automatically start Clawdis after you sign in.",
+                    binding: self.$state.launchAtLogin)
+
+                SettingsToggleRow(
+                    title: "Show Dock icon",
+                    subtitle: "Keep Clawdis visible in the Dock instead of menu-bar-only mode.",
+                    binding: self.$state.showDockIcon)
+
+                SettingsToggleRow(
+                    title: "Enable debug tools",
+                    subtitle: "Show the Debug tab with development utilities.",
+                    binding: self.$state.debugPaneEnabled)
+
+                LabeledContent("Default sound") {
+                    Picker("Sound", selection: self.$state.defaultSound) {
+                        Text("None").tag("")
+                        Text("Glass").tag("Glass")
+                        Text("Basso").tag("Basso")
+                        Text("Ping").tag("Ping")
+                    }
+                    .labelsHidden()
+                    .frame(width: 140)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("CLI helper")
+                    .font(.callout.weight(.semibold))
+                self.cliInstaller
+            }
+
+            Spacer()
+            HStack {
+                Spacer()
+                Button("Quit Clawdis") { NSApp.terminate(nil) }
+                    .buttonStyle(.borderedProminent)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 22)
+    }
+
+    private var activeBinding: Binding<Bool> {
+        Binding(
+            get: { !self.state.isPaused },
+            set: { self.state.isPaused = !$0 })
+    }
+
+    private var cliInstaller: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Button {
+                    Task { await self.installCLI() }
+                } label: {
+                    if self.isInstallingCLI {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Text("Install CLI helper")
+                    }
+                }
+                .disabled(self.isInstallingCLI)
+
+                if let status = cliStatus {
+                    Text(status)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+            Text("Symlink \"clawdis-mac\" into /usr/local/bin and /opt/homebrew/bin for scripts.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .padding(.leading, 2)
+        }
+    }
+
+    private func installCLI() async {
+        guard !self.isInstallingCLI else { return }
+        self.isInstallingCLI = true
+        defer { isInstallingCLI = false }
+        await CLIInstaller.install { status in
+            await MainActor.run { self.cliStatus = status }
+        }
+    }
+}

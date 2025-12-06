@@ -1,0 +1,111 @@
+import ClawdisIPC
+import SwiftUI
+
+struct PermissionsSettings: View {
+    let status: [Capability: Bool]
+    let refresh: () async -> Void
+    let showOnboarding: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Allow these so Clawdis can notify and capture when needed.")
+                .padding(.top, 4)
+
+            PermissionStatusList(status: self.status, refresh: self.refresh)
+                .padding(.horizontal, 2)
+                .padding(.vertical, 6)
+
+            Button("Show onboarding") { self.showOnboarding() }
+                .buttonStyle(.bordered)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+    }
+}
+
+struct PermissionStatusList: View {
+    let status: [Capability: Bool]
+    let refresh: () async -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(Capability.allCases, id: \.self) { cap in
+                PermissionRow(capability: cap, status: self.status[cap] ?? false) {
+                    Task { await self.handle(cap) }
+                }
+            }
+            Button("Refresh status") { Task { await self.refresh() } }
+                .font(.footnote)
+                .padding(.top, 2)
+        }
+    }
+
+    @MainActor
+    private func handle(_ cap: Capability) async {
+        Task {
+            _ = await PermissionManager.ensure([cap], interactive: true)
+            await self.refresh()
+        }
+    }
+}
+
+struct PermissionRow: View {
+    let capability: Capability
+    let status: Bool
+    let action: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle().fill(self.status ? Color.green.opacity(0.2) : Color.gray.opacity(0.15))
+                    .frame(width: 32, height: 32)
+                Image(systemName: self.icon)
+                    .foregroundStyle(self.status ? Color.green : Color.secondary)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(self.title).font(.body.weight(.semibold))
+                Text(self.subtitle).font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            if self.status {
+                Label("Granted", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            } else {
+                Button("Grant") { self.action() }
+                    .buttonStyle(.bordered)
+            }
+        }
+        .padding(.vertical, 6)
+    }
+
+    private var title: String {
+        switch self.capability {
+        case .notifications: "Notifications"
+        case .accessibility: "Accessibility"
+        case .screenRecording: "Screen Recording"
+        case .microphone: "Microphone"
+        case .speechRecognition: "Speech Recognition"
+        }
+    }
+
+    private var subtitle: String {
+        switch self.capability {
+        case .notifications: "Show desktop alerts for agent activity"
+        case .accessibility: "Control UI elements when an action requires it"
+        case .screenRecording: "Capture the screen for context or screenshots"
+        case .microphone: "Allow Voice Wake and audio capture"
+        case .speechRecognition: "Transcribe Voice Wake trigger phrases on-device"
+        }
+    }
+
+    private var icon: String {
+        switch self.capability {
+        case .notifications: "bell"
+        case .accessibility: "hand.raised"
+        case .screenRecording: "display"
+        case .microphone: "mic"
+        case .speechRecognition: "waveform"
+        }
+    }
+}
