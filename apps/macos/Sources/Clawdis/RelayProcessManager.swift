@@ -1,6 +1,9 @@
 import Foundation
 import OSLog
 import Subprocess
+#if canImport(Darwin)
+import Darwin
+#endif
 
 @MainActor
 final class RelayProcessManager: ObservableObject {
