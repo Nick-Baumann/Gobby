@@ -1,19 +1,18 @@
 import AppKit
 import ApplicationServices
 import AsyncXPCConnection
-import ClawdisIPC
-import Foundation
-import class Foundation.Bundle
-import OSLog
-import CoreGraphics
-@preconcurrency import ScreenCaptureKit
 import AVFoundation
-import Speech
-import VideoToolbox
+import ClawdisIPC
+import CoreGraphics
+import Foundation
+import MenuBarExtraAccess
+import OSLog
+@preconcurrency import ScreenCaptureKit
 import ServiceManagement
+import Speech
 import SwiftUI
 import UserNotifications
-import MenuBarExtraAccess
+import VideoToolbox
 
 private let serviceName = "com.steipete.clawdis.xpc"
 private let launchdLabel = "com.steipete.clawdis"
@@ -22,6 +21,7 @@ private let currentOnboardingVersion = 2
 private let pauseDefaultsKey = "clawdis.pauseEnabled"
 private let swabbleEnabledKey = "clawdis.swabbleEnabled"
 private let swabbleTriggersKey = "clawdis.swabbleTriggers"
+private let showDockIconKey = "clawdis.showDockIcon"
 private let defaultVoiceWakeTriggers = ["clawd", "claude"]
 private let voiceWakeMicKey = "clawdis.voiceWakeMicID"
 private let voiceWakeLocaleKey = "clawdis.voiceWakeLocaleID"
@@ -35,21 +35,27 @@ final class AppState: ObservableObject {
     @Published var isPaused: Bool {
         didSet { UserDefaults.standard.set(isPaused, forKey: pauseDefaultsKey) }
     }
+
     @Published var defaultSound: String {
         didSet { UserDefaults.standard.set(defaultSound, forKey: "clawdis.defaultSound") }
     }
+
     @Published var launchAtLogin: Bool {
         didSet { Task { AppStateStore.updateLaunchAtLogin(enabled: launchAtLogin) } }
     }
+
     @Published var onboardingSeen: Bool {
         didSet { UserDefaults.standard.set(onboardingSeen, forKey: "clawdis.onboardingSeen") }
     }
+
     @Published var debugPaneEnabled: Bool {
         didSet { UserDefaults.standard.set(debugPaneEnabled, forKey: "clawdis.debugPaneEnabled") }
     }
+
     @Published var swabbleEnabled: Bool {
         didSet { UserDefaults.standard.set(swabbleEnabled, forKey: swabbleEnabledKey) }
     }
+
     @Published var swabbleTriggerWords: [String] {
         didSet {
             let cleaned = swabbleTriggerWords.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -60,12 +66,22 @@ final class AppState: ObservableObject {
             }
         }
     }
+
+    @Published var showDockIcon: Bool {
+        didSet {
+            UserDefaults.standard.set(showDockIcon, forKey: showDockIconKey)
+            AppActivationPolicy.apply(showDockIcon: showDockIcon)
+        }
+    }
+
     @Published var voiceWakeMicID: String {
         didSet { UserDefaults.standard.set(voiceWakeMicID, forKey: voiceWakeMicKey) }
     }
+
     @Published var voiceWakeLocaleID: String {
         didSet { UserDefaults.standard.set(voiceWakeLocaleID, forKey: voiceWakeLocaleKey) }
     }
+
     @Published var voiceWakeAdditionalLocaleIDs: [String] {
         didSet { UserDefaults.standard.set(voiceWakeAdditionalLocaleIDs, forKey: voiceWakeAdditionalLocalesKey) }
     }
@@ -79,6 +95,7 @@ final class AppState: ObservableObject {
         let savedVoiceWake = UserDefaults.standard.bool(forKey: swabbleEnabledKey)
         self.swabbleEnabled = voiceWakeSupported ? savedVoiceWake : false
         self.swabbleTriggerWords = UserDefaults.standard.stringArray(forKey: swabbleTriggersKey) ?? defaultVoiceWakeTriggers
+        self.showDockIcon = UserDefaults.standard.bool(forKey: showDockIconKey)
         self.voiceWakeMicID = UserDefaults.standard.string(forKey: voiceWakeMicKey) ?? ""
         self.voiceWakeLocaleID = UserDefaults.standard.string(forKey: voiceWakeLocaleKey) ?? Locale.current.identifier
         self.voiceWakeAdditionalLocaleIDs = UserDefaults.standard.stringArray(forKey: voiceWakeAdditionalLocalesKey) ?? []
@@ -97,6 +114,13 @@ enum AppStateStore {
         } else {
             try? SMAppService.mainApp.unregister()
         }
+    }
+}
+
+@MainActor
+enum AppActivationPolicy {
+    static func apply(showDockIcon: Bool) {
+        NSApp.setActivationPolicy(showDockIcon ? .regular : .accessory)
     }
 }
 
@@ -135,18 +159,20 @@ final class ClawdisXPCService: NSObject, ClawdisXPCProtocol {
 
         switch request {
         case let .notify(title, body, sound):
-            let chosenSound: String
-            if let sound { chosenSound = sound } else { chosenSound = await MainActor.run { AppStateStore.defaultSound } }
+            let chosenSound: String = if let sound { sound } else { await MainActor.run { AppStateStore.defaultSound } }
             let ok = await notifier.send(title: title, body: body, sound: chosenSound)
             return ok ? Response(ok: true) : Response(ok: false, message: "notification not authorized")
+
         case let .ensurePermissions(caps, interactive):
             let statuses = await PermissionManager.ensure(caps, interactive: interactive)
-            let missing = statuses.filter { !$0.value }.map { $0.key.rawValue }
+            let missing = statuses.filter { !$0.value }.map(\.key.rawValue)
             let ok = missing.isEmpty
             let msg = ok ? "all granted" : "missing: \(missing.joined(separator: ","))"
             return Response(ok: ok, message: msg)
+
         case .status:
             return Response(ok: true, message: "ready")
+
         case let .screenshot(displayID, windowID, _):
             let authorized = await PermissionManager.ensure([.screenRecording], interactive: false)[.screenRecording] ?? false
             guard authorized else { return Response(ok: false, message: "screen recording permission missing") }
@@ -154,6 +180,7 @@ final class ClawdisXPCService: NSObject, ClawdisXPCProtocol {
                 return Response(ok: true, payload: data)
             }
             return Response(ok: false, message: "screenshot failed")
+
         case let .runShell(command, cwd, env, timeoutSec, needsSR):
             if needsSR {
                 let authorized = await PermissionManager.ensure([.screenRecording], interactive: false)[.screenRecording] ?? false
@@ -206,37 +233,41 @@ enum PermissionManager {
             case .notifications:
                 let center = UNUserNotificationCenter.current()
                 let status = await center.notificationSettings()
-                if status.authorizationStatus == .notDetermined && interactive {
+                if status.authorizationStatus == .notDetermined, interactive {
                     _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
                     let post = await center.notificationSettings()
                     results[cap] = post.authorizationStatus == .authorized
                 } else {
                     results[cap] = status.authorizationStatus == .authorized
                 }
+
             case .accessibility:
                 // Accessing AX APIs must be on main thread.
                 let trusted = AXIsProcessTrusted()
                 results[cap] = trusted
-                if interactive && !trusted {
+                if interactive, !trusted {
                     _ = AXIsProcessTrustedWithOptions(nil)
                 }
+
             case .screenRecording:
                 let granted = ScreenRecordingProbe.isAuthorized()
-                if interactive && !granted {
+                if interactive, !granted {
                     await ScreenRecordingProbe.requestAuthorization()
                 }
                 results[cap] = ScreenRecordingProbe.isAuthorized()
+
             case .microphone:
                 let granted = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
-                if interactive && !granted {
+                if interactive, !granted {
                     let ok = await AVCaptureDevice.requestAccess(for: .audio)
                     results[cap] = ok
                 } else {
                     results[cap] = granted
                 }
+
             case .speechRecognition:
                 let status = SFSpeechRecognizer.authorizationStatus()
-                if status == .notDetermined && interactive {
+                if status == .notDetermined, interactive {
                     let ok = await withCheckedContinuation { cont in
                         SFSpeechRecognizer.requestAuthorization { auth in cont.resume(returning: auth == .authorized) }
                     }
@@ -258,16 +289,20 @@ enum PermissionManager {
                 let center = UNUserNotificationCenter.current()
                 let settings = await center.notificationSettings()
                 results[cap] = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
+
             case .accessibility:
                 results[cap] = AXIsProcessTrusted()
+
             case .screenRecording:
                 if #available(macOS 10.15, *) {
                     results[cap] = CGPreflightScreenCaptureAccess()
                 } else {
                     results[cap] = true
                 }
+
             case .microphone:
                 results[cap] = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+
             case .speechRecognition:
                 results[cap] = SFSpeechRecognizer.authorizationStatus() == .authorized
             }
@@ -299,11 +334,10 @@ enum Screenshotter {
     static func capture(displayID: UInt32?, windowID: UInt32?) async -> Data? {
         guard let content = try? await SCShareableContent.current else { return nil }
 
-        let targetDisplay: SCDisplay?
-        if let displayID {
-            targetDisplay = content.displays.first(where: { $0.displayID == displayID })
+        let targetDisplay: SCDisplay? = if let displayID {
+            content.displays.first(where: { $0.displayID == displayID })
         } else {
-            targetDisplay = content.displays.first
+            content.displays.first
         }
 
         let filter: SCContentFilter
@@ -394,7 +428,7 @@ enum ShellRunner {
         }
 
         if let timeout, timeout > 0 {
-            let nanos = UInt64(timeout * 1_000_000_000)
+            let nanos = UInt64(timeout * 1000000000)
             try? await Task.sleep(nanoseconds: nanos)
             if process.isRunning {
                 process.terminate()
@@ -481,7 +515,7 @@ private struct MenuContent: View {
         let storePath = SessionLoader.defaultStorePath
         if let data = try? Data(contentsOf: URL(fileURLWithPath: storePath)),
            let decoded = try? JSONDecoder().decode([String: SessionEntryRecord].self, from: data) {
-            let sorted = decoded.sorted { (a, b) -> Bool in
+            let sorted = decoded.sorted { a, b -> Bool in
                 let lhs = a.value.updatedAt ?? 0
                 let rhs = b.value.updatedAt ?? 0
                 return lhs > rhs
@@ -514,11 +548,9 @@ private struct CritterStatusLabel: View {
                 Image(nsImage: CritterIconRenderer.makeIcon(blink: 0))
                     .frame(width: 18, height: 16)
             } else {
-                Image(nsImage: CritterIconRenderer.makeIcon(
-                    blink: blinkAmount,
-                    legWiggle: legWiggle,
-                    earWiggle: earWiggle
-                ))
+                Image(nsImage: CritterIconRenderer.makeIcon(blink: blinkAmount,
+                                                            legWiggle: legWiggle,
+                                                            earWiggle: earWiggle))
                     .frame(width: 18, height: 16)
                     .rotationEffect(.degrees(wiggleAngle), anchor: .center)
                     .offset(x: wiggleOffset)
@@ -641,22 +673,20 @@ enum CritterIconRenderer {
         // Body
         ctx.addPath(CGPath(roundedRect: CGRect(x: bodyX, y: bodyY, width: bodyW, height: bodyH), cornerWidth: bodyCorner, cornerHeight: bodyCorner, transform: nil))
         // Ears (tiny wiggle)
-        ctx.addPath(CGPath(roundedRect: CGRect(
-            x: bodyX - earW * 0.55 + earWiggle,
-            y: bodyY + bodyH * 0.08 + earWiggle * 0.4,
-            width: earW,
-            height: earH),
-            cornerWidth: earCorner,
-            cornerHeight: earCorner,
-            transform: nil))
-        ctx.addPath(CGPath(roundedRect: CGRect(
-            x: bodyX + bodyW - earW * 0.45 - earWiggle,
-            y: bodyY + bodyH * 0.08 - earWiggle * 0.4,
-            width: earW,
-            height: earH),
-            cornerWidth: earCorner,
-            cornerHeight: earCorner,
-            transform: nil))
+        ctx.addPath(CGPath(roundedRect: CGRect(x: bodyX - earW * 0.55 + earWiggle,
+                                               y: bodyY + bodyH * 0.08 + earWiggle * 0.4,
+                                               width: earW,
+                                               height: earH),
+                           cornerWidth: earCorner,
+                           cornerHeight: earCorner,
+                           transform: nil))
+        ctx.addPath(CGPath(roundedRect: CGRect(x: bodyX + bodyW - earW * 0.45 - earWiggle,
+                                               y: bodyY + bodyH * 0.08 - earWiggle * 0.4,
+                                               width: earW,
+                                               height: earH),
+                           cornerWidth: earCorner,
+                           cornerHeight: earCorner,
+                           transform: nil))
         // Legs
         for i in 0 ..< 4 {
             let x = legStartX + CGFloat(i) * (legW + legSpacing)
@@ -814,19 +844,19 @@ private enum SessionKind {
 
     var label: String {
         switch self {
-        case .direct: return "Direct"
-        case .group: return "Group"
-        case .global: return "Global"
-        case .unknown: return "Unknown"
+        case .direct: "Direct"
+        case .group: "Group"
+        case .global: "Global"
+        case .unknown: "Unknown"
         }
     }
 
     var tint: Color {
         switch self {
-        case .direct: return .accentColor
-        case .group: return .orange
-        case .global: return .purple
-        case .unknown: return .gray
+        case .direct: .accentColor
+        case .group: .orange
+        case .global: .purple
+        case .unknown: .gray
         }
     }
 }
@@ -849,16 +879,17 @@ private enum SessionLoadError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case let .missingStore(path):
-            return "No session store found at \(path) yet. Send or receive a message to create it."
+            "No session store found at \(path) yet. Send or receive a message to create it."
+
         case let .decodeFailed(reason):
-            return "Could not read the session store: \(reason)"
+            "Could not read the session store: \(reason)"
         }
     }
 }
 
 private enum SessionLoader {
     static let fallbackModel = "claude-opus-4-5"
-    static let fallbackContextTokens = 200_000
+    static let fallbackContextTokens = 200000
 
     static let defaultStorePath = standardize(
         FileManager.default.homeDirectoryForCurrentUser
@@ -868,7 +899,7 @@ private enum SessionLoader {
     private static let legacyStorePaths: [String] = [
         standardize(FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".clawdis/sessions.json").path),
         standardize(FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".warelay/sessions/sessions.json").path),
-        standardize(FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".warelay/sessions.json").path),
+        standardize(FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".warelay/sessions.json").path)
     ]
 
     static func configHints() -> SessionConfigHints {
@@ -890,11 +921,9 @@ private enum SessionLoader {
         let model = agent?["model"] as? String
         let contextTokens = (agent?["contextTokens"] as? NSNumber)?.intValue
 
-        return SessionConfigHints(
-            storePath: store.map { standardize($0) },
-            model: model,
-            contextTokens: contextTokens
-        )
+        return SessionConfigHints(storePath: store.map { standardize($0) },
+                                  model: model,
+                                  contextTokens: contextTokens)
     }
 
     static func resolveStorePath(override: String?) -> String {
@@ -928,24 +957,20 @@ private enum SessionLoader {
                 let context = entry.contextTokens ?? defaults.contextTokens
                 let model = entry.model ?? defaults.model
 
-                return SessionRow(
-                    id: key,
-                    key: key,
-                    kind: SessionKind.from(key: key),
-                    updatedAt: updated,
-                    sessionId: entry.sessionId,
-                    thinkingLevel: entry.thinkingLevel,
-                    verboseLevel: entry.verboseLevel,
-                    systemSent: entry.systemSent ?? false,
-                    abortedLastRun: entry.abortedLastRun ?? false,
-                    tokens: SessionTokenStats(
-                        input: input,
-                        output: output,
-                        total: total,
-                        contextTokens: context
-                    ),
-                    model: model
-                )
+                return SessionRow(id: key,
+                                  key: key,
+                                  kind: SessionKind.from(key: key),
+                                  updatedAt: updated,
+                                  sessionId: entry.sessionId,
+                                  thinkingLevel: entry.thinkingLevel,
+                                  verboseLevel: entry.verboseLevel,
+                                  systemSent: entry.systemSent ?? false,
+                                  abortedLastRun: entry.abortedLastRun ?? false,
+                                  tokens: SessionTokenStats(input: input,
+                                                            output: output,
+                                                            total: total,
+                                                            contextTokens: context),
+                                  model: model)
             }
             .sorted { ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast) }
         }.value
@@ -1056,7 +1081,7 @@ struct SessionsSettings: View {
 
     private var content: some View {
         Group {
-            if rows.isEmpty && errorMessage == nil {
+            if rows.isEmpty, errorMessage == nil {
                 Text("No sessions yet. They appear after the first inbound message or heartbeat.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -1117,10 +1142,8 @@ struct SessionsSettings: View {
 
         let hints = SessionLoader.configHints()
         let resolvedStore = SessionLoader.resolveStorePath(override: hints.storePath)
-        let defaults = SessionDefaults(
-            model: hints.model ?? SessionLoader.fallbackModel,
-            contextTokens: hints.contextTokens ?? SessionLoader.fallbackContextTokens
-        )
+        let defaults = SessionDefaults(model: hints.model ?? SessionLoader.fallbackModel,
+                                       contextTokens: hints.contextTokens ?? SessionLoader.fallbackContextTokens)
 
         do {
             let newRows = try await SessionLoader.loadRows(at: resolvedStore, defaults: defaults)
@@ -1288,7 +1311,7 @@ struct SettingsRootView: View {
             }
         }
         .onChange(of: state.debugPaneEnabled) { _, enabled in
-            if !enabled && selectedTab == .debug {
+            if !enabled, selectedTab == .debug {
                 selectedTab = .general
             }
         }
@@ -1296,7 +1319,7 @@ struct SettingsRootView: View {
     }
 
     private func validTab(for requested: SettingsTab) -> SettingsTab {
-        if requested == .debug && !state.debugPaneEnabled { return .general }
+        if requested == .debug, !state.debugPaneEnabled { return .general }
         return requested
     }
 
@@ -1315,12 +1338,12 @@ enum SettingsTab: CaseIterable {
     static let windowHeight: CGFloat = 520
     var title: String {
         switch self {
-        case .general: return "General"
-        case .sessions: return "Sessions"
-        case .voiceWake: return "Voice Wake"
-        case .permissions: return "Permissions"
-        case .debug: return "Debug"
-        case .about: return "About"
+        case .general: "General"
+        case .sessions: "Sessions"
+        case .voiceWake: "Voice Wake"
+        case .permissions: "Permissions"
+        case .debug: "Debug"
+        case .about: "About"
         }
     }
 }
@@ -1399,7 +1422,7 @@ actor MicLevelMonitor {
         let frameCount = Int(buffer.frameLength)
         guard frameCount > 0 else { return 0 }
         var sum: Float = 0
-        for i in 0..<frameCount {
+        for i in 0 ..< frameCount {
             let s = channel[i]
             sum += s * s
         }
@@ -1484,13 +1507,11 @@ final class VoiceWakeTester {
     }
 
     @MainActor
-    private func handleResult(
-        matched: Bool,
-        text: String,
-        isFinal: Bool,
-        errorMessage: String?,
-        onUpdate: @escaping @Sendable (VoiceWakeTestState) -> Void
-    ) {
+    private func handleResult(matched: Bool,
+                              text: String,
+                              isFinal: Bool,
+                              errorMessage: String?,
+                              onUpdate: @escaping @Sendable (VoiceWakeTestState) -> Void) {
         if matched, !text.isEmpty {
             stop()
             onUpdate(.detected(text))
@@ -1520,7 +1541,7 @@ final class VoiceWakeTester {
         return triggers.contains { lowered.contains($0.lowercased()) }
     }
 
-    nonisolated private static func ensurePermissions() async throws -> Bool {
+    private nonisolated static func ensurePermissions() async throws -> Bool {
         let speechStatus = SFSpeechRecognizer.authorizationStatus()
         if speechStatus == .notDetermined {
             let granted = await withCheckedContinuation { continuation in
@@ -1536,12 +1557,14 @@ final class VoiceWakeTester {
         let micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
         switch micStatus {
         case .authorized: return true
+
         case .notDetermined:
             return await withCheckedContinuation { continuation in
                 AVCaptureDevice.requestAccess(for: .audio) { granted in
                     continuation.resume(returning: granted)
                 }
             }
+
         default:
             return false
         }
@@ -1593,20 +1616,17 @@ struct GeneralSettings: View {
             }
 
             VStack(alignment: .leading, spacing: 12) {
-                SettingsToggleRow(
-                    title: "Clawdis active",
-                    subtitle: "Pause to stop Clawdis background helpers and notifications.",
-                    binding: activeBinding)
+                SettingsToggleRow(title: "Clawdis active",
+                                  subtitle: "Pause to stop Clawdis background helpers and notifications.",
+                                  binding: activeBinding)
 
-                SettingsToggleRow(
-                    title: "Launch at login",
-                    subtitle: "Automatically start Clawdis after you sign in.",
-                    binding: $state.launchAtLogin)
+                SettingsToggleRow(title: "Launch at login",
+                                  subtitle: "Automatically start Clawdis after you sign in.",
+                                  binding: $state.launchAtLogin)
 
-                SettingsToggleRow(
-                    title: "Enable debug tools",
-                    subtitle: "Show the Debug tab with development utilities.",
-                    binding: $state.debugPaneEnabled)
+                SettingsToggleRow(title: "Enable debug tools",
+                                  subtitle: "Show the Debug tab with development utilities.",
+                                  binding: $state.debugPaneEnabled)
 
                 LabeledContent("Default sound") {
                     Picker("Sound", selection: $state.defaultSound) {
@@ -1638,10 +1658,8 @@ struct GeneralSettings: View {
     }
 
     private var activeBinding: Binding<Bool> {
-        Binding(
-            get: { !state.isPaused },
-            set: { state.isPaused = !$0 }
-        )
+        Binding(get: { !state.isPaused },
+                set: { state.isPaused = !$0 })
     }
 
     private var cliInstaller: some View {
@@ -1701,12 +1719,10 @@ struct VoiceWakeSettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SettingsToggleRow(
-                title: "Enable Voice Wake",
-                subtitle: "Listen for a wake phrase (e.g. \"Claude\") before running voice commands.",
-                binding: $state.swabbleEnabled
-            )
-            .disabled(!voiceWakeSupported)
+            SettingsToggleRow(title: "Enable Voice Wake",
+                              subtitle: "Listen for a wake phrase (e.g. \"Claude\") before running voice commands.",
+                              binding: $state.swabbleEnabled)
+                .disabled(!voiceWakeSupported)
 
             if !voiceWakeSupported {
                 Label("Voice Wake requires macOS 26 or newer.", systemImage: "exclamationmark.triangle.fill")
@@ -1767,16 +1783,16 @@ struct VoiceWakeSettings: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-        Spacer()
-    }
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(.horizontal, 12)
-    .task { await loadMicsIfNeeded() }
-    .task { await loadLocalesIfNeeded() }
-    .task { await restartMeter() }
-    .onChange(of: state.voiceWakeMicID) { _, _ in
-        Task { await restartMeter() }
-    }
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .task { await loadMicsIfNeeded() }
+        .task { await loadLocalesIfNeeded() }
+        .task { await restartMeter() }
+        .onChange(of: state.voiceWakeMicID) { _, _ in
+            Task { await restartMeter() }
+        }
         .onDisappear {
             Task { await meter.stop() }
         }
@@ -1824,16 +1840,20 @@ struct VoiceWakeSettings: View {
         switch testState {
         case .idle:
             AnyView(Image(systemName: "waveform").foregroundStyle(.secondary))
+
         case .requesting:
             AnyView(ProgressView().controlSize(.small))
+
         case .listening, .hearing:
             AnyView(
                 Image(systemName: "ear.and.waveform")
                     .symbolEffect(.pulse)
                     .foregroundStyle(Color.accentColor)
             )
+
         case .detected:
             AnyView(Image(systemName: "checkmark.circle.fill").foregroundStyle(.green))
+
         case .failed:
             AnyView(Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow))
         }
@@ -1842,17 +1862,22 @@ struct VoiceWakeSettings: View {
     private var statusText: String {
         switch testState {
         case .idle:
-            return "Press start, say a trigger word, and wait for detection."
+            "Press start, say a trigger word, and wait for detection."
+
         case .requesting:
-            return "Requesting mic & speech permission…"
+            "Requesting mic & speech permission…"
+
         case .listening:
-            return "Listening… say your trigger word."
+            "Listening… say your trigger word."
+
         case let .hearing(text):
-            return "Heard: \(text)"
+            "Heard: \(text)"
+
         case .detected:
-            return "Voice wake detected!"
+            "Voice wake detected!"
+
         case let .failed(reason):
-            return reason
+            reason
         }
     }
 
@@ -1866,16 +1891,14 @@ struct VoiceWakeSettings: View {
     }
 
     private func binding(for index: Int) -> Binding<String> {
-        Binding(
-            get: {
-                guard state.swabbleTriggerWords.indices.contains(index) else { return "" }
-                return state.swabbleTriggerWords[index]
-            },
-            set: { newValue in
-                guard state.swabbleTriggerWords.indices.contains(index) else { return }
-                state.swabbleTriggerWords[index] = newValue
-            }
-        )
+        Binding(get: {
+                    guard state.swabbleTriggerWords.indices.contains(index) else { return "" }
+                    return state.swabbleTriggerWords[index]
+                },
+                set: { newValue in
+                    guard state.swabbleTriggerWords.indices.contains(index) else { return }
+                    state.swabbleTriggerWords[index] = newValue
+                })
     }
 
     private func toggleTest() {
@@ -1895,20 +1918,18 @@ struct VoiceWakeSettings: View {
         testState = .requesting
         Task { @MainActor in
             do {
-                try await tester.start(
-                    triggers: triggers,
-                    micID: state.voiceWakeMicID.isEmpty ? nil : state.voiceWakeMicID,
-                    localeID: state.voiceWakeLocaleID,
-                    onUpdate: { newState in
-                        DispatchQueue.main.async { [self] in
-                            testState = newState
-                            if case .detected = newState { isTesting = false }
-                            if case .failed = newState { isTesting = false }
-                        }
-                    }
-                )
+                try await tester.start(triggers: triggers,
+                                       micID: state.voiceWakeMicID.isEmpty ? nil : state.voiceWakeMicID,
+                                       localeID: state.voiceWakeLocaleID,
+                                       onUpdate: { newState in
+                                           DispatchQueue.main.async { [self] in
+                                               testState = newState
+                                               if case .detected = newState { isTesting = false }
+                                               if case .failed = newState { isTesting = false }
+                                           }
+                                       })
                 // timeout after 10s
-                try await Task.sleep(nanoseconds: 10 * 1_000_000_000)
+                try await Task.sleep(nanoseconds: 10 * 1000000000)
                 if isTesting {
                     tester.stop()
                     testState = .failed("Timeout: no trigger heard")
@@ -1953,7 +1974,7 @@ struct VoiceWakeSettings: View {
                 Picker("Language", selection: $state.voiceWakeLocaleID) {
                     let current = Locale(identifier: Locale.current.identifier)
                     Text("\(friendlyName(for: current)) (System)").tag(Locale.current.identifier)
-                    ForEach(availableLocales.map { $0.identifier }, id: \.self) { id in
+                    ForEach(availableLocales.map(\.identifier), id: \.self) { id in
                         if id != Locale.current.identifier {
                             Text(friendlyName(for: Locale(identifier: id))).tag(id)
                         }
@@ -1969,14 +1990,12 @@ struct VoiceWakeSettings: View {
                         .font(.footnote.weight(.semibold))
                     ForEach(Array(state.voiceWakeAdditionalLocaleIDs.enumerated()), id: \.offset) { idx, localeID in
                         HStack(spacing: 8) {
-                            Picker("Extra \(idx + 1)", selection: Binding(
-                                get: { localeID },
-                                set: { newValue in
-                                    guard state.voiceWakeAdditionalLocaleIDs.indices.contains(idx) else { return }
-                                    state.voiceWakeAdditionalLocaleIDs[idx] = newValue
-                                }
-                            )) {
-                                ForEach(availableLocales.map { $0.identifier }, id: \.self) { id in
+                            Picker("Extra \(idx + 1)", selection: Binding(get: { localeID },
+                                                                          set: { newValue in
+                                                                              guard state.voiceWakeAdditionalLocaleIDs.indices.contains(idx) else { return }
+                                                                              state.voiceWakeAdditionalLocaleIDs[idx] = newValue
+                                                                          })) {
+                                ForEach(availableLocales.map(\.identifier), id: \.self) { id in
                                     Text(friendlyName(for: Locale(identifier: id))).tag(id)
                                 }
                             }
@@ -2027,11 +2046,9 @@ struct VoiceWakeSettings: View {
     private func loadMicsIfNeeded() async {
         guard availableMics.isEmpty, !loadingMics else { return }
         loadingMics = true
-        let discovery = AVCaptureDevice.DiscoverySession(
-            deviceTypes: [.external, .microphone],
-            mediaType: .audio,
-            position: .unspecified
-        )
+        let discovery = AVCaptureDevice.DiscoverySession(deviceTypes: [.external, .microphone],
+                                                         mediaType: .audio,
+                                                         position: .unspecified)
         availableMics = discovery.devices.map { AudioInputDevice(uid: $0.uniqueID, name: $0.localizedName) }
         loadingMics = false
     }
@@ -2305,12 +2322,16 @@ struct PermissionStatusList: View {
             case .notifications:
                 let center = UNUserNotificationCenter.current()
                 _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
+
             case .accessibility:
                 openSettings("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+
             case .screenRecording:
                 openSettings("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenRecording")
+
             case .microphone:
                 openSettings("x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
+
             case .speechRecognition:
                 openSettings("x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition")
             }
@@ -2400,31 +2421,31 @@ private struct PermissionRow: View {
 
     private var title: String {
         switch capability {
-        case .notifications: return "Notifications"
-        case .accessibility: return "Accessibility"
-        case .screenRecording: return "Screen Recording"
-        case .microphone: return "Microphone"
-        case .speechRecognition: return "Speech Recognition"
+        case .notifications: "Notifications"
+        case .accessibility: "Accessibility"
+        case .screenRecording: "Screen Recording"
+        case .microphone: "Microphone"
+        case .speechRecognition: "Speech Recognition"
         }
     }
 
     private var subtitle: String {
         switch capability {
-        case .notifications: return "Show desktop alerts for agent activity"
-        case .accessibility: return "Control UI elements when an action requires it"
-        case .screenRecording: return "Capture the screen for context or screenshots"
-        case .microphone: return "Allow Voice Wake and audio capture"
-        case .speechRecognition: return "Transcribe Voice Wake trigger phrases on-device"
+        case .notifications: "Show desktop alerts for agent activity"
+        case .accessibility: "Control UI elements when an action requires it"
+        case .screenRecording: "Capture the screen for context or screenshots"
+        case .microphone: "Allow Voice Wake and audio capture"
+        case .speechRecognition: "Transcribe Voice Wake trigger phrases on-device"
         }
     }
 
     private var icon: String {
         switch capability {
-        case .notifications: return "bell" 
-        case .accessibility: return "hand.raised" 
-        case .screenRecording: return "display" 
-        case .microphone: return "mic" 
-        case .speechRecognition: return "waveform" 
+        case .notifications: "bell"
+        case .accessibility: "hand.raised"
+        case .screenRecording: "display"
+        case .microphone: "mic"
+        case .speechRecognition: "waveform"
         }
     }
 }
@@ -2435,7 +2456,7 @@ struct MicLevelBar: View {
 
     var body: some View {
         HStack(spacing: 3) {
-            ForEach(0..<segments, id: \.self) { idx in
+            ForEach(0 ..< segments, id: \.self) { idx in
                 let fill = level * Double(segments) > Double(idx)
                 RoundedRectangle(cornerRadius: 2)
                     .fill(fill ? segmentColor(for: idx) : Color.gray.opacity(0.35))
@@ -2519,10 +2540,8 @@ struct OnboardingView: View {
                     readyPage().frame(width: pageWidth)
                 }
                 .offset(x: CGFloat(-currentPage) * pageWidth)
-                .animation(
-                    .interactiveSpring(response: 0.5, dampingFraction: 0.86, blendDuration: 0.25),
-                    value: currentPage
-                )
+                .animation(.interactiveSpring(response: 0.5, dampingFraction: 0.86, blendDuration: 0.25),
+                           value: currentPage)
                 .frame(width: pageWidth, height: contentHeight, alignment: .top)
                 .clipped()
             }
@@ -2560,21 +2579,15 @@ struct OnboardingView: View {
             Text("What Clawdis handles")
                 .font(.largeTitle.weight(.semibold))
             onboardingCard {
-                featureRow(
-                    title: "Owns the TCC prompts",
-                    subtitle: "Requests Notifications, Accessibility, and Screen Recording so your agents stay unblocked.",
-                    systemImage: "lock.shield"
-                )
-                featureRow(
-                    title: "Native notifications",
-                    subtitle: "Shows desktop toasts for agent events with your preferred sound.",
-                    systemImage: "bell.and.waveform"
-                )
-                featureRow(
-                    title: "Privileged helpers",
-                    subtitle: "Runs screenshots or shell actions from the `clawdis-mac` CLI with the right permissions.",
-                    systemImage: "terminal"
-                )
+                featureRow(title: "Owns the TCC prompts",
+                           subtitle: "Requests Notifications, Accessibility, and Screen Recording so your agents stay unblocked.",
+                           systemImage: "lock.shield")
+                featureRow(title: "Native notifications",
+                           subtitle: "Shows desktop toasts for agent events with your preferred sound.",
+                           systemImage: "bell.and.waveform")
+                featureRow(title: "Privileged helpers",
+                           subtitle: "Runs screenshots or shell actions from the `clawdis-mac` CLI with the right permissions.",
+                           systemImage: "terminal")
             }
         }
     }
@@ -2683,16 +2696,12 @@ struct OnboardingView: View {
             Text("All set")
                 .font(.largeTitle.weight(.semibold))
             onboardingCard {
-                featureRow(
-                    title: "Run the dashboard",
-                    subtitle: "Use the CLI helper from your scripts, and reopen onboarding from Settings if you add a new user.",
-                    systemImage: "checkmark.seal"
-                )
-                featureRow(
-                    title: "Test a notification",
-                    subtitle: "Send a quick notify via the menu bar to confirm sounds and permissions.",
-                    systemImage: "bell.badge"
-                )
+                featureRow(title: "Run the dashboard",
+                           subtitle: "Use the CLI helper from your scripts, and reopen onboarding from Settings if you add a new user.",
+                           systemImage: "checkmark.seal")
+                featureRow(title: "Test a notification",
+                           subtitle: "Send a quick notify via the menu bar to confirm sounds and permissions.",
+                           systemImage: "bell.badge")
             }
             Text("Finish to save this version of onboarding. We'll reshow automatically when steps change.")
                 .font(.footnote)
@@ -2728,7 +2737,7 @@ struct OnboardingView: View {
             Spacer()
 
             HStack(spacing: 8) {
-                ForEach(0..<pageCount, id: \.self) { index in
+                ForEach(0 ..< pageCount, id: \.self) { index in
                     Button {
                         withAnimation { currentPage = index }
                     } label: {
@@ -2858,14 +2867,12 @@ private struct GlowingClawdisIcon: View {
         ZStack {
             Circle()
                 .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.accentColor.opacity(glowIntensity),
-                            Color.blue.opacity(glowIntensity * 0.6)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
+                    LinearGradient(colors: [
+                        Color.accentColor.opacity(glowIntensity),
+                        Color.blue.opacity(glowIntensity * 0.6)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing)
                 )
                 .blur(radius: 22)
                 .scaleEffect(breathe ? 1.12 : 0.95)

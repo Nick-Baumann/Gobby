@@ -62,15 +62,18 @@ extension Request: Codable {
             try container.encode(title, forKey: .title)
             try container.encode(body, forKey: .body)
             try container.encodeIfPresent(sound, forKey: .sound)
+
         case let .ensurePermissions(caps, interactive):
             try container.encode(Kind.ensurePermissions, forKey: .type)
             try container.encode(caps, forKey: .caps)
             try container.encode(interactive, forKey: .interactive)
+
         case let .screenshot(displayID, windowID, format):
             try container.encode(Kind.screenshot, forKey: .type)
             try container.encodeIfPresent(displayID, forKey: .displayID)
             try container.encodeIfPresent(windowID, forKey: .windowID)
             try container.encode(format, forKey: .format)
+
         case let .runShell(command, cwd, env, timeoutSec, needsSR):
             try container.encode(Kind.runShell, forKey: .type)
             try container.encode(command, forKey: .command)
@@ -78,6 +81,7 @@ extension Request: Codable {
             try container.encodeIfPresent(env, forKey: .env)
             try container.encodeIfPresent(timeoutSec, forKey: .timeoutSec)
             try container.encode(needsSR, forKey: .needsScreenRecording)
+
         case .status:
             try container.encode(Kind.status, forKey: .type)
         }
@@ -92,15 +96,18 @@ extension Request: Codable {
             let body = try container.decode(String.self, forKey: .body)
             let sound = try container.decodeIfPresent(String.self, forKey: .sound)
             self = .notify(title: title, body: body, sound: sound)
+
         case .ensurePermissions:
             let caps = try container.decode([Capability].self, forKey: .caps)
             let interactive = try container.decode(Bool.self, forKey: .interactive)
             self = .ensurePermissions(caps, interactive: interactive)
+
         case .screenshot:
             let displayID = try container.decodeIfPresent(UInt32.self, forKey: .displayID)
             let windowID = try container.decodeIfPresent(UInt32.self, forKey: .windowID)
             let format = try container.decode(String.self, forKey: .format)
             self = .screenshot(displayID: displayID, windowID: windowID, format: format)
+
         case .runShell:
             let command = try container.decode([String].self, forKey: .command)
             let cwd = try container.decodeIfPresent(String.self, forKey: .cwd)
@@ -108,6 +115,7 @@ extension Request: Codable {
             let timeout = try container.decodeIfPresent(Double.self, forKey: .timeoutSec)
             let needsSR = try container.decode(Bool.self, forKey: .needsScreenRecording)
             self = .runShell(command: command, cwd: cwd, env: env, timeoutSec: timeout, needsScreenRecording: needsSR)
+
         case .status:
             self = .status
         }

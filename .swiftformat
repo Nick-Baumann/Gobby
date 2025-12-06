@@ -6,7 +6,6 @@
 --wrapcollections before-first
 --trimwhitespace always
 --stripunusedargs closure-only
---stripunusedimports
 --self init-only
 --disable redundantSelf
 --enable wrapMultilineStatementBraces

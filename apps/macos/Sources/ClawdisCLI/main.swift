@@ -14,16 +14,15 @@ struct ClawdisCLI {
         do {
             let request = try parseCommandLine()
             let response = try await send(request: request)
-            let payloadString: String?
-            if let payload = response.payload, let text = String(data: payload, encoding: .utf8) {
-                payloadString = text
+            let payloadString: String? = if let payload = response.payload, let text = String(data: payload, encoding: .utf8) {
+                text
             } else {
-                payloadString = nil
+                nil
             }
             let output: [String: Any] = [
                 "ok": response.ok,
                 "message": response.message ?? "",
-                "payload": payloadString ?? "",
+                "payload": payloadString ?? ""
             ]
             let json = try JSONSerialization.data(withJSONObject: output, options: [.prettyPrinted])
             FileHandle.standardOutput.write(json)
@@ -56,6 +55,7 @@ struct ClawdisCLI {
             }
             guard let t = title, let b = body else { throw CLIError.help }
             return .notify(title: t, body: b, sound: sound)
+
         case "ensure-permissions":
             var caps: [Capability] = []
             var interactive = false
@@ -70,6 +70,7 @@ struct ClawdisCLI {
             }
             if caps.isEmpty { caps = Capability.allCases }
             return .ensurePermissions(caps, interactive: interactive)
+
         case "screenshot":
             var displayID: UInt32?
             var windowID: UInt32?
@@ -82,6 +83,7 @@ struct ClawdisCLI {
                 }
             }
             return .screenshot(displayID: displayID, windowID: windowID, format: "png")
+
         case "run":
             var cwd: String?
             var env: [String: String] = [:]
@@ -92,19 +94,23 @@ struct ClawdisCLI {
                 let arg = args.removeFirst()
                 switch arg {
                 case "--cwd": cwd = args.popFirst()
+
                 case "--env":
                     if let pair = args.popFirst(), let eq = pair.firstIndex(of: "=") {
                         let k = String(pair[..<eq]); let v = String(pair[pair.index(after: eq)...]); env[k] = v
                     }
                 case "--timeout": if let val = args.popFirst(), let dbl = Double(val) { timeout = dbl }
                 case "--needs-screen-recording": needsSR = true
+
                 default:
                     cmd.append(arg)
                 }
             }
             return .runShell(command: cmd, cwd: cwd, env: env.isEmpty ? nil : env, timeoutSec: timeout, needsScreenRecording: needsSR)
+
         case "status":
             return .status
+
         default:
             throw CLIError.help
         }
@@ -131,7 +137,7 @@ struct ClawdisCLI {
 
 enum CLIError: Error { case help }
 
-extension Array where Element == String {
+extension [String] {
     mutating func popFirst() -> String? {
         guard let first else { return nil }
         self = Array(self.dropFirst())

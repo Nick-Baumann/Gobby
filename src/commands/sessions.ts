@@ -36,7 +36,8 @@ const TOKENS_PAD = 20;
 
 const isRich = () => Boolean(process.stdout.isTTY && chalk.level > 0);
 
-const formatKTokens = (value: number) => `${(value / 1000).toFixed(value >= 10_000 ? 0 : 1)}k`;
+const formatKTokens = (value: number) =>
+  `${(value / 1000).toFixed(value >= 10_000 ? 0 : 1)}k`;
 
 const truncateKey = (key: string) => {
   if (key.length <= KEY_PAD) return key;
@@ -60,7 +61,9 @@ const formatTokensCell = (
   if (!total) return "-".padEnd(TOKENS_PAD);
   const totalLabel = formatKTokens(total);
   const ctxLabel = contextTokens ? formatKTokens(contextTokens) : "?";
-  const pct = contextTokens ? Math.min(999, Math.round((total / contextTokens) * 100)) : null;
+  const pct = contextTokens
+    ? Math.min(999, Math.round((total / contextTokens) * 100))
+    : null;
   const label = `${totalLabel}/${ctxLabel} (${pct ?? "?"}%)`;
   const padded = label.padEnd(TOKENS_PAD);
   return colorByPct(padded, pct, rich);
