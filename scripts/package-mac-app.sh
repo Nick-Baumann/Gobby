@@ -33,6 +33,8 @@ cat > "$APP_ROOT/Contents/Info.plist" <<'PLIST'
     <string>Clawdis</string>
     <key>CFBundleExecutable</key>
     <string>Clawdis</string>
+    <key>CFBundleIconFile</key>
+    <string>Clawdis</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>LSMinimumSystemVersion</key>
@@ -54,6 +56,9 @@ PLIST
 echo "🚚 Copying binary"
 cp "$BIN" "$APP_ROOT/Contents/MacOS/Clawdis"
 chmod +x "$APP_ROOT/Contents/MacOS/Clawdis"
+
+echo "🖼  Copying app icon"
+cp "$ROOT_DIR/apps/macos/Sources/Clawdis/Resources/Clawdis.icns" "$APP_ROOT/Contents/Resources/Clawdis.icns"
 
 if [ -f "$CLI_BIN" ]; then
   echo "🔧 Copying CLI helper"

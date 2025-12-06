@@ -32,6 +32,9 @@ let package = Package(
                 .product(name: "AsyncXPCConnection", package: "AsyncXPCConnection"),
                 .product(name: "MenuBarExtraAccess", package: "MenuBarExtraAccess"),
             ],
+            resources: [
+                .copy("Resources/Clawdis.icns"),
+            ],
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),
             ]
