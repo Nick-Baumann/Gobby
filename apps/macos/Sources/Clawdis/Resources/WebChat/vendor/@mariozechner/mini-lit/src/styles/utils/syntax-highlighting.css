@@ -1,0 +1,134 @@
+/* Syntax highlighting colors - GitHub Light theme (default) */
+:root {
+   --syntax-keyword: oklch(0.577 0.245 27.325); /* #d73a49 */
+   --syntax-entity: oklch(0.511 0.136 307.715); /* #6f42c1 */
+   --syntax-constant: oklch(0.435 0.141 237.016); /* #005cc5 */
+   --syntax-string: oklch(0.296 0.103 244.038); /* #032f62 */
+   --syntax-variable: oklch(0.608 0.178 54.291); /* #e36209 */
+   --syntax-comment: oklch(0.54 0.019 247.858); /* #6a737d */
+   --syntax-tag: oklch(0.403 0.111 145.348); /* #22863a */
+   --syntax-heading: oklch(0.435 0.141 237.016); /* #005cc5 */
+   --syntax-list: oklch(0.537 0.108 88.766); /* #735c0f */
+   --syntax-addition-bg: oklch(0.984 0.029 166.113); /* #f0fff4 */
+   --syntax-addition-fg: oklch(0.403 0.111 145.348); /* #22863a */
+   --syntax-deletion-bg: oklch(0.981 0.025 17.672); /* #ffeef0 */
+   --syntax-deletion-fg: oklch(0.431 0.183 27.522); /* #b31d28 */
+}
+
+/* Syntax highlighting colors - GitHub Dark theme */
+.dark {
+   --syntax-keyword: oklch(0.698 0.159 21.174); /* #ff7b72 */
+   --syntax-entity: oklch(0.792 0.124 307.715); /* #d2a8ff */
+   --syntax-constant: oklch(0.732 0.137 237.016); /* #79c0ff */
+   --syntax-string: oklch(0.786 0.08 237.016); /* #a5d6ff */
+   --syntax-variable: oklch(0.74 0.141 54.291); /* #ffa657 */
+   --syntax-comment: oklch(0.626 0.025 247.858); /* #8b949e */
+   --syntax-tag: oklch(0.812 0.159 145.348); /* #7ee787 */
+   --syntax-heading: oklch(0.523 0.181 237.016); /* #1f6feb */
+   --syntax-list: oklch(0.866 0.141 88.766); /* #f2cc60 */
+   --syntax-addition-bg: oklch(0.188 0.06 166.113); /* #033a16 */
+   --syntax-addition-fg: oklch(0.87 0.147 145.348); /* #aff5b4 */
+   --syntax-deletion-bg: oklch(0.233 0.129 17.672); /* #67060c */
+   --syntax-deletion-fg: oklch(0.92 0.067 17.672); /* #ffdcd7 */
+}
+
+/* Keywords */
+.hljs-doctag,
+.hljs-keyword,
+.hljs-meta .hljs-keyword,
+.hljs-template-tag,
+.hljs-template-variable,
+.hljs-type,
+.hljs-variable.language_ {
+   color: var(--syntax-keyword);
+}
+
+/* Entity (functions, classes) */
+.hljs-title,
+.hljs-title.class_,
+.hljs-title.class_.inherited__,
+.hljs-title.function_ {
+   color: var(--syntax-entity);
+}
+
+/* Constants */
+.hljs-attr,
+.hljs-attribute,
+.hljs-literal,
+.hljs-meta,
+.hljs-number,
+.hljs-operator,
+.hljs-variable,
+.hljs-selector-attr,
+.hljs-selector-class,
+.hljs-selector-id {
+   color: var(--syntax-constant);
+}
+
+/* Strings */
+.hljs-regexp,
+.hljs-string,
+.hljs-meta .hljs-string {
+   color: var(--syntax-string);
+}
+
+/* Built-in variables */
+.hljs-built_in,
+.hljs-symbol {
+   color: var(--syntax-variable);
+}
+
+/* Comments */
+.hljs-comment,
+.hljs-code,
+.hljs-formula {
+   color: var(--syntax-comment);
+}
+
+/* Tags */
+.hljs-name,
+.hljs-quote,
+.hljs-selector-tag,
+.hljs-selector-pseudo {
+   color: var(--syntax-tag);
+}
+
+/* Default text */
+.hljs-subst {
+   color: var(--color-text-primary);
+}
+
+/* Section headings */
+.hljs-section {
+   color: var(--syntax-heading);
+   font-weight: bold;
+}
+
+/* Bullets */
+.hljs-bullet {
+   color: var(--syntax-list);
+}
+
+/* Emphasis */
+.hljs-emphasis {
+   color: var(--color-text-primary);
+   font-style: italic;
+}
+
+/* Strong */
+.hljs-strong {
+   color: var(--color-text-primary);
+   font-weight: bold;
+}
+
+/* Additions */
+.hljs-addition {
+   color: var(--syntax-addition-fg);
+   background-color: var(--syntax-addition-bg);
+}
+
+/* Deletions */
+.hljs-deletion {
+   color: var(--syntax-deletion-fg);
+   background-color: var(--syntax-deletion-bg);
+}

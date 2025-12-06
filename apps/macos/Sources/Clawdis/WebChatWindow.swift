@@ -78,31 +78,27 @@ final class WebChatWindowController: NSWindowController, WKScriptMessageHandler,
             return
         }
 
-        let distPath = webChatURL.path(percentEncoded: false)
-        let cssPath = webChatURL.appendingPathComponent("app.css").path(percentEncoded: false)
-        let vendor = webChatURL.appendingPathComponent("vendor")
-
-        let piAi = vendor.appendingPathComponent("pi-ai/index.js").path(percentEncoded: false)
-        let miniLit = vendor.appendingPathComponent("mini-lit/index.js").path(percentEncoded: false)
-        let lit = vendor.appendingPathComponent("lit/index.js").path(percentEncoded: false)
-        let lucide = vendor.appendingPathComponent("lucide/lucide.js").path(percentEncoded: false)
-        let pdfjs = vendor.appendingPathComponent("pdfjs-dist/build/pdf.js").path(percentEncoded: false)
-        let pdfWorker = vendor.appendingPathComponent("pdfjs-dist/build/pdf.worker.min.mjs").path(percentEncoded: false)
-
         let importMap = [
             "imports": [
-                "@mariozechner/pi-web-ui": "file://\(distPath)/index.js",
-                "@mariozechner/pi-web-ui/": "file://\(distPath)/",
-                "@mariozechner/pi-ai": "file://\(piAi)",
-                "@mariozechner/pi-ai/": "file://\(vendor.appendingPathComponent("pi-ai/").path(percentEncoded: false))",
-                "@mariozechner/mini-lit": "file://\(miniLit)",
-                "@mariozechner/mini-lit/": "file://\(vendor.appendingPathComponent("mini-lit/").path(percentEncoded: false))",
-                "lit": "file://\(lit)",
-                "lit/": "file://\(vendor.appendingPathComponent("lit/").path(percentEncoded: false))",
-                "lucide": "file://\(lucide)",
-                "pdfjs-dist": "file://\(pdfjs)",
-                "pdfjs-dist/": "file://\(vendor.appendingPathComponent("pdfjs-dist/").path(percentEncoded: false))",
-                "pdfjs-dist/build/pdf.worker.min.mjs": "file://\(pdfWorker)",
+                "@mariozechner/pi-web-ui": "./index.js",
+                "@mariozechner/pi-web-ui/": "./",
+                "@mariozechner/pi-ai": "./pi-ai-stub.js",
+                "@mariozechner/pi-ai/": "./pi-ai-stub.js",
+                "@mariozechner/mini-lit": "./vendor/@mariozechner/mini-lit/dist/index.js",
+                "@mariozechner/mini-lit/": "./vendor/@mariozechner/mini-lit/dist/",
+                "lit": "./vendor/lit/index.js",
+                "lit/": "./vendor/lit/",
+                "lucide": "./vendor/lucide/dist/esm/lucide.js",
+                "pdfjs-dist": "./vendor/pdfjs-dist/build/pdf.js",
+                "pdfjs-dist/": "./vendor/pdfjs-dist/",
+                "pdfjs-dist/build/pdf.worker.min.mjs": "./vendor/pdfjs-dist/build/pdf.worker.min.mjs",
+                "docx-preview": "./vendor/docx-preview/dist/docx-preview.mjs",
+                "jszip": "./vendor/jszip/dist/jszip.min.js",
+                "highlight.js": "./vendor/highlight.js/es/index.js",
+                "@lmstudio/sdk": "./vendor/@lmstudio/sdk/dist/index.mjs",
+                "ollama/browser": "./vendor/ollama/dist/browser.mjs",
+                "@sinclair/typebox": "./vendor/@sinclair/typebox/build/esm/index.mjs",
+                "xlsx": "./vendor/xlsx/xlsx.mjs",
             ],
         ]
 
@@ -122,15 +118,18 @@ final class WebChatWindowController: NSWindowController, WKScriptMessageHandler,
         <head>
           <meta charset='utf-8'>
           <title>Clawd Web Chat</title>
-          <link rel='stylesheet' href='file://\(cssPath)'>
+          <link rel='stylesheet' href='app.css'>
           <script type="importmap">
           \(importMapJSON)
           </script>
           <style>html,body{height:100%;margin:0;padding:0;}#app{height:100%;}</style>
         </head>
         <body>
-          <div id="app"></div>
+          <div id="app">Booting web chat…</div>
           <script type="module">
+            // Minimal Node globals expected by pi-web-ui
+            if (!window.process) window.process = { env: {} };
+
             const initialMessages = \(messagesJSON);
             const status = (msg) => {
               console.log(msg);
@@ -145,10 +144,14 @@ final class WebChatWindowController: NSWindowController, WKScriptMessageHandler,
 
             (async () => {
               try {
-                const { Agent, ChatPanel, AppStorage, setAppStorage } = await import('@mariozechner/pi-web-ui');
+                const { Agent } = await import('./agent/agent.js');
+                status('boot: agent loaded');
+                const { ChatPanel } = await import('./ChatPanel.js');
+                status('boot: ChatPanel loaded');
+                const { AppStorage, setAppStorage } = await import('./storage/app-storage.js');
                 status('boot: pi-web-ui imported');
                 const { getModel } = await import('@mariozechner/pi-ai');
-                status('boot: pi-ai imported');
+                status('boot: pi-ai stub imported');
 
                 class NativeTransport {
                   async *run(messages, userMessage, cfg, signal) {
@@ -237,16 +240,18 @@ final class WebChatWindowController: NSWindowController, WKScriptMessageHandler,
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard let body = message.body as? [String: Any],
-              let id = body["id"] as? String,
-              let type = body["type"] as? String
+              let id = body["id"] as? String
         else { return }
 
-        if id == "log", let log = body["log"] as? String {
-            webChatLogger.debug("JS: \(log, privacy: .public)")
+        if id == "log" {
+            if let log = body["log"] as? String {
+                webChatLogger.debug("JS: \(log, privacy: .public)")
+            }
             return
         }
 
-        guard type == "chat",
+        guard let type = body["type"] as? String,
+              type == "chat",
               let payload = body["payload"] as? [String: Any],
               let text = payload["text"] as? String
         else { return }

@@ -1,27 +1,23 @@
 # Web Chat (macOS menu bar)
 
-The macOS Clawdis app ships a built-in web chat window that reuses your primary Clawd session instead of creating a new one. This is meant for quick desktop access without exposing any local HTTP ports.
+The macOS Clawdis app embeds the `pi-web-ui` chat surface inside `WKWebView`, wired directly to your **primary session** (`main` unless `inbound.reply.session.mainKey` overrides it). No HTTP server is started; assets are bundled into the app and loaded from `file://`, so nothing is exposed on the network.
 
 ## How it works
+- **UI bundle**: `apps/macos/Sources/Clawdis/Resources/WebChat/` contains `pi-web-ui` dist plus vendor deps and a tiny `pi-ai` stub.
+- **Bridge**: a `WKScriptMessageHandler` named `clawdis` passes chat turns to `pnpm clawdis agent --to <sessionKey> --message ... --json` and returns the first payload text. Everything stays in-process—no sockets, no local web server.
+- **Session**: always uses the primary key; history is hydrated from `~/.clawdis/sessions/<SessionId>.jsonl` so turns from WhatsApp/Telegram show up here too.
 
-- UI: `pi-mono/packages/web-ui` bundle loaded in a `WKWebView`.
-- Bridge: `WKScriptMessageHandler` named `clawdis` (see `apps/macos/Sources/Clawdis/WebChatWindow.swift`). The page posts `sessionKey` + message; Swift shells `pnpm clawdis agent --to <sessionKey> --message <text> --json` and returns the first payload text to the page. No sockets are opened.
-- Session selection: always uses the canonical `main` session key (or `inbound.reply.session.mainKey`), hydrating from the Tau JSONL session file so you see the full history even when messages arrived via WhatsApp/Telegram.
-- Assets: the entire `pi-web-ui` dist plus dependencies (pi-ai, mini-lit, lit, lucide, pdfjs-dist, docx-preview, jszip) is bundled into `apps/macos/Sources/Clawdis/Resources/WebChat/` and shipped with the app. No external checkout is required at runtime.
+## Building/updating the bundle
+1. Ensure `../pi-mono` is present and `pnpm install` has been run there.
+2. Sync vendor files: copied from `../pi-mono/node_modules` into `apps/macos/Sources/Clawdis/Resources/WebChat/vendor` (run via repo scripts when updating).
+3. The mac app loads assets relative to the bundled folder with an import map; no external CDN or HTTP endpoints are used.
+4. Rebuild/restart the app with `./scripts/restart-mac.sh` (required so the new resources land in the app bundle).
 
-## Requirements
+## Limitations
+- Text-only, single-turn response (no streaming yet; tools/attachments not plumbed).
+- The embedded `pi-ai` is a stub sufficient for UI wiring; provider selection is fixed to the primary Clawd session.
 
-- `pnpm` on PATH.
-- `pnpm install` already run in the repo so `pnpm clawdis agent ...` works.
-- `pi-mono` checked out at `../pi-mono` with `packages/web-ui/dist` built.
-
-## Limitations / TODO
-
-- Single-turn (no streaming), text-only; attachments/tools not wired yet.
-- Absolute dist path; bundle should be copied into app resources and versioned.
-- Errors from the agent subprocess are minimally surfaced.
-
-## Usage
-
-- Launch the macOS Clawdis menu bar app, click the lobster icon → “Open Chat”.
-- Type and send; replies continue the primary Clawd session.
+## Troubleshooting
+- Right-click → “Inspect Element” opens Web Inspector. Check the console for `boot:` messages.
+- Blank view usually means import map or vendor assets are missing; confirm files exist under `Resources/WebChat/vendor` and the import map points to relative paths.
+- Errors are rendered in-page in red if the boot script fails after parsing.
