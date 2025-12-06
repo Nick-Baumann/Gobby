@@ -392,9 +392,7 @@ private struct MenuContent: View {
     @Environment(\.openSettings) private var openSettings
 
     var body: some View {
-        Toggle(isOn: activeBinding) {
-            Text(activeBinding.wrappedValue ? "Clawdis Active" : "Clawdis Paused")
-        }
+        Toggle(isOn: activeBinding) { Text("Clawdis Active") }
         Button("Settings…") { open(tab: .general) }
             .keyboardShortcut(",", modifiers: [.command])
         Button("About Clawdis") { open(tab: .about) }
@@ -811,7 +809,7 @@ struct GeneralSettings: View {
 
             VStack(alignment: .leading, spacing: 12) {
                 SettingsToggleRow(
-                    title: activeBinding.wrappedValue ? "Clawdis active" : "Clawdis paused",
+                    title: "Clawdis active",
                     subtitle: "Pause to stop Clawdis background helpers and notifications.",
                     binding: activeBinding)
 
@@ -1203,7 +1201,7 @@ private struct PermissionRow: View {
     }
 }
 
-// MARK: - Onboarding (VibeTunnel-style, multi-step)
+// MARK: - Onboarding (VibeTunnel-aligned)
 
 @MainActor
 final class OnboardingController {
@@ -1219,7 +1217,7 @@ final class OnboardingController {
         let hosting = NSHostingController(rootView: OnboardingView())
         let window = NSWindow(contentViewController: hosting)
         window.title = "Welcome to Clawdis"
-        window.setContentSize(NSSize(width: 540, height: 420))
+        window.setContentSize(NSSize(width: 640, height: 600))
         window.styleMask = [.titled, .closable]
         window.center()
         window.makeKeyAndOrderFront(nil)
@@ -1234,78 +1232,278 @@ final class OnboardingController {
 }
 
 struct OnboardingView: View {
-    @State private var stepIndex = 0
+    @State private var currentPage = 0
     @State private var permStatus: [Capability: Bool] = [:]
-    @State private var copied = false
     @State private var isRequesting = false
+    @State private var installingCLI = false
+    @State private var cliStatus: String?
+    @State private var copied = false
     @ObservedObject private var state = AppStateStore.shared
 
-    private var steps: [OnboardingStep] {
-        [
-            .init(title: "Meet Clawdis", detail: "A focused menu bar companion for notifications, screenshots, and privileged agent actions.", systemImage: "sparkles"),
-            .init(title: "Permissions", detail: "Grant Notifications, Accessibility, and Screen Recording so tasks don't get blocked.", systemImage: "lock.shield", showsPermissions: true),
-            .init(title: "CLI helper", detail: "Install the `clawdis-mac` helper so scripts can talk to the app.", systemImage: "terminal", showsCLI: true),
-            .init(title: "Stay running", detail: "Enable launch at login so Clawdis is ready before the agent asks.", systemImage: "arrow.triangle.2.circlepath", showsLogin: true),
-            .init(title: "You're set", detail: "Keep Clawdis running, pause from the menu anytime, and re-run onboarding later if needed.", systemImage: "checkmark.seal")
-        ]
-    }
+    private let pageWidth: CGFloat = 640
+    private let contentHeight: CGFloat = 260
+    private var pageCount: Int { 6 }
+    private var buttonTitle: String { currentPage == pageCount - 1 ? "Finish" : "Next" }
+    private let devLinkCommand = "ln -sf $(pwd)/apps/macos/.build/debug/ClawdisCLI /usr/local/bin/clawdis-mac"
 
     var body: some View {
-        let step = steps[stepIndex]
-        VStack(spacing: 16) {
-            heroCard(step: step)
-            contentPanel(step: step)
-            progressDots
-            footerButtons
+        VStack(spacing: 0) {
+            GlowingClawdisIcon(size: 148)
+                .padding(.top, 22)
+                .padding(.bottom, 12)
+                .frame(height: 200)
+
+            GeometryReader { _ in
+                HStack(spacing: 0) {
+                    welcomePage
+                    focusPage
+                    permissionsPage
+                    cliPage
+                    launchPage
+                    readyPage
+                }
+                .frame(height: contentHeight)
+                .offset(x: CGFloat(-currentPage) * pageWidth)
+                .animation(
+                    .interactiveSpring(response: 0.5, dampingFraction: 0.86, blendDuration: 0.25),
+                    value: currentPage
+                )
+            }
+            .frame(height: contentHeight)
+            .clipped()
+
+            navigationBar
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(width: pageWidth)
         .background(Color(NSColor.windowBackgroundColor))
+        .onAppear { currentPage = 0 }
         .task { await refreshPerms() }
     }
 
-    @ViewBuilder
-    private func heroCard(step: OnboardingStep) -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(Color.white.opacity(0.15))
-                    .frame(width: 38, height: 38)
-                Image(systemName: step.systemImage)
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(.white)
-            }
-            VStack(alignment: .leading, spacing: 6) {
-                Text(step.title)
-                    .font(.title3.bold())
-                    .foregroundColor(.white)
-                Text(step.detail)
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.92))
-            }
-            Spacer()
+    private var welcomePage: some View {
+        onboardingPage {
+            Text("Welcome to Clawdis")
+                .font(.largeTitle.weight(.semibold))
+            Text("Your macOS menu bar companion for notifications, screenshots, and privileged agent actions.")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 520)
+            Text("We'll guide you through the same flow as VibeTunnel: quick steps, live permission checks, and the helper CLI.")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 520)
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 16)
-        .background(
-            LinearGradient(colors: [Color.blue.opacity(0.9), Color.purple.opacity(0.85)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        )
-        .shadow(color: .black.opacity(0.18), radius: 12, y: 5)
     }
 
-    @ViewBuilder
-    private func contentPanel(step: OnboardingStep) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            if step.showsPermissions { permissionsCard }
-            if step.showsCLI { CLIInstallCard(copied: $copied) }
-            if step.showsLoginToggle { loginCard }
-            if !step.showsPermissions && !step.showsCLI && !step.showsLoginToggle {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Keep Clawdis running in your menu bar. Pause from the menu if you need silence, or open Settings to adjust permissions later.")
-                        .font(.body)
+    private var focusPage: some View {
+        onboardingPage {
+            Text("What Clawdis handles")
+                .font(.largeTitle.weight(.semibold))
+            onboardingCard {
+                featureRow(
+                    title: "Owns the TCC prompts",
+                    subtitle: "Requests Notifications, Accessibility, and Screen Recording so your agents stay unblocked.",
+                    systemImage: "lock.shield"
+                )
+                featureRow(
+                    title: "Native notifications",
+                    subtitle: "Shows desktop toasts for agent events with your preferred sound.",
+                    systemImage: "bell.and.waveform"
+                )
+                featureRow(
+                    title: "Privileged helpers",
+                    subtitle: "Runs screenshots or shell actions from the `clawdis-mac` CLI with the right permissions.",
+                    systemImage: "terminal"
+                )
+            }
+        }
+    }
+
+    private var permissionsPage: some View {
+        onboardingPage {
+            Text("Grant permissions")
+                .font(.largeTitle.weight(.semibold))
+            Text("Match VibeTunnel's checklist: approve these once and the CLI reuses the same grants.")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 520)
+
+            onboardingCard {
+                ForEach(Capability.allCases, id: \.self) { cap in
+                    PermissionRow(capability: cap, status: permStatus[cap] ?? false) {
+                        Task { await request(cap) }
+                    }
+                }
+
+                HStack(spacing: 12) {
+                    Button("Refresh status") { Task { await refreshPerms() } }
+                        .controlSize(.small)
+                    if isRequesting {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
+                .padding(.top, 4)
+            }
+        }
+    }
+
+    private var cliPage: some View {
+        onboardingPage {
+            Text("Install the helper CLI")
+                .font(.largeTitle.weight(.semibold))
+            Text("Link `clawdis-mac` like VibeTunnel's `vt` so scripts and the agent can talk to this app.")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 520)
+
+            onboardingCard {
+                HStack(spacing: 12) {
+                    Button {
+                        Task { await installCLI() }
+                    } label: {
+                        if installingCLI {
+                            ProgressView()
+                        } else {
+                            Text("Install helper")
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(installingCLI)
+
+                    Button(copied ? "Copied" : "Copy dev link") {
+                        copyToPasteboard(devLinkCommand)
+                    }
+                    .disabled(installingCLI)
+                }
+
+                if let cliStatus {
+                    Text(cliStatus)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Text("We install into /usr/local/bin and /opt/homebrew/bin. Rerun anytime if you move the build output.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var launchPage: some View {
+        onboardingPage {
+            Text("Keep it running")
+                .font(.largeTitle.weight(.semibold))
+            Text("Match VibeTunnel's stay-on guidance: let Clawdis launch with macOS so permissions and notifications are ready.")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 520)
+
+            onboardingCard {
+                Toggle("Launch at login", isOn: $state.launchAtLogin)
+                    .toggleStyle(.switch)
+                    .onChange(of: state.launchAtLogin) { _, newValue in
+                        AppStateStore.updateLaunchAtLogin(enabled: newValue)
+                    }
+                Text("You can pause from the menu bar anytime. Settings keeps a \"Show onboarding\" button if you need to revisit.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var readyPage: some View {
+        onboardingPage {
+            Text("All set")
+                .font(.largeTitle.weight(.semibold))
+            onboardingCard {
+                featureRow(
+                    title: "Run the dashboard",
+                    subtitle: "Use the CLI helper from your scripts, and reopen onboarding from Settings if you add a new user.",
+                    systemImage: "checkmark.seal"
+                )
+                featureRow(
+                    title: "Test a notification",
+                    subtitle: "Send a quick notify via the menu bar to confirm sounds and permissions.",
+                    systemImage: "bell.badge"
+                )
+            }
+            Text("Finish to save this version of onboarding. We'll reshow automatically when steps change.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 520)
+        }
+    }
+
+    private var navigationBar: some View {
+        HStack(spacing: 20) {
+            ZStack(alignment: .leading) {
+                Button(action: {}, label: {
+                    Label("Back", systemImage: "chevron.left").labelStyle(.iconOnly)
+                })
+                .buttonStyle(.plain)
+                .opacity(0)
+                .disabled(true)
+
+                if currentPage > 0 {
+                    Button(action: { handleBack() }) {
+                        Label("Back", systemImage: "chevron.left")
+                            .labelStyle(.iconOnly)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.secondary)
+                    .opacity(0.8)
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
                 }
             }
+            .frame(minWidth: 80, alignment: .leading)
+
+            Spacer()
+
+            HStack(spacing: 8) {
+                ForEach(0..<pageCount, id: \.self) { index in
+                    Button {
+                        withAnimation { currentPage = index }
+                    } label: {
+                        Circle()
+                            .fill(index == currentPage ? Color.accentColor : Color.gray.opacity(0.3))
+                            .frame(width: 8, height: 8)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Spacer()
+
+            Button(action: handleNext) {
+                Text(buttonTitle)
+                    .frame(minWidth: 88)
+            }
+            .keyboardShortcut(.return)
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(.horizontal, 20)
+        .frame(height: 60)
+    }
+
+    private func onboardingPage(@ViewBuilder _ content: () -> some View) -> some View {
+        VStack(spacing: 22) {
+            content()
+            Spacer()
+        }
+        .frame(width: pageWidth, alignment: .top)
+        .padding(.horizontal, 26)
+    }
+
+    private func onboardingCard(@ViewBuilder _ content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            content()
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1316,73 +1514,30 @@ struct OnboardingView: View {
         )
     }
 
-    private var loginCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Launch at login")
-                .font(.headline)
-            Text("Keep the companion ready before automations start. You can change this anytime in Settings.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            Toggle("Enable launch at login", isOn: $state.launchAtLogin)
-                .toggleStyle(.switch)
-                .onChange(of: state.launchAtLogin) { _, newValue in
-                    AppStateStore.updateLaunchAtLogin(enabled: newValue)
-                }
-        }
-    }
-
-    private var permissionsCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Give Clawdis the access it needs")
-                .font(.headline)
-            Text("Grant these once; the CLI will reuse the same approvals.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            ForEach(Capability.allCases, id: \.self) { cap in
-                PermissionRow(capability: cap, status: permStatus[cap] ?? false) {
-                    Task { await request(cap) }
-                }
+    private func featureRow(title: String, subtitle: String, systemImage: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 26)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(.headline)
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
-
-            Button("Refresh status") { Task { await refreshPerms() } }
-                .font(.footnote)
-                .padding(.top, 4)
         }
     }
 
-    private var progressDots: some View {
-        HStack(spacing: 8) {
-            Spacer()
-            ForEach(Array(steps.indices), id: \.self) { idx in
-                Circle()
-                    .fill(idx == stepIndex ? Color.accentColor : Color.gray.opacity(0.35))
-                    .frame(width: 8, height: 8)
-                    .scaleEffect(idx == stepIndex ? 1.2 : 1.0)
-                    .animation(.spring(response: 0.35, dampingFraction: 0.7), value: stepIndex)
-            }
-            Spacer()
+    private func handleBack() {
+        withAnimation {
+            currentPage = max(0, currentPage - 1)
         }
     }
 
-    private var footerButtons: some View {
-        HStack {
-            Button("Skip") { finish() }
-                .buttonStyle(.bordered)
-            Spacer()
-            if stepIndex > 0 {
-                Button("Back") { stepIndex = max(0, stepIndex - 1) }
-            }
-            Button(stepIndex == steps.count - 1 ? "Finish" : "Next") { advance() }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.return, modifiers: [])
-        }
-        .padding(.top, 4)
-    }
-
-    private func advance() {
-        if stepIndex + 1 < steps.count {
-            stepIndex += 1
+    private func handleNext() {
+        if currentPage < pageCount - 1 {
+            withAnimation { currentPage += 1 }
         } else {
             finish()
         }
@@ -1407,59 +1562,13 @@ struct OnboardingView: View {
         _ = await PermissionManager.ensure([cap], interactive: true)
         await refreshPerms()
     }
-}
 
-struct OnboardingStep {
-    let title: String
-    let detail: String
-    let systemImage: String
-    var showsPermissions: Bool = false
-    var showsCLI: Bool = false
-    var showsLogin: Bool = false
-
-    var showsLoginToggle: Bool { showsLogin }
-}
-
-struct CLIInstallCard: View {
-    @Binding var copied: Bool
-    @State private var installing = false
-    @State private var status: String?
-    private let command = "ln -sf $(pwd)/apps/macos/.build/debug/ClawdisCLI /usr/local/bin/clawdis-mac"
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Install the helper CLI")
-                .font(.headline)
-            Text("Link `clawdis-mac` so scripts and the agent can call the companion.")
-
-            HStack(spacing: 10) {
-                Button {
-                    Task {
-                        guard !installing else { return }
-                        installing = true
-                        defer { installing = false }
-                        await CLIInstaller.install { msg in await MainActor.run { status = msg } }
-                    }
-                } label: {
-                    if installing { ProgressView() } else { Text("Install helper") }
-                }
-                .buttonStyle(.borderedProminent)
-
-                Button(copied ? "Copied" : "Copy command") {
-                    copyToPasteboard(command)
-                }
-                .disabled(installing)
-            }
-
-            if let status {
-                Text(status)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Text("You can rerun this anytime; we install into /usr/local/bin and /opt/homebrew/bin.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+    private func installCLI() async {
+        guard !installingCLI else { return }
+        installingCLI = true
+        defer { installingCLI = false }
+        await CLIInstaller.install { message in
+            await MainActor.run { cliStatus = message }
         }
     }
 
@@ -1469,5 +1578,52 @@ struct CLIInstallCard: View {
         pb.setString(text, forType: .string)
         copied = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { copied = false }
+    }
+}
+
+private struct GlowingClawdisIcon: View {
+    let size: CGFloat
+    let glowIntensity: Double
+    let enableFloating: Bool
+
+    @State private var breathe = false
+
+    init(size: CGFloat = 148, glowIntensity: Double = 0.35, enableFloating: Bool = true) {
+        self.size = size
+        self.glowIntensity = glowIntensity
+        self.enableFloating = enableFloating
+    }
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.accentColor.opacity(glowIntensity),
+                            Color.blue.opacity(glowIntensity * 0.6)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .blur(radius: 22)
+                .scaleEffect(breathe ? 1.12 : 0.95)
+                .opacity(0.9)
+
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: size, height: size)
+                .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
+                .shadow(color: .black.opacity(0.18), radius: 14, y: 6)
+                .scaleEffect(breathe ? 1.02 : 1.0)
+        }
+        .frame(width: size + 60, height: size + 60)
+        .onAppear {
+            guard enableFloating else { return }
+            withAnimation(Animation.easeInOut(duration: 3.6).repeatForever(autoreverses: true)) {
+                breathe.toggle()
+            }
+        }
     }
 }
