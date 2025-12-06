@@ -1032,16 +1032,10 @@ struct SessionsSettings: View {
     @State private var errorMessage: String?
     @State private var loading = false
     @State private var hasLoaded = false
-    @State private var configModel: String = ""
-    @State private var configStorePath: String = SessionLoader.defaultStorePath
-    @State private var configContextTokens: String = ""
-    @State private var configStatus: String?
-    @State private var configSaving = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             self.header
-            self.configEditor
             self.storeMetadata
             Divider().padding(.vertical, 4)
             self.content
@@ -1052,7 +1046,6 @@ struct SessionsSettings: View {
         .task {
             guard !self.hasLoaded else { return }
             self.hasLoaded = true
-            self.loadConfig()
             await self.refresh()
         }
     }
@@ -1065,57 +1058,6 @@ struct SessionsSettings: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private var configEditor: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Clawdis CLI config")
-                .font(.callout.weight(.semibold))
-            Text("Writes to ~/.clawdis/clawdis.json (inbound.reply.agent/session).")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-
-            LabeledContent("Model") {
-                TextField("e.g. claude-3.5-sonnet", text: self.$configModel)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 260)
-            }
-
-            LabeledContent("Session store") {
-                TextField("Path", text: self.$configStorePath)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 320)
-            }
-
-            LabeledContent("Context tokens") {
-                TextField("Optional", text: self.$configContextTokens)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 160)
-            }
-
-            HStack(spacing: 12) {
-                Button {
-                    Task { await self.saveConfig() }
-                } label: {
-                    Label(self.configSaving ? "Saving…" : "Save config", systemImage: "square.and.arrow.down")
-                        .labelStyle(.titleAndIcon)
-                }
-                .disabled(self.configSaving)
-
-                Button {
-                    self.loadConfig()
-                } label: {
-                    Label("Revert", systemImage: "arrow.uturn.backward")
-                }
-                .disabled(self.configSaving)
-
-                if let configStatus {
-                    Text(configStatus)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-            }
         }
     }
 
@@ -1257,6 +1199,76 @@ struct SessionsSettings: View {
             NSWorkspace.shared.open(url.deletingLastPathComponent())
         }
     }
+}
+
+@MainActor
+struct ConfigSettings: View {
+    @State private var configModel: String = ""
+    @State private var configStorePath: String = SessionLoader.defaultStorePath
+    @State private var configContextTokens: String = ""
+    @State private var configStatus: String?
+    @State private var configSaving = false
+    @State private var hasLoaded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Clawdis CLI config")
+                .font(.title3.weight(.semibold))
+            Text("Edit ~/.clawdis/clawdis.json (inbound.reply.agent/session).")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+
+            LabeledContent("Model") {
+                TextField("e.g. claude-3.5-sonnet", text: self.$configModel)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 260)
+            }
+
+            LabeledContent("Session store") {
+                TextField("Path", text: self.$configStorePath)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 360)
+            }
+
+            LabeledContent("Context tokens") {
+                TextField("Optional", text: self.$configContextTokens)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 160)
+            }
+
+            HStack(spacing: 12) {
+                Button {
+                    Task { await self.saveConfig() }
+                } label: {
+                    Label(self.configSaving ? "Saving…" : "Save config", systemImage: "square.and.arrow.down")
+                        .labelStyle(.titleAndIcon)
+                }
+                .disabled(self.configSaving)
+
+                Button {
+                    self.loadConfig()
+                } label: {
+                    Label("Revert", systemImage: "arrow.uturn.backward")
+                }
+                .disabled(self.configSaving)
+
+                if let configStatus {
+                    Text(configStatus)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .task {
+            guard !self.hasLoaded else { return }
+            self.hasLoaded = true
+            self.loadConfig()
+        }
+    }
 
     private func configURL() -> URL {
         FileManager.default.homeDirectoryForCurrentUser
@@ -1325,8 +1337,6 @@ struct SessionsSettings: View {
                 withIntermediateDirectories: true)
             try data.write(to: url, options: [.atomic])
             self.configStatus = "Saved to \(url.path)"
-            // refresh session view with new defaults
-            await self.refresh()
         } catch {
             self.configStatus = "Save failed: \(error.localizedDescription)"
         }
