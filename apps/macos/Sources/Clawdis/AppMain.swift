@@ -2178,12 +2178,16 @@ struct VoiceWakeSettings: View {
 
     private var levelMeter: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 10) {
-                Text("Live level").font(.callout.weight(.semibold))
-                MicLevelBar(level: self.meterLevel)
-                Text(self.levelLabel)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
+            LabeledContent {
+                HStack(spacing: 10) {
+                    MicLevelBar(level: self.meterLevel)
+                    Text(self.levelLabel)
+                        .font(.callout.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+            } label: {
+                Text("Live level")
+                    .font(.callout.weight(.semibold))
             }
             if let meterError {
                 Text(meterError)
