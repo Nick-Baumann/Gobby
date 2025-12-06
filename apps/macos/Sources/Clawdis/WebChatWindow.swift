@@ -13,6 +13,7 @@ final class WebChatWindowController: NSWindowController, WKScriptMessageHandler 
         let contentController = WKUserContentController()
         config.userContentController = contentController
         config.preferences.isElementFullscreenEnabled = true
+        config.preferences.setValue(true, forKey: "developerExtrasEnabled")
 
         // Inject callback receiver stub
         let callbackScript = """
@@ -33,6 +34,11 @@ final class WebChatWindowController: NSWindowController, WKScriptMessageHandler 
             window.__clawdisCallbacks.set(id, { resolve, reject });
             window.webkit?.messageHandlers?.clawdis?.postMessage({ id, ...payload });
           });
+        };
+        window.__clawdisLog = function(msg) {
+          try {
+            window.webkit?.messageHandlers?.clawdis?.postMessage({ id: 'log', log: String(msg) });
+          } catch (_) {}
         };
         """
         let userScript = WKUserScript(source: callbackScript, injectionTime: .atDocumentStart, forMainFrameOnly: true)
@@ -108,64 +114,73 @@ final class WebChatWindowController: NSWindowController, WKScriptMessageHandler 
         <body>
           <div id="app"></div>
           <script type="module">
-            import { Agent, ChatPanel, AppStorage, setAppStorage } from '@mariozechner/pi-web-ui';
-            import { getModel } from '@mariozechner/pi-ai';
+            try {
+              const { Agent, ChatPanel, AppStorage, setAppStorage } = await import('@mariozechner/pi-web-ui');
+              const { getModel } = await import('@mariozechner/pi-ai');
 
-            class NativeTransport {
-              async *run(messages, userMessage, cfg, signal) {
-                const result = await window.__clawdisSend({ type: 'chat', payload: { text: userMessage.content?.[0]?.text ?? '', sessionKey: '\(
-                    sessionKey)' } });
-                const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
-                const assistant = {
-                  role: 'assistant',
-                  content: [{ type: 'text', text: result.text ?? '' }],
-                  api: cfg.model.api,
-                  provider: cfg.model.provider,
-                  model: cfg.model.id,
-                  usage,
-                  stopReason: 'stop',
+              class NativeTransport {
+                async *run(messages, userMessage, cfg, signal) {
+                  const result = await window.__clawdisSend({ type: 'chat', payload: { text: userMessage.content?.[0]?.text ?? '', sessionKey: '\(
+                      sessionKey)' } });
+                  const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
+                  const assistant = {
+                    role: 'assistant',
+                    content: [{ type: 'text', text: result.text ?? '' }],
+                    api: cfg.model.api,
+                    provider: cfg.model.provider,
+                    model: cfg.model.id,
+                    usage,
+                    stopReason: 'stop',
+                    timestamp: Date.now()
+                  };
+                  yield { type: 'turn_start' };
+                  yield { type: 'message_start', message: assistant };
+                  yield { type: 'message_end', message: assistant };
+                  yield { type: 'turn_end' };
+                  yield { type: 'agent_end' };
+                }
+              }
+
+              // Minimal storage
+              const storage = new AppStorage();
+              setAppStorage(storage);
+
+              const agent = new Agent({
+                initialState: {
+                  systemPrompt: 'You are Clawd (primary session).',
+                  model: getModel('anthropic', 'claude-opus-4-5'),
+                  thinkingLevel: 'off',
+                  messages: []
+                },
+                transport: new NativeTransport()
+              });
+
+              // Patch prompt to append user message into history first
+              const origPrompt = agent.prompt.bind(agent);
+              agent.prompt = async (input, attachments) => {
+                const userMessage = {
+                  role: 'user',
+                  content: [{ type: 'text', text: input }],
+                  attachments: attachments?.length ? attachments : undefined,
                   timestamp: Date.now()
                 };
-                yield { type: 'turn_start' };
-                yield { type: 'message_start', message: assistant };
-                yield { type: 'message_end', message: assistant };
-                yield { type: 'turn_end' };
-                yield { type: 'agent_end' };
-              }
-            }
-
-            // Minimal storage
-            const storage = new AppStorage();
-            setAppStorage(storage);
-
-            const agent = new Agent({
-              initialState: {
-                systemPrompt: 'You are Clawd (primary session).',
-                model: getModel('anthropic', 'claude-opus-4-5'),
-                thinkingLevel: 'off',
-                messages: []
-              },
-              transport: new NativeTransport()
-            });
-
-            // Patch prompt to append user message into history first
-            const origPrompt = agent.prompt.bind(agent);
-            agent.prompt = async (input, attachments) => {
-              const userMessage = {
-                role: 'user',
-                content: [{ type: 'text', text: input }],
-                attachments: attachments?.length ? attachments : undefined,
-                timestamp: Date.now()
+                agent.appendMessage(userMessage);
+                return origPrompt(input, attachments);
               };
-              agent.appendMessage(userMessage);
-              return origPrompt(input, attachments);
-            };
 
-            const panel = new ChatPanel();
-            panel.style.height = '100%';
-            panel.style.display = 'block';
-            await panel.setAgent(agent);
-            document.getElementById('app').appendChild(panel);
+              const panel = new ChatPanel();
+              panel.style.height = '100%';
+              panel.style.display = 'block';
+              await panel.setAgent(agent);
+              document.getElementById('app').appendChild(panel);
+            } catch (err) {
+              const msg = err?.stack || err?.message || String(err);
+              window.__clawdisLog(msg);
+              document.body.style.color = '#e06666';
+              document.body.style.fontFamily = 'monospace';
+              document.body.style.padding = '16px';
+              document.body.innerText = 'Web chat failed to load:\\n' + msg;
+            }
           </script>
         </body>
         </html>

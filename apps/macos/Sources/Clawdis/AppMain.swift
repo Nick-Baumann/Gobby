@@ -894,11 +894,20 @@ private struct SessionDefaults {
     let contextTokens: Int
 }
 
-private struct ModelChoice: Identifiable, Hashable {
+struct ModelChoice: Identifiable, Hashable {
     let id: String
     let name: String
     let provider: String
     let contextWindow: Int?
+}
+
+extension Optional where Wrapped == String {
+    var isNilOrEmpty: Bool {
+        switch self {
+        case .none: true
+        case let .some(value): value.isEmpty
+        }
+    }
 }
 
 extension [String] {
@@ -1511,7 +1520,11 @@ struct ConfigSettings: View {
     private func chooseCatalogFile() {
         let panel = NSOpenPanel()
         panel.title = "Select models.generated.ts"
-        panel.allowedFileTypes = ["ts"]
+        if let tsType = UTType(filenameExtension: "ts") {
+            panel.allowedContentTypes = [tsType]
+        } else {
+            panel.allowedFileTypes = ["ts"] // fallback
+        }
         panel.allowsMultipleSelection = false
         panel.directoryURL = URL(fileURLWithPath: self.modelCatalogPath).deletingLastPathComponent()
         if panel.runModal() == .OK, let url = panel.url {
