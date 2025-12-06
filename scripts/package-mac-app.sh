@@ -8,6 +8,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_ROOT="$ROOT_DIR/dist/Clawdis.app"
 BUILD_PATH="$ROOT_DIR/apps/macos/.build"
 PRODUCT="Clawdis"
+BUNDLE_ID="com.steipete.clawdis.debug"
 
 cd "$ROOT_DIR/apps/macos"
 
@@ -22,13 +23,13 @@ mkdir -p "$APP_ROOT/Contents/MacOS"
 mkdir -p "$APP_ROOT/Contents/Resources"
 
 echo "📄 Writing Info.plist"
-cat > "$APP_ROOT/Contents/Info.plist" <<'PLIST'
+cat > "$APP_ROOT/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>com.steipete.clawdis</string>
+    <string>${BUNDLE_ID}</string>
     <key>CFBundleName</key>
     <string>Clawdis</string>
     <key>CFBundleExecutable</key>
@@ -68,6 +69,13 @@ fi
 
 echo "⏹  Stopping any running Clawdis"
 killall -q Clawdis 2>/dev/null || true
+
+echo "🔏 Ad-hoc signing binaries for stable TCC permissions"
+codesign --force --options runtime --timestamp=none --sign - "$APP_ROOT/Contents/MacOS/Clawdis"
+if [ -f "$APP_ROOT/Contents/MacOS/ClawdisCLI" ]; then
+  codesign --force --options runtime --timestamp=none --sign - "$APP_ROOT/Contents/MacOS/ClawdisCLI"
+fi
+codesign --force --options runtime --timestamp=none --sign - "$APP_ROOT"
 
 echo "✅ Bundle ready at $APP_ROOT"
 
