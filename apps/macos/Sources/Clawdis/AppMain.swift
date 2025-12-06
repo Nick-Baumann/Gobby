@@ -1365,7 +1365,7 @@ actor MicLevelMonitor {
     }
 
     private func push(level: Double) {
-        smoothedLevel = (smoothedLevel * 0.65) + (level * 0.35)
+        smoothedLevel = (smoothedLevel * 0.45) + (level * 0.55)
         guard let update else { return }
         let value = smoothedLevel
         Task { @MainActor in update(value) }
@@ -1393,7 +1393,6 @@ final class VoiceWakeTester {
     private let audioEngine = AVAudioEngine()
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
-    private let audioQueue = DispatchQueue(label: "com.steipete.clawdis.voicewake.audio", qos: .userInitiated)
 
     init(locale: Locale = .current) {
         self.recognizer = SFSpeechRecognizer(locale: locale)
@@ -1426,12 +1425,16 @@ final class VoiceWakeTester {
         inputNode.removeTap(onBus: 0)
         inputNode.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak self] buffer, _ in
             guard let self else { return }
-            self.enqueueBuffer(buffer)
+            Task { @MainActor in
+                self.recognitionRequest?.append(buffer)
+            }
         }
 
         audioEngine.prepare()
         try audioEngine.start()
-        onUpdate(.listening)
+        DispatchQueue.main.async {
+            onUpdate(.listening)
+        }
 
         guard let request = recognitionRequest else { return }
 
@@ -1440,7 +1443,7 @@ final class VoiceWakeTester {
             let text = result?.bestTranscription.formattedString ?? ""
             let matched = Self.matches(text: text, triggers: triggers)
             let errorMessage = error?.localizedDescription
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self.handleResult(matched: matched, text: text, isFinal: result?.isFinal ?? false, errorMessage: errorMessage, onUpdate: onUpdate)
             }
         }
@@ -1453,13 +1456,6 @@ final class VoiceWakeTester {
         recognitionTask = nil
         recognitionRequest = nil
         audioEngine.inputNode.removeTap(onBus: 0)
-    }
-
-    private func enqueueBuffer(_ buffer: AVAudioPCMBuffer) {
-        audioQueue.async { [weak self] in
-            guard let self else { return }
-            self.recognitionRequest?.append(buffer)
-        }
     }
 
     private func handleResult(
@@ -1879,11 +1875,13 @@ struct VoiceWakeSettings: View {
                     micID: state.voiceWakeMicID.isEmpty ? nil : state.voiceWakeMicID,
                     localeID: state.voiceWakeLocaleID,
                     onUpdate: { newState in
-                        self.testState = newState
-                        if case .detected = newState { self.isTesting = false }
-                        if case .failed = newState { self.isTesting = false }
-                        if case .detected = newState { Task { await restartMeter() } }
-                        if case .failed = newState { Task { await restartMeter() } }
+                        DispatchQueue.main.async { [self] in
+                            testState = newState
+                            if case .detected = newState { isTesting = false }
+                            if case .failed = newState { isTesting = false }
+                            if case .detected = newState { Task { await restartMeter() } }
+                            if case .failed = newState { Task { await restartMeter() } }
+                        }
                     }
                 )
                 // timeout after 10s
