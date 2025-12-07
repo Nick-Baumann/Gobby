@@ -257,7 +257,7 @@ struct DebugSettings: View {
                 self.debugSendStatus = "Sent via \(config.target). Await WhatsApp reply."
                 self.debugSendError = nil
             case let .failure(error):
-                self.debugSendStatus = nil
+                self.debugSendStatus = "Target: \(config.target)" + (config.identityPath.isEmpty ? "" : " · identity: \(config.identityPath)")
                 self.debugSendError = error.localizedDescription
             }
         }

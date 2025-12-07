@@ -95,7 +95,7 @@ enum VoiceWakeForwarder {
             case let .nonZeroExit(code, output):
                 let clipped = output.prefix(240)
                 return clipped.isEmpty
-                    ? "ssh exited with code \(code)"
+                    ? "ssh exited with code \(code) (verify host, key, and PATH)"
                     : "ssh exited with code \(code): \(clipped)"
             case let .cliMissingOrFailed(code, output):
                 let clipped = output.prefix(240)
