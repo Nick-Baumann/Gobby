@@ -48,7 +48,7 @@ struct OnboardingView: View {
     @ObservedObject private var permissionMonitor = PermissionMonitor.shared
 
     private let pageWidth: CGFloat = 640
-    private let contentHeight: CGFloat = 260
+    private let contentHeight: CGFloat = 340
     private let permissionsPageIndex = 2
     private var pageCount: Int { 6 }
     private var buttonTitle: String { self.currentPage == self.pageCount - 1 ? "Finish" : "Next" }
