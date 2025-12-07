@@ -161,15 +161,17 @@ final class VoiceWakeTester {
     private func holdUntilSilence(onUpdate: @escaping @Sendable (VoiceWakeTestState) -> Void) {
         Task { [weak self] in
             guard let self else { return }
-            let start = self.detectionStart ?? Date()
-            let deadline = start.addingTimeInterval(10)
+            let detectedAt = Date()
+            let hardStop = detectedAt.addingTimeInterval(3) // cap overall listen after trigger
+            let silenceWindow: TimeInterval = 0.8
+
             while !self.isStopping {
                 let now = Date()
-                if now >= deadline { break }
-                if let last = self.lastHeard, now.timeIntervalSince(last) >= 1 {
+                if now >= hardStop { break }
+                if let last = self.lastHeard, now.timeIntervalSince(last) >= silenceWindow {
                     break
                 }
-                try? await Task.sleep(nanoseconds: 250_000_000)
+                try? await Task.sleep(nanoseconds: 200_000_000)
             }
             if !self.isStopping {
                 self.stop()
