@@ -98,15 +98,15 @@ private struct MenuContent: View {
             // Show last health result + age; relay is implicit when healthy.
             switch health {
             case .ok:
-                let ageText = lastAge.map { " · checked \($0) ago" } ?? ""
+                let ageText = lastAge.map { " · checked \($0)" } ?? ""
                 label = "Health ok\(ageText)"
                 color = .green
             case .linkingNeeded:
                 label = "Health: login required"
                 color = .red
             case let .degraded(reason):
-                let ageText = lastAge.map { " · \(reason)" } ?? " · \(reason)"
-                label = "Health degraded\(ageText)"
+                let ageText = lastAge.map { " · checked \($0)" } ?? ""
+                label = "Health degraded: \(reason)\(ageText)"
                 color = .orange
             case .unknown:
                 label = "Health pending"
