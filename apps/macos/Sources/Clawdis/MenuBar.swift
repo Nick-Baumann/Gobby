@@ -192,7 +192,8 @@ private struct CritterStatusLabel: View {
                         blink: self.blinkAmount,
                         legWiggle: max(self.legWiggle, self.isWorking ? 0.6 : 0),
                         earWiggle: self.earWiggle,
-                        earScale: self.earBoostActive ? 1.9 : 1.0))
+                        earScale: self.earBoostActive ? 1.9 : 1.0,
+                        earHoles: self.earBoostActive))
                         .frame(width: 18, height: 16)
                         .rotationEffect(.degrees(self.wiggleAngle), anchor: .center)
                         .offset(x: self.wiggleOffset)
@@ -342,7 +343,8 @@ enum CritterIconRenderer {
         blink: CGFloat,
         legWiggle: CGFloat = 0,
         earWiggle: CGFloat = 0,
-        earScale: CGFloat = 1) -> NSImage
+        earScale: CGFloat = 1,
+        earHoles: Bool = false) -> NSImage
     {
         let image = NSImage(size: size)
         image.lockFocus()
@@ -362,6 +364,16 @@ enum CritterIconRenderer {
         let earW = w * 0.22
         let earH = bodyH * 0.66 * earScale * (1 - 0.08 * abs(earWiggle))
         let earCorner = earW * 0.24
+        let leftEarRect = CGRect(
+            x: bodyX - earW * 0.55 + earWiggle,
+            y: bodyY + bodyH * 0.08 + earWiggle * 0.4,
+            width: earW,
+            height: earH)
+        let rightEarRect = CGRect(
+            x: bodyX + bodyW - earW * 0.45 - earWiggle,
+            y: bodyY + bodyH * 0.08 - earWiggle * 0.4,
+            width: earW,
+            height: earH)
 
         let legW = w * 0.11
         let legH = h * 0.26
@@ -385,20 +397,12 @@ enum CritterIconRenderer {
             cornerHeight: bodyCorner,
             transform: nil))
         ctx.addPath(CGPath(
-            roundedRect: CGRect(
-                x: bodyX - earW * 0.55 + earWiggle,
-                y: bodyY + bodyH * 0.08 + earWiggle * 0.4,
-                width: earW,
-                height: earH),
+            roundedRect: leftEarRect,
             cornerWidth: earCorner,
             cornerHeight: earCorner,
             transform: nil))
         ctx.addPath(CGPath(
-            roundedRect: CGRect(
-                x: bodyX + bodyW - earW * 0.45 - earWiggle,
-                y: bodyY + bodyH * 0.08 - earWiggle * 0.4,
-                width: earW,
-                height: earH),
+            roundedRect: rightEarRect,
             cornerWidth: earCorner,
             cornerHeight: earCorner,
             transform: nil))
@@ -415,6 +419,33 @@ enum CritterIconRenderer {
 
         let leftCenter = CGPoint(x: w / 2 - eyeOffset, y: eyeY)
         let rightCenter = CGPoint(x: w / 2 + eyeOffset, y: eyeY)
+
+        if earHoles || earScale > 1.05 {
+            let holeW = earW * 0.6
+            let holeH = earH * 0.46
+            let holeCorner = holeW * 0.34
+            let leftHoleRect = CGRect(
+                x: leftEarRect.midX - holeW / 2,
+                y: leftEarRect.midY - holeH / 2 + earH * 0.04,
+                width: holeW,
+                height: holeH)
+            let rightHoleRect = CGRect(
+                x: rightEarRect.midX - holeW / 2,
+                y: rightEarRect.midY - holeH / 2 + earH * 0.04,
+                width: holeW,
+                height: holeH)
+
+            ctx.addPath(CGPath(
+                roundedRect: leftHoleRect,
+                cornerWidth: holeCorner,
+                cornerHeight: holeCorner,
+                transform: nil))
+            ctx.addPath(CGPath(
+                roundedRect: rightHoleRect,
+                cornerWidth: holeCorner,
+                cornerHeight: holeCorner,
+                transform: nil))
+        }
 
         let left = CGMutablePath()
         left.move(to: CGPoint(x: leftCenter.x - eyeW / 2, y: leftCenter.y - eyeH))
