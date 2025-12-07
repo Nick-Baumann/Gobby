@@ -1,7 +1,7 @@
 import Testing
 @testable import Clawdis
 
-@Suite struct VoiceWakeForwarderTests {
+@Suite(.serialized) struct VoiceWakeForwarderTests {
     @Test func parsesUserHostPort() {
         let parsed = VoiceWakeForwarder.parse(target: "user@example.local:2222")
         #expect(parsed?.user == "user")
@@ -35,5 +35,32 @@ import Testing
         #expect(command.contains("PATH=\(cliHelperSearchPaths.joined(separator: ":")):$PATH"))
         #expect(command.contains("for c in clawdis-mac /usr/local/bin/clawdis-mac /opt/homebrew/bin/clawdis-mac"))
         #expect(command.contains("\"$CLI\" status"))
+    }
+
+    @Test func commandUsesCachedCliForSameTarget() {
+        VoiceWakeForwarder.clearCliCache(); defer { VoiceWakeForwarder.clearCliCache() }
+        VoiceWakeForwarder._testSetCliCache(target: "t1", path: "/tmp/custom-cli")
+
+        let command = VoiceWakeForwarder.commandWithCliPath("clawdis-mac status", target: "t1")
+
+        #expect(command.contains("CLI=\"/tmp/custom-cli\""))
+    }
+
+    @Test func commandIgnoresCacheForDifferentTarget() {
+        VoiceWakeForwarder.clearCliCache(); defer { VoiceWakeForwarder.clearCliCache() }
+        VoiceWakeForwarder._testSetCliCache(target: "t1", path: "/tmp/custom-cli")
+
+        let command = VoiceWakeForwarder.commandWithCliPath("clawdis-mac status", target: "t2")
+
+        #expect(!command.contains("/tmp/custom-cli"))
+    }
+
+    @Test func clearCliCacheRemovesCachedCli() {
+        VoiceWakeForwarder._testSetCliCache(target: "t1", path: "/tmp/custom-cli")
+        VoiceWakeForwarder.clearCliCache(); defer { VoiceWakeForwarder.clearCliCache() }
+
+        let command = VoiceWakeForwarder.commandWithCliPath("clawdis-mac status", target: "t1")
+
+        #expect(!command.contains("/tmp/custom-cli"))
     }
 }
