@@ -5,7 +5,7 @@ Author: steipete · Status: draft spec · Date: 2025-12-05
 ## Purpose
 - Single macOS menu-bar app named **Clawdis** that:
   - Shows native notifications for Clawdis/warelay events.
-  - Owns TCC prompts (Notifications, Accessibility, Screen Recording).
+  - Owns TCC prompts (Notifications, Accessibility, Screen Recording, Automation/AppleScript, Microphone, Speech Recognition).
   - Brokers privileged actions (screen capture, shell with elevated UI context) via XPC.
   - Provides a tiny CLI (`clawdis-mac`) that talks to the app; Node/TS shells out to it.
 - Replace the separate notifier helper pattern (Oracle) with a built-in notifier.
@@ -26,7 +26,7 @@ Author: steipete · Status: draft spec · Date: 2025-12-05
 - Codable enums; small payloads (<1 MB enforced in listener):
 
 ```
-enum Capability { notifications, accessibility, screenRecording }
+enum Capability { notifications, accessibility, screenRecording, appleScript, microphone, speechRecognition }
 enum Request {
   notify(title, body, sound?)
   ensurePermissions([Capability], interactive: Bool)

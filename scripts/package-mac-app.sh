@@ -63,6 +63,8 @@ cat > "$APP_ROOT/Contents/Info.plist" <<PLIST
     <string>Clawdis needs the mic for Voice Wake tests and agent audio capture.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
     <string>Clawdis uses speech recognition to detect your Voice Wake trigger phrase.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Clawdis needs Automation (AppleScript) permission to drive Terminal and other apps for agent actions.</string>
 </dict>
 </plist>
 PLIST

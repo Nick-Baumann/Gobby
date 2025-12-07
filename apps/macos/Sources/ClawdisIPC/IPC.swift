@@ -3,6 +3,8 @@ import Foundation
 // MARK: - Capabilities
 
 public enum Capability: String, Codable, CaseIterable, Sendable {
+    /// AppleScript / Automation access to control other apps (TCC Automation).
+    case appleScript
     case notifications
     case accessibility
     case screenRecording

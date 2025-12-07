@@ -79,6 +79,7 @@ struct PermissionRow: View {
 
     private var title: String {
         switch self.capability {
+        case .appleScript: "Automation (AppleScript)"
         case .notifications: "Notifications"
         case .accessibility: "Accessibility"
         case .screenRecording: "Screen Recording"
@@ -89,6 +90,8 @@ struct PermissionRow: View {
 
     private var subtitle: String {
         switch self.capability {
+        case .appleScript:
+            "Control other apps (e.g. Terminal) for automation actions"
         case .notifications: "Show desktop alerts for agent activity"
         case .accessibility: "Control UI elements when an action requires it"
         case .screenRecording: "Capture the screen for context or screenshots"
@@ -99,6 +102,7 @@ struct PermissionRow: View {
 
     private var icon: String {
         switch self.capability {
+        case .appleScript: "applescript"
         case .notifications: "bell"
         case .accessibility: "hand.raised"
         case .screenRecording: "display"
