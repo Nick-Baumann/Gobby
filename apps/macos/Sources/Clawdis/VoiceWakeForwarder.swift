@@ -10,11 +10,64 @@ struct VoiceWakeForwardConfig: Sendable {
 }
 
 enum VoiceWakeForwarder {
-    private static let logger = Logger(subsystem: "com.steipete.clawdis", category: "voicewake.forward")
-    private static let cliPathPrefix = "PATH=\(cliHelperSearchPaths.joined(separator: ":")):$PATH"
+    private final class CLICache: @unchecked Sendable {
+        private var value: (target: String, path: String)?
+        private let lock = NSLock()
 
-    static func commandWithCliPath(_ command: String) -> String {
-        "\(self.cliPathPrefix); \(command)"
+        func get() -> (target: String, path: String)? {
+            self.lock.lock(); defer { self.lock.unlock() }
+            return self.value
+        }
+
+        func set(_ newValue: (target: String, path: String)?) {
+            self.lock.lock(); self.value = newValue; self.lock.unlock()
+        }
+    }
+
+    private static let logger = Logger(subsystem: "com.steipete.clawdis", category: "voicewake.forward")
+    private static let cliSearchCandidates = ["clawdis-mac"] + cliHelperSearchPaths.map { "\($0)/clawdis-mac" }
+    private static let cliCache = CLICache()
+
+    static func clearCliCache() {
+        self.cliCache.set(nil)
+    }
+
+    private static func cliLookupPrefix(target: String, echoPath: Bool) -> String {
+        let normalizedTarget = target.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pathPrefix = "PATH=\(cliHelperSearchPaths.joined(separator: ":")):$PATH"
+        let searchList = self.cliSearchCandidates.joined(separator: " ")
+
+        var steps: [String] = [pathPrefix]
+
+        let cached = self.cliCache.get()
+
+        if let cached, cached.target == normalizedTarget {
+            steps.append("CLI=\"\(cached.path)\"")
+            steps.append("if [ ! -x \"$CLI\" ]; then CLI=\"\"; fi")
+        } else {
+            steps.append("CLI=\"\"")
+        }
+
+        steps.append("if [ -z \"$CLI\" ]; then CLI=$(command -v clawdis-mac 2>/dev/null || true); fi")
+        steps.append("if [ -z \"$CLI\" ]; then for c in \(searchList); do [ -x \"$c\" ] && CLI=\"$c\" && break; done; fi")
+        steps.append("if [ -z \"$CLI\" ]; then echo 'clawdis-mac missing'; exit 127; fi")
+
+        if echoPath {
+            steps.append("echo __CLI:$CLI")
+        }
+
+        return steps.joined(separator: "; ")
+    }
+
+    static func commandWithCliPath(_ command: String, target: String, echoCliPath: Bool = false) -> String {
+        let rewritten: String
+        if command.contains("clawdis-mac") {
+            rewritten = command.replacingOccurrences(of: "clawdis-mac", with: "\"$CLI\"")
+        } else {
+            rewritten = "\"$CLI\" \(command)"
+        }
+
+        return "\(self.cliLookupPrefix(target: target, echoPath: echoCliPath)); \(rewritten)"
     }
 
     enum VoiceWakeForwardError: LocalizedError, Equatable {
@@ -62,7 +115,7 @@ enum VoiceWakeForwarder {
         args.append(userHost)
 
         let rendered = self.renderedCommand(template: config.commandTemplate, transcript: transcript)
-        args.append(contentsOf: ["sh", "-c", self.commandWithCliPath(rendered)])
+        args.append(contentsOf: ["sh", "-c", self.commandWithCliPath(rendered, target: destination)])
 
         self.logger.info("voice wake forward starting host=\(userHost, privacy: .public)")
 
@@ -139,7 +192,7 @@ enum VoiceWakeForwarder {
 
         // Stage 2: ensure remote clawdis-mac is present and responsive.
         var checkArgs = baseArgs
-        let statusCommand = self.commandWithCliPath("clawdis-mac status")
+        let statusCommand = self.commandWithCliPath("clawdis-mac status", target: destination, echoCliPath: true)
         checkArgs.append(contentsOf: [userHost, "sh", "-c", statusCommand])
         let checkProc = Process()
         checkProc.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
@@ -154,6 +207,14 @@ enum VoiceWakeForwarder {
         }
         let statusOut = await self.wait(checkProc, timeout: 6, capturing: checkPipe)
         if checkProc.terminationStatus == 0 {
+            if let cliLine = statusOut
+                .split(separator: "\n")
+                .last(where: { $0.hasPrefix("__CLI:") }) {
+                let path = String(cliLine.dropFirst("__CLI:".count))
+                if !path.isEmpty {
+                    self.cliCache.set((target: destination, path: path))
+                }
+            }
             return .success(())
         }
         return .failure(.cliMissingOrFailed(checkProc.terminationStatus, statusOut))

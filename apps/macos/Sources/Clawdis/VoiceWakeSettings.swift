@@ -755,7 +755,10 @@ struct VoiceWakeSettings: View {
                         TextField("steipete@peters-mac-studio-1", text: self.$state.voiceWakeForwardTarget)
                             .textFieldStyle(.roundedBorder)
                             .frame(maxWidth: .infinity)
-                            .onChange(of: self.state.voiceWakeForwardTarget) { _, _ in self.forwardStatus = .idle }
+                            .onChange(of: self.state.voiceWakeForwardTarget) { _, _ in
+                                self.forwardStatus = .idle
+                                VoiceWakeForwarder.clearCliCache()
+                            }
                         self.forwardStatusIcon
                             .frame(width: 16, height: 16, alignment: .center)
                         Button("Test") {
@@ -837,6 +840,7 @@ struct VoiceWakeSettings: View {
     }
 
     private func checkForwardConnection() async {
+        VoiceWakeForwarder.clearCliCache()
         self.forwardStatus = .checking
         let config = AppStateStore.shared.voiceWakeForwardConfig
         let result = await VoiceWakeForwarder.checkConnection(config: config)

@@ -31,9 +31,9 @@ import Testing
     }
 
     @Test func commandPrefersCliInstallPaths() {
-        let command = VoiceWakeForwarder.commandWithCliPath("clawdis-mac status")
-        let prefix = "PATH=\(cliHelperSearchPaths.joined(separator: ":")):$PATH; "
-        #expect(command.hasPrefix(prefix))
-        #expect(command.contains("clawdis-mac status"))
+        let command = VoiceWakeForwarder.commandWithCliPath("clawdis-mac status", target: "user@host")
+        #expect(command.contains("PATH=\(cliHelperSearchPaths.joined(separator: ":")):$PATH"))
+        #expect(command.contains("for c in clawdis-mac /usr/local/bin/clawdis-mac /opt/homebrew/bin/clawdis-mac"))
+        #expect(command.contains("\"$CLI\" status"))
     }
 }
