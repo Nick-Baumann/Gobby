@@ -164,10 +164,6 @@ struct ToolsSettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Tools & MCP servers")
-                .font(.title3.weight(.semibold))
-                .padding(.top, 8)
-
             ScrollView {
                 LazyVStack(spacing: 12) {
                     self.section(for: .tool, title: "CLI Tools")
