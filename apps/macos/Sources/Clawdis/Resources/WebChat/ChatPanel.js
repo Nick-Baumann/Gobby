@@ -57,6 +57,8 @@ let ChatPanel = class ChatPanel extends LitElement {
         this.agentInterface.enableModelSelector = false;
         this.agentInterface.enableThinkingSelector = true;
         this.agentInterface.showThemeToggle = false;
+        // In embedded mode, bypass API key prompts; native transport handles auth.
+        this.agentInterface.onApiKeyRequired = async () => true;
         this.agentInterface.onApiKeyRequired = config?.onApiKeyRequired;
         this.agentInterface.onBeforeSend = config?.onBeforeSend;
         this.agentInterface.onCostClick = config?.onCostClick;

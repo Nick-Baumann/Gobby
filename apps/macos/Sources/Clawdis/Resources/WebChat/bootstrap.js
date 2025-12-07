@@ -109,6 +109,14 @@ const startChat = async () => {
   );
   setAppStorage(storage);
 
+  // Prepopulate a dummy API key so the UI does not block sends in embedded mode.
+  const defaultProvider = "anthropic";
+  try {
+    await providerKeysStore.set(defaultProvider, "embedded");
+  } catch (err) {
+    logStatus(`storage warn: could not seed provider key: ${err}`);
+  }
+
   const agent = new Agent({
     initialState: {
       systemPrompt: "You are Clawd (primary session).",
