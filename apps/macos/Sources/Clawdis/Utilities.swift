@@ -228,13 +228,24 @@ enum CommandResolver {
         self.findExecutable(named: self.helperName)
     }
 
+    static func nodeCliPath() -> String? {
+        let candidate = self.projectRoot().appendingPathComponent("bin/clawdis.js").path
+        return FileManager.default.isReadableFile(atPath: candidate) ? candidate : nil
+    }
+
+    static func hasAnyClawdisInvoker() -> Bool {
+        if self.clawdisExecutable() != nil { return true }
+        if self.findExecutable(named: "pnpm") != nil { return true }
+        if self.findExecutable(named: "node") != nil, self.nodeCliPath() != nil { return true }
+        return false
+    }
+
     static func clawdisCommand(subcommand: String, extraArgs: [String] = []) -> [String] {
         if let clawdisPath = self.clawdisExecutable() {
             return [clawdisPath, subcommand] + extraArgs
         }
         if let node = self.findExecutable(named: "node") {
-            let cli = self.projectRoot().appendingPathComponent("bin/clawdis.js").path
-            if FileManager.default.isReadableFile(atPath: cli) {
+            if let cli = self.nodeCliPath() {
                 return [node, cli, subcommand] + extraArgs
             }
         }

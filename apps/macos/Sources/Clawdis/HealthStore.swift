@@ -93,8 +93,8 @@ final class HealthStore: ObservableObject {
         self.isRefreshing = true
         defer { self.isRefreshing = false }
 
-        guard CommandResolver.clawdisExecutable() != nil else {
-            self.lastError = "clawdis CLI not found; install the CLI (pnpm) or symlink it into PATH"
+        guard CommandResolver.hasAnyClawdisInvoker() else {
+            self.lastError = "clawdis CLI not found; install deps in the configured project root or add it to PATH"
             if onDemand { self.snapshot = nil }
             return
         }
