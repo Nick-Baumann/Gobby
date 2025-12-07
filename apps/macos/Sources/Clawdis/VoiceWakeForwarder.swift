@@ -183,7 +183,7 @@ enum VoiceWakeForwarder {
         // surface the failure instead of being silent
         let clipped = out.isEmpty ? "(no output)" : String(out.prefix(240))
         self.logger.error(
-            "voice wake forward failed exit=\(process.terminationStatus) host=\(userHost, privacy: .public) out=\(clipped, privacy: .public)")
+            "voice wake forward failed exit=\(process.terminationStatus) host=\(userHost, privacy: .public) out=\(clipped, privacy: .public) cmd=\(debugCmd, privacy: .public)")
         if process.terminationStatus == 127 {
             return .failure(.cliMissingOrFailed(process.terminationStatus, out))
         }
