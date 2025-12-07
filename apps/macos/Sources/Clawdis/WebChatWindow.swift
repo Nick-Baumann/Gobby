@@ -225,18 +225,25 @@ final class WebChatWindowController: NSWindowController, WKScriptMessageHandler,
                     process.currentDirectoryURL = URL(fileURLWithPath: CommandResolver.projectRootPath())
                 }
 
+                var env = ProcessInfo.processInfo.environment
+                env["PATH"] = CommandResolver.preferredPaths().joined(separator: ":")
+                process.environment = env
+
                 let pipe = Pipe()
+                let errPipe = Pipe()
                 process.standardOutput = pipe
-                process.standardError = Pipe()
+                process.standardError = errPipe
 
                 try process.run()
                 process.waitUntilExit()
                 let out = pipe.fileHandleForReading.readDataToEndOfFile()
+                let err = errPipe.fileHandleForReading.readDataToEndOfFile()
                 guard process.terminationStatus == 0 else {
+                    let combined = String(data: out.isEmpty ? err : out, encoding: .utf8)
                     throw NSError(
                         domain: "ClawdisAgent",
                         code: Int(process.terminationStatus),
-                        userInfo: [NSLocalizedDescriptionKey: String(data: out, encoding: .utf8) ?? "unknown error"])
+                        userInfo: [NSLocalizedDescriptionKey: combined?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "unknown error"])
                 }
                 return out
             }.value
