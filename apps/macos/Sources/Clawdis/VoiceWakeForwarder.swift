@@ -70,6 +70,17 @@ enum VoiceWakeForwarder {
         return "\(self.cliLookupPrefix(target: target, echoPath: echoCliPath)); \(rewritten)"
     }
 
+#if DEBUG
+    // Test-only helpers
+    static func _testSetCliCache(target: String, path: String) {
+        self.cliCache.set((target: target, path: path))
+    }
+
+    static func _testGetCliCache() -> (target: String, path: String)? {
+        self.cliCache.get()
+    }
+#endif
+
     enum VoiceWakeForwardError: LocalizedError, Equatable {
         case invalidTarget
         case launchFailed(String)
