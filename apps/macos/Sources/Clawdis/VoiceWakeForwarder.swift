@@ -124,7 +124,12 @@ enum VoiceWakeForwarder {
         ]
         if parsed.port > 0 { args.append(contentsOf: ["-p", String(parsed.port)]) }
         if !config.identityPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            args.append(contentsOf: ["-i", config.identityPath])
+            let identity = config.identityPath.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !FileManager.default.fileExists(atPath: identity) {
+                self.logger.error("voice wake forward identity missing: \(identity, privacy: .public)")
+                return .failure(.launchFailed("identity not found: \(identity)"))
+            }
+            args.append(contentsOf: ["-i", identity])
         }
         args.append(userHost)
 
@@ -162,7 +167,7 @@ enum VoiceWakeForwarder {
         }
 
         // surface the failure instead of being silent
-        let clipped = out.prefix(240)
+        let clipped = out.isEmpty ? "(no output)" : String(out.prefix(240))
         self.logger.error(
             "voice wake forward failed exit=\(process.terminationStatus) host=\(userHost, privacy: .public) out=\(clipped, privacy: .public)")
         if process.terminationStatus == 127 {
