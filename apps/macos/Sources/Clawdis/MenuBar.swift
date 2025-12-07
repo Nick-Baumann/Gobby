@@ -59,8 +59,7 @@ private struct MenuContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Toggle(isOn: self.activeBinding) { Text("Clawdis Active") }
-            self.relayStatusRow
-            self.healthStatusRow
+            self.statusRow
             Toggle(isOn: self.heartbeatsBinding) { Text("Send heartbeats") }
             Toggle(isOn: self.voiceWakeBinding) { Text("Voice Wake") }
                 .disabled(!voiceWakeSupported)
@@ -82,13 +81,32 @@ private struct MenuContent: View {
         NotificationCenter.default.post(name: .clawdisSelectSettingsTab, object: tab)
     }
 
-    private var relayStatusRow: some View {
-        let status = self.relayManager.status
+    private var statusRow: some View {
+        let relay = self.relayManager.status
+        let health = self.healthStore.state
+        let isRefreshing = self.healthStore.isRefreshing
+
+        let label: String
+        let color: Color
+
+        if isRefreshing {
+            // Prefer health while the probe is running.
+            label = self.healthStore.summaryLine
+            color = health.tint
+        } else if health == .ok {
+            // Healthy implies relay running is the primary signal.
+            label = self.relayLabel(relay)
+            color = self.statusColor(relay)
+        } else {
+            label = self.healthStore.summaryLine
+            color = health.tint
+        }
+
         return HStack(spacing: 8) {
             Circle()
-                .fill(self.statusColor(status))
+                .fill(color)
                 .frame(width: 8, height: 8)
-            Text(self.relayLabel(status))
+            Text(label)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.primary)
         }
@@ -103,19 +121,6 @@ private struct MenuContent: View {
         case let .failed(reason): "Failed: \(reason)"
         case .stopped: "Stopped"
         }
-    }
-
-    private var healthStatusRow: some View {
-        let state = self.healthStore.state
-        return HStack(spacing: 8) {
-            Circle()
-                .fill(state.tint)
-                .frame(width: 8, height: 8)
-            Text(self.healthStore.summaryLine)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.primary)
-        }
-        .padding(.vertical, 2)
     }
 
     private func statusColor(_ status: RelayProcessManager.Status) -> Color {
