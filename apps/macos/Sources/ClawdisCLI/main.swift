@@ -34,6 +34,9 @@ struct ClawdisCLI {
         } catch CLIError.help {
             printHelp()
             exit(0)
+        } catch CLIError.version {
+            printVersion()
+            exit(0)
         } catch {
             fputs("clawdis-mac error: \(error)\n", stderr)
             exit(2)
@@ -49,6 +52,8 @@ struct ClawdisCLI {
         switch command {
         case "--help", "-h", "help":
             throw CLIError.help
+        case "--version", "-V", "version":
+            throw CLIError.version
 
         case "notify":
             var title: String?
@@ -153,6 +158,14 @@ struct ClawdisCLI {
         print(usage)
     }
 
+    private static func printVersion() {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""
+        let git = Bundle.main.object(forInfoDictionaryKey: "ClawdisGitCommit") as? String ?? "unknown"
+        let ts = Bundle.main.object(forInfoDictionaryKey: "ClawdisBuildTimestamp") as? String ?? "unknown"
+        print("clawdis-mac \(version) (\(build)) git:\(git) built:\(ts)")
+    }
+
     private static func send(request: Request) async throws -> Response {
         let conn = NSXPCConnection(machServiceName: serviceName)
         let interface = NSXPCInterface(with: ClawdisXPCProtocol.self)
@@ -172,7 +185,7 @@ struct ClawdisCLI {
     }
 }
 
-enum CLIError: Error { case help }
+enum CLIError: Error { case help, version }
 
 extension [String] {
     mutating func popFirst() -> String? {
