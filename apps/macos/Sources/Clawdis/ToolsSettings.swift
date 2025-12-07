@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 // MARK: - Data models
 
@@ -186,7 +187,7 @@ struct ToolsSettings: View {
                 ForEach(filtered) { tool in
                     ToolRow(tool: tool)
                         .padding(10)
-                        .background(Color(.textBackgroundColor))
+                        .background(Color(nsColor: .controlBackgroundColor))
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                         .overlay(
                             RoundedRectangle(cornerRadius: 10)
