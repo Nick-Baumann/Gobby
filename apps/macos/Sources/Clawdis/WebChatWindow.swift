@@ -84,171 +84,29 @@ final class WebChatWindowController: NSWindowController, WKScriptMessageHandler,
 
     private func loadPage() {
         webChatLogger.debug("loadPage begin")
-        let messagesJSON = self.initialMessagesJSON.replacingOccurrences(of: "</script>", with: "<\\/script>")
-        guard let webChatURL = Bundle.main.url(forResource: "WebChat", withExtension: nil) else {
+        guard let webChatURL = Bundle.main.url(forResource: "WebChat", withExtension: nil),
+              let htmlURL = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "WebChat")
+        else {
             NSLog("WebChat resources missing")
             webChatLogger.error("WebChat resources missing in bundle")
             return
         }
 
-        let importMap = [
-            "imports": [
-                "@mariozechner/pi-web-ui": "./index.js",
-                "@mariozechner/pi-web-ui/": "./",
-                "@mariozechner/pi-ai": "./pi-ai-stub.js",
-                "@mariozechner/pi-ai/": "./pi-ai-stub.js",
-                "@mariozechner/mini-lit": "./vendor/@mariozechner/mini-lit/dist/index.js",
-                "@mariozechner/mini-lit/": "./vendor/@mariozechner/mini-lit/dist/",
-                "lit": "./vendor/lit/index.js",
-                "lit/": "./vendor/lit/",
-                "lucide": "./vendor/lucide/dist/esm/lucide.js",
-                "pdfjs-dist": "./vendor/pdfjs-dist/build/pdf.js",
-                "pdfjs-dist/": "./vendor/pdfjs-dist/",
-                "pdfjs-dist/build/pdf.worker.min.mjs": "./vendor/pdfjs-dist/build/pdf.worker.min.mjs",
-                "docx-preview": "./vendor/docx-preview/dist/docx-preview.mjs",
-                "jszip": "./vendor/jszip/dist/jszip.min.js",
-                "highlight.js": "./vendor/highlight.js/es/index.js",
-                "@lmstudio/sdk": "./vendor/@lmstudio/sdk/dist/index.mjs",
-                "ollama/browser": "./vendor/ollama/dist/browser.mjs",
-                "@sinclair/typebox": "./vendor/@sinclair/typebox/build/esm/index.mjs",
-                "xlsx": "./vendor/xlsx/xlsx.mjs",
-            ],
-        ]
-
-        let importMapJSON: String = if let data = try? JSONSerialization.data(
-            withJSONObject: importMap,
-            options: [.prettyPrinted]),
-            let json = String(data: data, encoding: .utf8)
-        {
-            json
-        } else {
-            "{}"
-        }
-
-        let html = self.makeHTML(importMapJSON: importMapJSON, messagesJSON: messagesJSON)
-        self.webView.loadHTMLString(html, baseURL: webChatURL)
-        webChatLogger.debug("loadPage queued HTML into WKWebView baseURL=\(webChatURL.absoluteString, privacy: .public)")
-    }
-
-    // swiftlint:disable line_length
-    private func makeHTML(importMapJSON: String, messagesJSON: String) -> String {
+        let bootstrapScript = """
+        window.__clawdisBootstrap = {
+          sessionKey: "\(self.sessionKey)",
+          initialMessages: \(self.initialMessagesJSON)
+        };
         """
-        <!doctype html>
-        <html>
-        <head>
-          <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob:;">
-          <meta charset='utf-8'>
-          <title>Clawd Web Chat</title>
-          <link rel='stylesheet' href='app.css'>
-          <script type="importmap">
-          \(importMapJSON)
-          </script>
-          <style>html,body{height:100%;margin:0;padding:0;}#app{height:100%;}</style>
-        </head>
-        <body>
-          <div id="app" style="padding:16px;font:14px -apple-system, BlinkMacSystemFont, sans-serif;color:#222">Booting web chat…</div>
-          <script type="module">
-            // Minimal Node globals expected by pi-web-ui
-            if (!window.process) window.process = { env: {} };
+        let userScript = WKUserScript(
+            source: bootstrapScript,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true)
+        self.webView.configuration.userContentController.addUserScript(userScript)
 
-            const initialMessages = \(messagesJSON);
-            const status = (msg) => {
-              console.log(msg);
-              window.__clawdisLog(msg);
-              const el = document.getElementById('app');
-              if (el && !el.dataset.booted) {
-                el.textContent = msg;
-              }
-            };
-
-            status('boot: starting imports');
-
-            (async () => {
-              try {
-                const { Agent } = await import('./agent/agent.js');
-                status('boot: agent loaded');
-                const { ChatPanel } = await import('./ChatPanel.js');
-                status('boot: ChatPanel loaded');
-                const { AppStorage, setAppStorage } = await import('./storage/app-storage.js');
-                status('boot: pi-web-ui imported');
-                const { getModel } = await import('@mariozechner/pi-ai');
-                status('boot: pi-ai stub imported');
-
-                class NativeTransport {
-                  async *run(messages, userMessage, cfg, signal) {
-                    const result = await window.__clawdisSend({ type: 'chat', payload: { text: userMessage.content?.[0]?.text ?? '', sessionKey: '\(
-                        self.sessionKey)' } });
-                    const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
-                    const assistant = {
-                      role: 'assistant',
-                      content: [{ type: 'text', text: result.text ?? '' }],
-                      api: cfg.model.api,
-                      provider: cfg.model.provider,
-                      model: cfg.model.id,
-                      usage,
-                      stopReason: 'stop',
-                      timestamp: Date.now()
-                    };
-                    yield { type: 'turn_start' };
-                    yield { type: 'message_start', message: assistant };
-                    yield { type: 'message_end', message: assistant };
-                    yield { type: 'turn_end' };
-                    yield { type: 'agent_end' };
-                  }
-                }
-
-                // Minimal storage
-                const storage = new AppStorage();
-                setAppStorage(storage);
-
-                const agent = new Agent({
-                  initialState: {
-                    systemPrompt: 'You are Clawd (primary session).',
-                    model: getModel('anthropic', 'claude-opus-4-5'),
-                    thinkingLevel: 'off',
-                    messages: initialMessages
-                  },
-                  transport: new NativeTransport()
-                });
-
-                // Patch prompt to append user message into history first
-                const origPrompt = agent.prompt.bind(agent);
-                agent.prompt = async (input, attachments) => {
-                  const userMessage = {
-                    role: 'user',
-                    content: [{ type: 'text', text: input }],
-                    attachments: attachments?.length ? attachments : undefined,
-                    timestamp: Date.now()
-                  };
-                  agent.appendMessage(userMessage);
-                  return origPrompt(input, attachments);
-                };
-
-                const panel = new ChatPanel();
-                panel.style.height = '100%';
-                panel.style.display = 'block';
-                await panel.setAgent(agent);
-                const mount = document.getElementById('app');
-                mount.dataset.booted = '1';
-                mount.textContent = '';
-                mount.appendChild(panel);
-                status('boot: ready');
-              } catch (err) {
-                const msg = err?.stack || err?.message || String(err);
-                window.__clawdisLog(msg);
-                document.body.style.color = '#e06666';
-                document.body.style.fontFamily = 'monospace';
-                document.body.style.padding = '16px';
-                document.body.innerText = 'Web chat failed to load:\\n' + msg;
-              }
-            })();
-          </script>
-        </body>
-        </html>
-        """
+        self.webView.loadFileURL(htmlURL, allowingReadAccessTo: webChatURL)
+        webChatLogger.debug("loadPage queued HTML into WKWebView fileURL=\(htmlURL.absoluteString, privacy: .public)")
     }
-
-    // swiftlint:enable line_length
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         webChatLogger.debug("didFinish navigation url=\(webView.url?.absoluteString ?? "nil", privacy: .public)")
