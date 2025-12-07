@@ -77,6 +77,7 @@ struct GeneralSettings: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 22)
+        .padding(.bottom, 16)
         .onAppear { self.refreshCLIStatus() }
     }
 
