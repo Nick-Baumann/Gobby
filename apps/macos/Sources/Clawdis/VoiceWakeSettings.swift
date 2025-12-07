@@ -427,6 +427,7 @@ struct VoiceWakeSettings: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(self.statusText)
                         .font(.subheadline)
+                        .frame(maxHeight: 22, alignment: .center)
                     if case let .detected(text) = testState {
                         Text("Heard: \(text)")
                             .font(.footnote)
@@ -439,6 +440,7 @@ struct VoiceWakeSettings: View {
             .padding(10)
             .background(.quaternary.opacity(0.2))
             .clipShape(RoundedRectangle(cornerRadius: 8))
+            .frame(minHeight: 54)
         }
         .padding(.vertical, 2)
     }
