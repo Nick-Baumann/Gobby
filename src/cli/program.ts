@@ -217,6 +217,80 @@ Examples:
     });
 
   program
+    .command("rpc")
+    .description("Run stdin/stdout JSON RPC loop for agent sends")
+    .action(async () => {
+      const { createInterface } = await import("node:readline");
+      const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
+
+      const respond = (obj: unknown) => {
+        try {
+          console.log(JSON.stringify(obj));
+        } catch (err) {
+          console.error(JSON.stringify({ type: "error", error: String(err) }));
+        }
+      };
+
+      rl.on("line", async (line: string) => {
+        if (!line.trim()) return;
+        try {
+          const cmd = JSON.parse(line);
+          if (cmd.type !== "send" || !cmd.text) {
+            respond({ type: "error", error: "unsupported command" });
+            return;
+          }
+
+          const logs: string[] = [];
+          const runtime = {
+            log: (msg: string) => logs.push(String(msg)),
+            error: (msg: string) => logs.push(String(msg)),
+            exit: (_code: number) => {},
+          };
+
+          const opts: {
+            message: string;
+            to?: string;
+            sessionId?: string;
+            thinking?: string;
+            json: boolean;
+          } = {
+            message: String(cmd.text),
+            to: cmd.to ? String(cmd.to) : undefined,
+            sessionId: cmd.session ? String(cmd.session) : undefined,
+            thinking: cmd.thinking ? String(cmd.thinking) : undefined,
+            json: true,
+          };
+
+          try {
+            await agentCommand(opts, runtime, createDefaultDeps());
+            const payload = extractPayload(logs);
+            respond({ type: "result", ok: true, payload });
+          } catch (err) {
+            respond({ type: "error", error: String(err) });
+          }
+        } catch (err) {
+          respond({ type: "error", error: `parse error: ${String(err)}` });
+        }
+      });
+
+      const extractPayload = (logs: string[]) => {
+        for (const entry of logs.slice().reverse()) {
+          try {
+            const parsed = JSON.parse(entry);
+            if (parsed && typeof parsed === "object" && "payloads" in parsed) {
+              return parsed;
+            }
+          } catch {
+            // non-JSON log, ignore
+          }
+        }
+        return null;
+      };
+
+      await new Promise(() => {});
+    });
+
+  program
     .command("heartbeat")
     .description("Trigger a heartbeat or manual send once (web only, no tmux)")
     .option("--to <number>", "Override target E.164; defaults to allowFrom[0]")
