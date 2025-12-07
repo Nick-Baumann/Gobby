@@ -3,6 +3,7 @@ import { Command } from "commander";
 import { agentCommand } from "../commands/agent.js";
 import { sendCommand } from "../commands/send.js";
 import { sessionsCommand } from "../commands/sessions.js";
+import { healthCommand } from "../commands/health.js";
 import { statusCommand } from "../commands/status.js";
 import { loadConfig } from "../config/config.js";
 import { danger, info, setVerbose } from "../globals.js";
@@ -18,6 +19,7 @@ import {
 import { defaultRuntime } from "../runtime.js";
 import { VERSION } from "../version.js";
 import {
+  DEFAULT_HEARTBEAT_SECONDS,
   resolveHeartbeatSeconds,
   resolveReconnectPolicy,
 } from "../web/reconnect.js";
@@ -563,6 +565,28 @@ Examples:
       setVerbose(Boolean(opts.verbose));
       try {
         await statusCommand(opts, defaultRuntime);
+      } catch (err) {
+        defaultRuntime.error(String(err));
+        defaultRuntime.exit(1);
+      }
+    });
+
+  program
+    .command("health")
+    .description("Probe WhatsApp Web health (creds + Baileys connect) and session store")
+    .option("--json", "Output JSON instead of text", false)
+    .option("--timeout <ms>", "Connection timeout in milliseconds", "10000")
+    .option("--verbose", "Verbose logging", false)
+    .action(async (opts) => {
+      setVerbose(Boolean(opts.verbose));
+      const timeout = opts.timeout ? Number.parseInt(String(opts.timeout), 10) : undefined;
+      if (timeout !== undefined && (Number.isNaN(timeout) || timeout <= 0)) {
+        defaultRuntime.error("--timeout must be a positive integer (milliseconds)");
+        defaultRuntime.exit(1);
+        return;
+      }
+      try {
+        await healthCommand({ json: Boolean(opts.json), timeoutMs: timeout }, defaultRuntime);
       } catch (err) {
         defaultRuntime.error(String(err));
         defaultRuntime.exit(1);
