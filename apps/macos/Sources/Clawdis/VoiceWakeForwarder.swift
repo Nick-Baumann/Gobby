@@ -15,13 +15,17 @@ enum VoiceWakeForwarder {
     enum VoiceWakeForwardError: LocalizedError, Equatable {
         case invalidTarget
         case launchFailed(String)
-        case nonZeroExit(Int32)
+        case nonZeroExit(Int32, String)
 
         var errorDescription: String? {
             switch self {
-            case .invalidTarget: "Missing or invalid SSH target"
-            case let .launchFailed(message): "ssh failed to start: \(message)"
-            case let .nonZeroExit(code): "ssh exited with code \(code)"
+            case .invalidTarget: return "Missing or invalid SSH target"
+            case let .launchFailed(message): return "ssh failed to start: \(message)"
+            case let .nonZeroExit(code, output):
+                let clipped = output.prefix(240)
+                return clipped.isEmpty
+                    ? "ssh exited with code \(code)"
+                    : "ssh exited with code \(code): \(clipped)"
             }
         }
     }
@@ -71,11 +75,11 @@ enum VoiceWakeForwarder {
         }
         try? input.fileHandleForWriting.close()
 
-        await self.wait(process, timeout: config.timeout)
+        _ = await self.wait(process, timeout: config.timeout)
     }
 
     static func checkConnection(config: VoiceWakeForwardConfig) async -> Result<Void, VoiceWakeForwardError> {
-        let destination = config.target.trimmingCharacters(in: .whitespacesAndNewlines)
+        let destination = self.sanitizedTarget(config.target)
         guard let parsed = self.parse(target: destination) else {
             return .failure(.invalidTarget)
         }
@@ -96,6 +100,9 @@ enum VoiceWakeForwarder {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
         process.arguments = args
+        let pipe = Pipe()
+        process.standardError = pipe
+        process.standardOutput = pipe
 
         do {
             try process.run()
@@ -103,11 +110,11 @@ enum VoiceWakeForwarder {
             return .failure(.launchFailed(error.localizedDescription))
         }
 
-        await self.wait(process, timeout: 6)
+        let output = await self.wait(process, timeout: 6, capturing: pipe)
         if process.terminationStatus == 0 {
             return .success(())
         }
-        return .failure(.nonZeroExit(process.terminationStatus))
+        return .failure(.nonZeroExit(process.terminationStatus, output))
     }
 
     static func renderedCommand(template: String, transcript: String) -> String {
@@ -124,7 +131,7 @@ enum VoiceWakeForwarder {
         return "'\(replaced)'"
     }
 
-    private static func wait(_ process: Process, timeout: TimeInterval) async {
+    private static func wait(_ process: Process, timeout: TimeInterval, capturing pipe: Pipe? = nil) async -> String {
         await withTaskGroup(of: Void.self) { group in
             group.addTask {
                 process.waitUntilExit()
@@ -140,14 +147,23 @@ enum VoiceWakeForwarder {
             group.cancelAll()
         }
 
+        let data = try? pipe?.fileHandleForReading.readToEnd()
+        let text = data.flatMap { String(data: $0, encoding: .utf8) }?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
         if process.terminationStatus != 0 {
-            self.logger.debug("voice wake forward ssh exit=\(process.terminationStatus)")
+            self.logger.debug("voice wake forward ssh exit=\(process.terminationStatus) out=\(text, privacy: .public)")
         }
+        return text
     }
 
     static func parse(target: String) -> (user: String?, host: String, port: Int)? {
         guard !target.isEmpty else { return nil }
         var remainder = target
+        if remainder.hasPrefix("ssh ") {
+            remainder = remainder.replacingOccurrences(of: "ssh ", with: "")
+        }
+        remainder = remainder.trimmingCharacters(in: .whitespacesAndNewlines)
         var user: String?
         if let at = remainder.firstIndex(of: "@") {
             user = String(remainder[..<at])
@@ -167,5 +183,13 @@ enum VoiceWakeForwarder {
         host = host.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !host.isEmpty else { return nil }
         return (user: user?.trimmingCharacters(in: .whitespacesAndNewlines), host: host, port: port)
+    }
+
+    private static func sanitizedTarget(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("ssh ") {
+            return trimmed.replacingOccurrences(of: "ssh ", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return trimmed
     }
 }

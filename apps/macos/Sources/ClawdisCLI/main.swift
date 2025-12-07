@@ -146,7 +146,9 @@ struct ClawdisCLI {
 
         Usage:
           clawdis-mac notify --title <t> --body <b> [--sound <name>]
-          clawdis-mac ensure-permissions [--cap <notifications|accessibility|screenRecording|microphone|speechRecognition>] [--interactive]
+          clawdis-mac ensure-permissions
+            [--cap <notifications|accessibility|screenRecording|microphone|speechRecognition>]
+            [--interactive]
           clawdis-mac screenshot [--display-id <u32>] [--window-id <u32>]
           clawdis-mac run [--cwd <path>] [--env KEY=VAL] [--timeout <sec>] [--needs-screen-recording] <command ...>
           clawdis-mac status
