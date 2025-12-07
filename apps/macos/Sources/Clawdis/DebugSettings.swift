@@ -17,6 +17,10 @@ struct DebugSettings: View {
             LabeledContent("Log file") {
                 Button("Open pino log") { self.openLog() }
                     .help(self.pinoLogPath)
+                Text(self.pinoLogPath)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
             }
             LabeledContent("Binary path") { Text(Bundle.main.bundlePath).font(.footnote) }
             LabeledContent("Relay status") {
@@ -126,8 +130,16 @@ struct DebugSettings: View {
     }
 
     private func openLog() {
-        let url = URL(fileURLWithPath: self.pinoLogPath)
-        NSWorkspace.shared.open(url)
+        let path = self.pinoLogPath
+        let url = URL(fileURLWithPath: path)
+        if !FileManager.default.fileExists(atPath: path) {
+            let alert = NSAlert()
+            alert.messageText = "Log file not found"
+            alert.informativeText = path
+            alert.runModal()
+            return
+        }
+        NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
     private func chooseCatalogFile() {
