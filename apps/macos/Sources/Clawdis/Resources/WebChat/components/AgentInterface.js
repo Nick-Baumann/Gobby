@@ -5,7 +5,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
 import { html, LitElement } from "lit";
-import { customElement, property, query } from "lit/decorators.js";
+import { customElement, property, query, state } from "lit/decorators.js";
 import { ModelSelector } from "../dialogs/ModelSelector.js";
 import "./MessageEditor.js";
 import "./MessageList.js";
@@ -21,6 +21,8 @@ let AgentInterface = class AgentInterface extends LitElement {
         this.enableModelSelector = true;
         this.enableThinkingSelector = true;
         this.showThemeToggle = false;
+        this.sessionThinkingLevel = "off";
+        this.pendingThinkingLevel = null;
         this._autoScroll = true;
         this._lastScrollTop = 0;
         this._lastClientHeight = 0;
@@ -121,13 +123,16 @@ let AgentInterface = class AgentInterface extends LitElement {
         }
         if (!this.session)
             return;
-        this._unsubscribeSession = this.session.subscribe(async (ev) => {
-            if (ev.type === "state-update") {
-                if (this._streamingContainer) {
-                    this._streamingContainer.isStreaming = ev.state.isStreaming;
-                    this._streamingContainer.setMessage(ev.state.streamMessage, !ev.state.isStreaming);
-                }
-                this.requestUpdate();
+            this._unsubscribeSession = this.session.subscribe(async (ev) => {
+                if (ev.type === "state-update") {
+                    if (this.pendingThinkingLevel === null && ev.state.thinkingLevel) {
+                        this.sessionThinkingLevel = ev.state.thinkingLevel;
+                    }
+                    if (this._streamingContainer) {
+                        this._streamingContainer.isStreaming = ev.state.isStreaming;
+                        this._streamingContainer.setMessage(ev.state.streamMessage, !ev.state.isStreaming);
+                    }
+                    this.requestUpdate();
             }
             else if (ev.type === "error-no-model") {
                 // TODO show some UI feedback
@@ -164,11 +169,25 @@ let AgentInterface = class AgentInterface extends LitElement {
         if (this.onBeforeSend) {
             await this.onBeforeSend();
         }
+        const baseThinking =
+            this.sessionThinkingLevel || session.state.thinkingLevel || "off";
+        const thinkingOverride = this.pendingThinkingLevel ?? baseThinking;
+        const transient =
+            this.pendingThinkingLevel !== null &&
+            this.pendingThinkingLevel !== baseThinking;
         // Only clear editor after we know we can send
         this._messageEditor.value = "";
         this._messageEditor.attachments = [];
         this._autoScroll = true; // Enable auto-scroll when sending a message
-        await this.session?.prompt(input, attachments);
+        await this.session?.prompt(input, attachments, {
+            thinkingOverride,
+            transient,
+        });
+        this.pendingThinkingLevel = null;
+        // Reset editor thinking selector to session baseline
+        if (this._messageEditor) {
+            this._messageEditor.thinkingLevel = this.sessionThinkingLevel || "off";
+        }
     }
     renderMessages() {
         if (!this.session)
@@ -261,12 +280,12 @@ let AgentInterface = class AgentInterface extends LitElement {
 					<div class="max-w-3xl mx-auto px-2">
 						<message-editor
 							.isStreaming=${state.isStreaming}
-							.currentModel=${state.model}
-							.thinkingLevel=${state.thinkingLevel}
-							.showAttachmentButton=${this.enableAttachments}
-							.showModelSelector=${this.enableModelSelector}
-							.showThinkingSelector=${this.enableThinkingSelector}
-							.onSend=${(input, attachments) => {
+                            .currentModel=${state.model}
+                            .thinkingLevel=${this.pendingThinkingLevel ?? this.sessionThinkingLevel ?? state.thinkingLevel}
+                            .showAttachmentButton=${this.enableAttachments}
+                            .showModelSelector=${this.enableModelSelector}
+                            .showThinkingSelector=${this.enableThinkingSelector}
+                            .onSend=${(input, attachments) => {
             this.sendMessage(input, attachments);
         }}
 							.onAbort=${() => session.abort()}
@@ -275,7 +294,11 @@ let AgentInterface = class AgentInterface extends LitElement {
         }}
 							.onThinkingChange=${this.enableThinkingSelector
             ? (level) => {
-                session.setThinkingLevel(level);
+                this.pendingThinkingLevel = level;
+                if (this._messageEditor) {
+                    this._messageEditor.thinkingLevel = level;
+                }
+                this.requestUpdate();
             }
             : undefined}
 						></message-editor>
@@ -299,6 +322,9 @@ __decorate([
     property({ type: Boolean })
 ], AgentInterface.prototype, "enableThinkingSelector", void 0);
 __decorate([
+    property({ type: String })
+], AgentInterface.prototype, "sessionThinkingLevel", void 0);
+__decorate([
     property({ type: Boolean })
 ], AgentInterface.prototype, "showThemeToggle", void 0);
 __decorate([
@@ -319,6 +345,9 @@ __decorate([
 __decorate([
     query("streaming-message-container")
 ], AgentInterface.prototype, "_streamingContainer", void 0);
+__decorate([
+    state()
+], AgentInterface.prototype, "pendingThinkingLevel", void 0);
 AgentInterface = __decorate([
     customElement("agent-interface")
 ], AgentInterface);

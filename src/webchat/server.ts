@@ -1,19 +1,20 @@
+import http from "node:http";
+import path from "node:path";
+import os from "node:os";
+import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
 import fs from "node:fs";
-import http from "node:http";
-import os from "node:os";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 
-import { agentCommand } from "../commands/agent.js";
 import { loadConfig } from "../config/config.js";
 import {
   loadSessionStore,
   resolveStorePath,
   type SessionEntry,
 } from "../config/sessions.js";
+import { danger, info } from "../globals.js";
 import { logDebug } from "../logger.js";
+import { agentCommand } from "../commands/agent.js";
 import type { RuntimeEnv } from "../runtime.js";
 
 const WEBCHAT_DEFAULT_PORT = 18788;
@@ -21,14 +22,6 @@ const WEBCHAT_DEFAULT_PORT = 18788;
 type WebChatServerState = {
   server: http.Server;
   port: number;
-};
-
-type ChatMessage = { role: string; content: string };
-type AttachmentInput = {
-  content?: string;
-  mimeType?: string;
-  fileName?: string;
-  type?: string;
 };
 
 let state: WebChatServerState | null = null;
@@ -39,17 +32,11 @@ function resolveWebRoot() {
   // 1) Packaged app: resources live next to the relay bundle at
   //    Contents/Resources/WebChat. The relay binary runs from
   //    Contents/Resources/Relay/bun, so walk up one and check.
-  const packagedRoot = path.resolve(
-    path.dirname(process.execPath),
-    "../WebChat",
-  );
+  const packagedRoot = path.resolve(path.dirname(process.execPath), "../WebChat");
   if (fs.existsSync(packagedRoot)) return packagedRoot;
 
   // 2) Dev / source checkout: repo-relative path.
-  return path.resolve(
-    here,
-    "../../apps/macos/Sources/Clawdis/Resources/WebChat",
-  );
+  return path.resolve(here, "../../apps/macos/Sources/Clawdis/Resources/WebChat");
 }
 
 function readBody(req: http.IncomingMessage): Promise<Buffer> {
@@ -62,28 +49,15 @@ function readBody(req: http.IncomingMessage): Promise<Buffer> {
   });
 }
 
-function pickSessionId(
-  sessionKey: string,
-  store: Record<string, SessionEntry>,
-): string | null {
+function pickSessionId(sessionKey: string, store: Record<string, SessionEntry>): string | null {
   if (store[sessionKey]?.sessionId) return store[sessionKey].sessionId;
   const first = Object.values(store)[0]?.sessionId;
   return first ?? null;
 }
 
-function readSessionMessages(
-  sessionId: string,
-  storePath: string,
-): ChatMessage[] {
+function readSessionMessages(sessionId: string, storePath: string): any[] {
   const dir = path.dirname(storePath);
-  const candidates = [
-    path.join(dir, `${sessionId}.jsonl`),
-    path.join(
-      os.homedir(),
-      ".tau/agent/sessions/clawdis",
-      `${sessionId}.jsonl`,
-    ),
-  ];
+  const candidates = [path.join(dir, `${sessionId}.jsonl`), path.join(os.homedir(), ".tau/agent/sessions/clawdis", `${sessionId}.jsonl`)];
   let content: string | null = null;
   for (const p of candidates) {
     if (fs.existsSync(p)) {
@@ -97,7 +71,7 @@ function readSessionMessages(
   }
   if (!content) return [];
 
-  const messages: ChatMessage[] = [];
+  const messages: any[] = [];
   for (const line of content.split(/\r?\n/)) {
     if (!line.trim()) continue;
     try {
@@ -113,32 +87,22 @@ function readSessionMessages(
 }
 
 async function persistAttachments(
-  attachments: AttachmentInput[],
+  attachments: any[],
   sessionId: string,
 ): Promise<{ placeholder: string; path: string }[]> {
   const out: { placeholder: string; path: string }[] = [];
   if (!attachments?.length) return out;
 
-  const root = path.join(
-    os.homedir(),
-    ".clawdis",
-    "webchat-uploads",
-    sessionId,
-  );
+  const root = path.join(os.homedir(), ".clawdis", "webchat-uploads", sessionId);
   await fs.promises.mkdir(root, { recursive: true });
 
   let idx = 1;
   for (const att of attachments) {
     try {
       if (!att?.content || typeof att.content !== "string") continue;
-      const mime =
-        typeof att.mimeType === "string"
-          ? att.mimeType
-          : "application/octet-stream";
+      const mime = typeof att.mimeType === "string" ? att.mimeType : "application/octet-stream";
       const baseName = att.fileName || `${att.type || "attachment"}-${idx}`;
-      const ext = mime.startsWith("image/")
-        ? mime.split("/")[1] || "bin"
-        : "bin";
+      const ext = mime.startsWith("image/") ? mime.split("/")[1] || "bin" : "bin";
       const fileName = `${baseName}.${ext}`.replace(/[^a-zA-Z0-9._-]/g, "_");
       const buf = Buffer.from(att.content, "base64");
 
@@ -149,8 +113,7 @@ async function persistAttachments(
         const image = sharp(buf, { failOn: "none" });
         meta = await image.metadata();
         const needsResize =
-          (meta.width && meta.width > 2000) ||
-          (meta.height && meta.height > 2000);
+          (meta.width && meta.width > 2000) || (meta.height && meta.height > 2000);
         if (needsResize) {
           const resized = await image
             .resize({ width: 2000, height: 2000, fit: "inside" })
@@ -174,8 +137,7 @@ async function persistAttachments(
       await fs.promises.writeFile(dest, finalBuf);
 
       const sizeLabel = `${(finalBuf.length / 1024).toFixed(0)} KB`;
-      const dimLabel =
-        meta?.width && meta?.height ? `, ${meta.width}x${meta.height}` : "";
+      const dimLabel = meta?.width && meta?.height ? `, ${meta.width}x${meta.height}` : "";
       const placeholder = `[Attachment saved: ${dest} (${mime}${dimLabel}, ${sizeLabel})]`;
       out.push({ placeholder, path: dest });
     } catch (err) {
@@ -187,34 +149,16 @@ async function persistAttachments(
   return out;
 }
 
-function formatMessageWithAttachments(
-  text: string,
-  saved: { placeholder: string }[],
-): string {
+function formatMessageWithAttachments(text: string, saved: { placeholder: string }[]): string {
   if (!saved || saved.length === 0) return text;
   const parts = [text, ...saved.map((s) => `\n\n${s.placeholder}`)];
   return parts.join("");
 }
 
-type RpcPayload = { role: string; content: string };
-
-async function handleRpc(
-  body: unknown,
-  sessionKey: string,
-): Promise<{ ok: boolean; payloads?: RpcPayload[]; error?: string }> {
-  const payload = body as {
-    text?: unknown;
-    attachments?: unknown;
-    thinking?: unknown;
-    deliver?: unknown;
-    to?: unknown;
-  };
-
-  const text: string = (payload.text ?? "").toString();
+async function handleRpc(body: any, sessionKey: string): Promise<{ ok: boolean; payloads?: any[]; error?: string }> {
+  const text: string = (body?.text ?? "").toString();
   if (!text.trim()) return { ok: false, error: "empty text" };
-  const attachments = Array.isArray(payload.attachments)
-    ? (payload.attachments as AttachmentInput[])
-    : [];
+  const attachments = Array.isArray(body?.attachments) ? body.attachments : [];
 
   const cfg = loadConfig();
   const replyCfg = cfg.inbound?.reply;
@@ -246,6 +190,7 @@ async function handleRpc(
         message: formatMessageWithAttachments(text, savedAttachments),
         sessionId,
         thinking: body?.thinking,
+        thinkingOnce: body?.thinkingOnce,
         deliver: Boolean(body?.deliver),
         to: body?.to,
         json: true,
@@ -278,10 +223,7 @@ export async function startWebChatServer(port = WEBCHAT_DEFAULT_PORT) {
   const server = http.createServer(async (req, res) => {
     if (!req.url) return notFound(res);
     // enforce loopback only
-    if (
-      req.socket.remoteAddress &&
-      !req.socket.remoteAddress.startsWith("127.")
-    ) {
+    if (req.socket.remoteAddress && !req.socket.remoteAddress.startsWith("127.")) {
       res.statusCode = 403;
       res.end("loopback only");
       return;
@@ -300,9 +242,9 @@ export async function startWebChatServer(port = WEBCHAT_DEFAULT_PORT) {
         : resolveStorePath(undefined);
       const store = loadSessionStore(storePath);
       const sessionId = pickSessionId(sessionKey, store);
-      const messages = sessionId
-        ? readSessionMessages(sessionId, storePath)
-        : [];
+      const sessionEntry = sessionKey ? store[sessionKey] : undefined;
+      const persistedThinking = sessionEntry?.thinkingLevel;
+      const messages = sessionId ? readSessionMessages(sessionId, storePath) : [];
       res.setHeader("Content-Type", "application/json");
       res.end(
         JSON.stringify({
@@ -312,6 +254,10 @@ export async function startWebChatServer(port = WEBCHAT_DEFAULT_PORT) {
           sessionId,
           initialMessages: messages,
           basePath: "/",
+          thinkingLevel:
+            typeof persistedThinking === "string"
+              ? persistedThinking
+              : cfg.inbound?.reply?.thinkingDefault ?? "off",
         }),
       );
       return;
@@ -319,7 +265,7 @@ export async function startWebChatServer(port = WEBCHAT_DEFAULT_PORT) {
 
     if (isRpc && req.method === "POST") {
       const bodyBuf = await readBody(req);
-      let body: Record<string, unknown> = {};
+      let body: any = {};
       try {
         body = JSON.parse(bodyBuf.toString("utf-8"));
       } catch {
@@ -334,7 +280,7 @@ export async function startWebChatServer(port = WEBCHAT_DEFAULT_PORT) {
 
     if (url.pathname.startsWith("/webchat")) {
       let rel = url.pathname.replace(/^\/webchat\/?/, "");
-      if (!rel || rel.endsWith("/")) rel = `${rel}index.html`;
+      if (!rel || rel.endsWith("/")) rel = rel + "index.html";
       const filePath = path.join(root, rel);
       if (!filePath.startsWith(root)) return notFound(res);
       if (!fs.existsSync(filePath)) return notFound(res);

@@ -80,7 +80,7 @@ export class Agent {
         const { systemPrompt, model, messages } = this._state;
         console.log(message, { systemPrompt, model, messages });
     }
-    async prompt(input, attachments) {
+    async prompt(input, attachments, opts) {
         const model = this._state.model;
         if (!model) {
             this.emit({ type: "error-no-model" });
@@ -111,16 +111,20 @@ export class Agent {
         this.abortController = new AbortController();
         this.patch({ isStreaming: true, streamMessage: null, error: undefined });
         this.emit({ type: "started" });
-        const reasoning = this._state.thinkingLevel === "off"
+        const thinkingLevel = (opts?.thinkingOverride ?? this._state.thinkingLevel) ?? "off";
+        const reasoning = thinkingLevel === "off"
             ? undefined
-            : this._state.thinkingLevel === "minimal"
+            : thinkingLevel === "minimal"
                 ? "low"
-                : this._state.thinkingLevel;
+                : thinkingLevel;
+        const shouldSendOverride = opts?.transient === true;
         const cfg = {
             systemPrompt: this._state.systemPrompt,
             tools: this._state.tools,
             model,
             reasoning,
+            thinkingOverride: shouldSendOverride ? thinkingLevel : undefined,
+            thinkingOnce: shouldSendOverride ? thinkingLevel : undefined,
             getQueuedMessages: async () => {
                 // Return queued messages (they'll be added to state via message_end event)
                 const queued = this.messageQueue.slice();

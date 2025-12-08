@@ -52,6 +52,7 @@ let ChatPanel = class ChatPanel extends LitElement {
         // Create AgentInterface
         this.agentInterface = document.createElement("agent-interface");
         this.agentInterface.session = agent;
+        this.agentInterface.sessionThinkingLevel = config?.sessionThinkingLevel ?? agent?.state?.thinkingLevel ?? "off";
         this.agentInterface.enableAttachments = true;
         // Hide model selector in the embedded chat; use fixed model configured at bootstrap.
         this.agentInterface.enableModelSelector = false;

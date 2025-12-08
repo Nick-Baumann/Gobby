@@ -31,3 +31,8 @@
 
 ## Heartbeats
 - Heartbeat probe body is `HEARTBEAT /think:high`, so it always asks for max thinking on the probe. Inline directive wins; session/global defaults are used only when no directive is present.
+
+## Web chat UI
+- The web chat thinking selector mirrors the session's stored level from the inbound session store/config when the page loads.
+- Picking another level applies only to the next message (`thinkingOnce`); after sending, the selector snaps back to the stored session level.
+- To change the session default, send a `/think:<level>` directive (as before); the selector will reflect it after the next reload.

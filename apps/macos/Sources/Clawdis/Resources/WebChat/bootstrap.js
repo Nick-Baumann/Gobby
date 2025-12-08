@@ -31,6 +31,7 @@ async function fetchBootstrap() {
     sessionKey,
     basePath: info.basePath || "/webchat/",
     initialMessages: Array.isArray(info.initialMessages) ? info.initialMessages : [],
+    thinkingLevel: typeof info.thinkingLevel === "string" ? info.thinkingLevel : "off",
   };
 }
 
@@ -50,14 +51,20 @@ class NativeTransport {
           : btoa(String.fromCharCode(...new Uint8Array(a.content))),
     }));
     const rpcUrl = new URL("./rpc", window.location.href);
+    const rpcBody = {
+      text: userMessage.content?.[0]?.text ?? "",
+      session: this.sessionKey,
+      attachments,
+    };
+    if (cfg?.thinkingOnce) {
+      rpcBody.thinkingOnce = cfg.thinkingOnce;
+    } else if (cfg?.thinkingOverride) {
+      rpcBody.thinking = cfg.thinkingOverride;
+    }
     const resultResp = await fetch(rpcUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text: userMessage.content?.[0]?.text ?? "",
-        session: this.sessionKey,
-        attachments,
-      }),
+      body: JSON.stringify(rpcBody),
       signal,
     });
 
@@ -98,7 +105,7 @@ class NativeTransport {
 
 const startChat = async () => {
   logStatus("boot: fetching session info");
-  const { initialMessages, sessionKey } = await fetchBootstrap();
+  const { initialMessages, sessionKey, thinkingLevel } = await fetchBootstrap();
 
   logStatus("boot: starting imports");
   const { Agent } = await import("./agent/agent.js");
@@ -154,7 +161,7 @@ const startChat = async () => {
     initialState: {
       systemPrompt: "You are Clawd (primary session).",
       model: getModel("anthropic", "claude-opus-4-5"),
-      thinkingLevel: "off",
+      thinkingLevel,
       messages: initialMessages,
     },
     transport: new NativeTransport(sessionKey),
@@ -175,7 +182,7 @@ const startChat = async () => {
   const panel = new ChatPanel();
   panel.style.height = "100%";
   panel.style.display = "block";
-  await panel.setAgent(agent);
+  await panel.setAgent(agent, { sessionThinkingLevel: thinkingLevel });
 
   const mount = document.getElementById("app");
   if (!mount) throw new Error("#app container missing");

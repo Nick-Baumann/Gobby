@@ -172,9 +172,15 @@ export async function agentCommand(
     .filter((val) => val.length > 1);
 
   const thinkOverride = normalizeThinkLevel(opts.thinking);
+  const thinkOnce = normalizeThinkLevel(opts.thinkingOnce);
   if (opts.thinking && !thinkOverride) {
     throw new Error(
       "Invalid thinking level. Use one of: off, minimal, low, medium, high.",
+    );
+  }
+  if (opts.thinkingOnce && !thinkOnce) {
+    throw new Error(
+      "Invalid one-shot thinking level. Use one of: off, minimal, low, medium, high.",
     );
   }
   const verboseOverride = normalizeVerboseLevel(opts.verbose);
@@ -213,8 +219,9 @@ export async function agentCommand(
   const sendSystemOnce = sessionCfg?.sendSystemOnce === true;
   const isFirstTurnInSession = isNewSession || !systemSent;
 
-  // Merge thinking/verbose levels: flag override > persisted > defaults.
+  // Merge thinking/verbose levels: one-shot override > flag override > persisted > defaults.
   const resolvedThinkLevel: ThinkLevel | undefined =
+    thinkOnce ??
     thinkOverride ??
     persistedThinking ??
     (replyCfg.thinkingDefault as ThinkLevel | undefined);
