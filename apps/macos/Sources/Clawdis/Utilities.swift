@@ -349,19 +349,23 @@ enum CommandResolver {
 
         // Run the real clawdis CLI on the remote host; do not fall back to clawdis-mac.
         let exportedPath = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Users/steipete/Library/pnpm:$PATH"
-        let cdPrefix = settings.projectRoot.isEmpty ? "" : "cd \(self.shellQuote(settings.projectRoot)) && "
-        let prjVar = settings.projectRoot.isEmpty ? "" : "PRJ=\(self.shellQuote(settings.projectRoot)); "
         let quotedArgs = ([subcommand] + extraArgs).map(self.shellQuote).joined(separator: " ")
+        let userPRJ = settings.projectRoot
+        let prjInit = userPRJ.isEmpty ? "" : "PRJ=\(self.shellQuote(userPRJ));"
         let scriptBody = """
         PATH=\(exportedPath);
-        CLI="";
-        \(prjVar)
+        \(prjInit)
+        DEFAULT_PRJ="$HOME/Projects/clawdis"
+        if [ -z "${PRJ:-}" ] && [ -d "$DEFAULT_PRJ" ]; then PRJ="$DEFAULT_PRJ"; fi
+        if [ -n "${PRJ:-}" ]; then
+          cd "$PRJ" || { echo "Project root not found: $PRJ"; exit 127; }
+        fi
         if command -v clawdis >/dev/null 2>&1; then
-          \(cdPrefix)clawdis \(quotedArgs);
+          clawdis \(quotedArgs);
         elif [ -n "${PRJ:-}" ] && [ -f "$PRJ/bin/clawdis.js" ] && command -v node >/dev/null 2>&1; then
-          \(cdPrefix)node "$PRJ/bin/clawdis.js" \(quotedArgs);
+          node "$PRJ/bin/clawdis.js" \(quotedArgs);
         elif command -v pnpm >/dev/null 2>&1; then
-          \(cdPrefix)pnpm --silent clawdis \(quotedArgs);
+          pnpm --silent clawdis \(quotedArgs);
         else
           echo "clawdis CLI missing on remote host"; exit 127;
         fi
@@ -383,12 +387,16 @@ enum CommandResolver {
         args.append(userHost)
 
         let exportedPath = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
-        let cdPrefix = settings.projectRoot.isEmpty ? "" : "cd \(self.shellQuote(settings.projectRoot)) && "
+        let userPRJ = settings.projectRoot
         let quotedArgs = ([subcommand] + extraArgs).map(self.shellQuote).joined(separator: " ")
         let scriptBody = """
         PATH=\(exportedPath);
+        PRJ=\(userPRJ.isEmpty ? "" : self.shellQuote(userPRJ))
+        DEFAULT_PRJ="$HOME/Projects/clawdis"
+        if [ -z "${PRJ:-}" ] && [ -d "$DEFAULT_PRJ" ]; then PRJ="$DEFAULT_PRJ"; fi
+        if [ -n "${PRJ:-}" ]; then cd "$PRJ" || { echo "Project root not found: $PRJ"; exit 127; }; fi
         if ! command -v clawdis-mac >/dev/null 2>&1; then echo "clawdis-mac missing on remote host"; exit 127; fi;
-        \(cdPrefix)clawdis-mac \(quotedArgs)
+        clawdis-mac \(quotedArgs)
         """
         args.append(contentsOf: ["/bin/sh", "-c", scriptBody])
         return ["/usr/bin/ssh"] + args

@@ -79,6 +79,7 @@ actor VoicePushToTalk {
     private var volatile: String = ""
     private var activeConfig: Config?
     private var isCapturing = false
+    private var triggerChimePlayed = false
 
     private struct Config {
         let micID: String?
@@ -99,7 +100,9 @@ actor VoicePushToTalk {
         let config = await MainActor.run { self.makeConfig() }
         self.activeConfig = config
         self.isCapturing = true
+        self.triggerChimePlayed = false
         if config.triggerChime != .none {
+            self.triggerChimePlayed = true
             await MainActor.run { VoiceWakeChimePlayer.play(config.triggerChime) }
         }
         await VoiceWakeRuntime.shared.pauseForPushToTalk()
@@ -137,21 +140,21 @@ actor VoicePushToTalk {
             forward = await MainActor.run { AppStateStore.shared.voiceWakeForwardConfig }
         }
 
-        if !finalText.isEmpty, let chime = self.activeConfig?.sendChime, chime != .none {
-            await MainActor.run { VoiceWakeChimePlayer.play(chime) }
-        }
+        let chime = finalText.isEmpty ? .none : (self.activeConfig?.sendChime ?? .none)
 
         await MainActor.run {
             VoiceWakeOverlayController.shared.presentFinal(
                 transcript: finalText,
                 forwardConfig: forward,
                 delay: finalText.isEmpty ? 0.0 : 0.8,
+                sendChime: chime,
                 attributed: attributed)
         }
 
         self.committed = ""
         self.volatile = ""
         self.activeConfig = nil
+        self.triggerChimePlayed = false
 
         // Resume the wake-word runtime after push-to-talk finishes.
         _ = await MainActor.run {
@@ -209,8 +212,8 @@ actor VoicePushToTalk {
             self.volatile = Self.delta(after: self.committed, current: transcript)
         }
 
-        let attributed = Self.makeAttributed(committed: self.committed, volatile: self.volatile, isFinal: isFinal)
         let snapshot = self.committed + self.volatile
+        let attributed = Self.makeAttributed(committed: self.committed, volatile: self.volatile, isFinal: isFinal)
         await MainActor.run {
             VoiceWakeOverlayController.shared.showPartial(transcript: snapshot, attributed: attributed)
         }

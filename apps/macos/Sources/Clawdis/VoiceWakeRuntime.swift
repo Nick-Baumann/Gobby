@@ -22,6 +22,7 @@ actor VoiceWakeRuntime {
     private var capturedTranscript: String = ""
     private var isCapturing: Bool = false
     private var heardBeyondTrigger: Bool = false
+    private var triggerChimePlayed: Bool = false
     private var committedTranscript: String = ""
     private var volatileTranscript: String = ""
     private var cooldownUntil: Date?
@@ -124,6 +125,7 @@ actor VoiceWakeRuntime {
         self.isCapturing = false
         self.capturedTranscript = ""
         self.captureStartedAt = nil
+        self.triggerChimePlayed = false
         self.recognitionTask?.cancel()
         self.recognitionTask = nil
         self.recognitionRequest?.endAudio()
@@ -203,9 +205,6 @@ actor VoiceWakeRuntime {
 
     private func beginCapture(transcript: String, config: RuntimeConfig) async {
         self.isCapturing = true
-        if config.triggerChime != .none {
-            await MainActor.run { VoiceWakeChimePlayer.play(config.triggerChime) }
-        }
         let trimmed = Self.trimmedAfterTrigger(transcript, triggers: config.triggers)
         self.capturedTranscript = trimmed
         self.committedTranscript = ""
@@ -213,6 +212,12 @@ actor VoiceWakeRuntime {
         self.captureStartedAt = Date()
         self.cooldownUntil = nil
         self.heardBeyondTrigger = !trimmed.isEmpty
+        self.triggerChimePlayed = false
+
+        if config.triggerChime != .none {
+            self.triggerChimePlayed = true
+            await MainActor.run { VoiceWakeChimePlayer.play(config.triggerChime) }
+        }
 
         let snapshot = self.committedTranscript + self.volatileTranscript
         let attributed = Self.makeAttributed(
@@ -264,6 +269,7 @@ actor VoiceWakeRuntime {
         self.captureStartedAt = nil
         self.lastHeard = nil
         self.heardBeyondTrigger = false
+        self.triggerChimePlayed = false
 
         await MainActor.run { AppStateStore.shared.stopVoiceEars() }
 
@@ -275,14 +281,13 @@ actor VoiceWakeRuntime {
             committed: finalTranscript,
             volatile: "",
             isFinal: true)
-        if !finalTranscript.isEmpty, config.sendChime != .none {
-            await MainActor.run { VoiceWakeChimePlayer.play(config.sendChime) }
-        }
+        let sendChime = finalTranscript.isEmpty ? .none : config.sendChime
         await MainActor.run {
             VoiceWakeOverlayController.shared.presentFinal(
                 transcript: finalTranscript,
                 forwardConfig: forwardConfig,
                 delay: delay,
+                sendChime: sendChime,
                 attributed: finalAttributed)
         }
 

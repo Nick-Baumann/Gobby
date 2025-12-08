@@ -42,10 +42,15 @@ struct VoiceWakeChimeCatalog {
     }
 }
 
+@MainActor
 enum VoiceWakeChimePlayer {
+    private static var lastSound: NSSound?
+
     @MainActor
     static func play(_ chime: VoiceWakeChime) {
         guard let sound = self.sound(for: chime) else { return }
+        self.lastSound = sound
+        sound.stop()
         sound.play()
     }
 
