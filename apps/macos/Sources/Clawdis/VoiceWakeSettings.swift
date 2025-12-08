@@ -50,8 +50,8 @@ struct VoiceWakeSettings: View {
                     .disabled(!voiceWakeSupported)
 
                 SettingsToggleRow(
-                    title: "Hold Cmd+Fn to talk",
-                    subtitle: "Push-to-talk mode that starts listening while you hold the hotkey and shows the preview overlay.",
+                    title: "Hold Right Option to talk",
+                    subtitle: "Push-to-talk mode that starts listening while you hold the key and shows the preview overlay.",
                     binding: self.$state.voicePushToTalkEnabled)
                     .disabled(!voiceWakeSupported)
 
