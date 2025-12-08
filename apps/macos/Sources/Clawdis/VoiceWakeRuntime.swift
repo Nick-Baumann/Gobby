@@ -144,10 +144,11 @@ actor VoiceWakeRuntime {
         if !transcript.isEmpty {
             self.lastHeard = now
             if self.isCapturing {
-                self.capturedTranscript = transcript
+                self.capturedTranscript = Self.trimmedAfterTrigger(transcript, triggers: config.triggers)
                 self.updateHeardBeyondTrigger(with: transcript)
+                let snapshot = self.capturedTranscript
                 await MainActor.run {
-                    VoiceWakeOverlayController.shared.showPartial(transcript: transcript)
+                    VoiceWakeOverlayController.shared.showPartial(transcript: snapshot)
                 }
             }
         }
@@ -175,13 +176,14 @@ actor VoiceWakeRuntime {
 
     private func beginCapture(transcript: String, config: RuntimeConfig) async {
         self.isCapturing = true
-        self.capturedTranscript = transcript
+        self.capturedTranscript = Self.trimmedAfterTrigger(transcript, triggers: config.triggers)
         self.captureStartedAt = Date()
         self.cooldownUntil = nil
         self.heardBeyondTrigger = self.textHasBeyondTriggerContent(transcript)
 
+        let snapshot = self.capturedTranscript
         await MainActor.run {
-            VoiceWakeOverlayController.shared.showPartial(transcript: transcript)
+            VoiceWakeOverlayController.shared.showPartial(transcript: snapshot)
         }
 
         await MainActor.run { AppStateStore.shared.triggerVoiceEars(ttl: nil) }
@@ -272,6 +274,18 @@ actor VoiceWakeRuntime {
         if !self.heardBeyondTrigger, self.textHasBeyondTriggerContent(transcript) {
             self.heardBeyondTrigger = true
         }
+    }
+
+    private static func trimmedAfterTrigger(_ text: String, triggers: [String]) -> String {
+        let lower = text.lowercased()
+        for trigger in triggers {
+            let token = trigger.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !token.isEmpty, let range = lower.range(of: token) else { continue }
+            let after = range.upperBound
+            let trimmed = text[after...].trimmingCharacters(in: .whitespacesAndNewlines)
+            return String(trimmed)
+        }
+        return text
     }
 
     #if DEBUG
