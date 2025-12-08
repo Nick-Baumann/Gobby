@@ -2,6 +2,9 @@ import AVFoundation
 import Foundation
 import OSLog
 import Speech
+#if canImport(AppKit)
+import AppKit
+#endif
 
 /// Background listener that keeps the voice-wake pipeline alive outside the settings test view.
 actor VoiceWakeRuntime {
@@ -148,8 +151,9 @@ actor VoiceWakeRuntime {
                 self.capturedTranscript = trimmed
                 self.updateHeardBeyondTrigger(withTrimmed: trimmed)
                 let snapshot = self.capturedTranscript
+                let attributed = Self.makeAttributed(transcript: snapshot, isFinal: false)
                 await MainActor.run {
-                    VoiceWakeOverlayController.shared.showPartial(transcript: snapshot)
+                    VoiceWakeOverlayController.shared.showPartial(transcript: snapshot, attributed: attributed)
                 }
             }
         }
@@ -184,8 +188,9 @@ actor VoiceWakeRuntime {
         self.heardBeyondTrigger = !trimmed.isEmpty
 
         let snapshot = self.capturedTranscript
+        let attributed = Self.makeAttributed(transcript: snapshot, isFinal: false)
         await MainActor.run {
-            VoiceWakeOverlayController.shared.showPartial(transcript: snapshot)
+            VoiceWakeOverlayController.shared.showPartial(transcript: snapshot, attributed: attributed)
         }
 
         await MainActor.run { AppStateStore.shared.triggerVoiceEars(ttl: nil) }
@@ -240,25 +245,27 @@ actor VoiceWakeRuntime {
 
         let forwardConfig = await MainActor.run { AppStateStore.shared.voiceWakeForwardConfig }
         let delay: TimeInterval = (heardBeyondTrigger && !finalTranscript.isEmpty) ? 1.0 : 3.0
+        let finalAttributed = Self.makeAttributed(transcript: finalTranscript, isFinal: true)
         await MainActor.run {
             VoiceWakeOverlayController.shared.presentFinal(
                 transcript: finalTranscript,
                 forwardConfig: forwardConfig,
-                delay: delay)
+                delay: delay,
+                attributed: finalAttributed)
         }
 
         self.cooldownUntil = Date().addingTimeInterval(self.debounceAfterSend)
         self.restartRecognizer()
     }
 
-    private func restartRecognizer() {
+private func restartRecognizer() {
         // Restart the recognizer so we listen for the next trigger with a clean buffer.
         let current = self.currentConfig
         self.stop()
         if let current {
             Task { await self.start(with: current) }
         }
-    }
+}
 
     private func updateHeardBeyondTrigger(withTrimmed trimmed: String) {
         if !self.heardBeyondTrigger, !trimmed.isEmpty {
@@ -286,11 +293,20 @@ actor VoiceWakeRuntime {
     static func _testHasContentAfterTrigger(_ text: String, triggers: [String]) -> Bool {
         !self.trimmedAfterTrigger(text, triggers: triggers).isEmpty
     }
-    #endif
 
-    #if DEBUG
+    static func _testAttributedColor(isFinal: Bool) -> NSColor {
+        self.makeAttributed(transcript: "sample", isFinal: isFinal)
+            .attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor ?? .clear
+    }
+
     static func _testMatches(text: String, triggers: [String]) -> Bool {
         self.matches(text: text, triggers: triggers)
     }
     #endif
+
+    private static func makeAttributed(transcript: String, isFinal: Bool) -> NSAttributedString {
+        let color: NSColor = isFinal ? .labelColor : .secondaryLabelColor
+        let attrs: [NSAttributedString.Key: Any] = [.foregroundColor: color]
+        return NSAttributedString(string: transcript, attributes: attrs)
+    }
 }
