@@ -54,6 +54,17 @@ export async function startControlChannel(
   const server = net.createServer((socket) => {
     socket.setEncoding("utf8");
     clients.add(socket);
+
+    // Seed relay status + last heartbeat for new clients.
+    write(socket, {
+      type: "event",
+      event: "relay-status",
+      payload: { state: "running" },
+    });
+    const last = getLastHeartbeatEvent();
+    if (last)
+      write(socket, { type: "event", event: "heartbeat", payload: last });
+
     let buffer = "";
 
     socket.on("data", (chunk) => {
