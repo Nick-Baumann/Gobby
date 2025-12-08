@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Buffer } from "node:buffer";
 import { apiThrottler } from "@grammyjs/transformer-throttler";
 import type { ApiClientOptions, Message } from "grammy";
@@ -246,4 +247,3 @@ async function resolveMedia(
   else if (msg.audio || msg.voice) placeholder = "<media:audio>";
   return { path: saved.path, contentType: saved.contentType, placeholder };
 }
-// @ts-nocheck

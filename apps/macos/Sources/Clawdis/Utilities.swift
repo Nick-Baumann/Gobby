@@ -328,14 +328,14 @@ enum CommandResolver {
         return ["/usr/bin/ssh"] + args
     }
 
-    private struct RemoteSettings {
+    struct RemoteSettings {
         let mode: AppState.ConnectionMode
         let target: String
         let identity: String
         let projectRoot: String
     }
 
-    private static func connectionSettings() -> RemoteSettings {
+    static func connectionSettings() -> RemoteSettings {
         let modeRaw = UserDefaults.standard.string(forKey: connectionModeKey) ?? "local"
         let mode = AppState.ConnectionMode(rawValue: modeRaw) ?? .local
         let target = UserDefaults.standard.string(forKey: remoteTargetKey) ?? ""
@@ -346,6 +346,10 @@ enum CommandResolver {
             target: self.sanitizedTarget(target),
             identity: identity,
             projectRoot: projectRoot)
+    }
+
+    static func connectionModeIsRemote() -> Bool {
+        self.connectionSettings().mode == .remote
     }
 
     private static func sanitizedTarget(_ raw: String) -> String {

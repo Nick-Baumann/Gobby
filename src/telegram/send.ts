@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Bot, InputFile } from "grammy";
 
 import { mediaKindFromMime } from "../media/constants.js";

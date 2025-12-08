@@ -17,6 +17,7 @@ import {
   setHeartbeatsEnabled,
   type WebMonitorTuning,
 } from "../provider-web.js";
+import { startWebChatServer, getWebChatServer } from "../webchat/server.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import { VERSION } from "../version.js";
 import {
@@ -815,6 +816,27 @@ Shows token usage per session when the agent reports it; set inbound.reply.agent
           ),
         );
         defaultRuntime.exit(1);
+      }
+    });
+
+  program
+    .command("webchat")
+    .description("Start or query the loopback-only web chat server")
+    .option("--port <port>", "Port to bind (default 18788)")
+    .option("--json", "Return JSON", false)
+    .action(async (opts) => {
+      const port = opts.port ? Number.parseInt(String(opts.port), 10) : undefined;
+      const server = await startWebChatServer(port);
+      const payload = {
+        port: server.port,
+        token: server.token ?? null,
+        basePath: "/webchat/",
+        host: "127.0.0.1",
+      };
+      if (opts.json) {
+        defaultRuntime.log(JSON.stringify(payload));
+      } else {
+        defaultRuntime.log(info(`webchat listening on http://127.0.0.1:${server.port}/webchat/`));
       }
     });
 
