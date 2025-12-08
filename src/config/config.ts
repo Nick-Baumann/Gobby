@@ -44,6 +44,11 @@ export type WebConfig = {
   reconnect?: WebReconnectConfig;
 };
 
+export type WebChatConfig = {
+  enabled?: boolean;
+  port?: number;
+};
+
 export type TelegramConfig = {
   botToken?: string;
   requireMention?: boolean;
@@ -101,6 +106,7 @@ export type WarelayConfig = {
   };
   web?: WebConfig;
   telegram?: TelegramConfig;
+  webchat?: WebChatConfig;
 };
 
 // New branding path (preferred)
@@ -224,6 +230,12 @@ const WarelaySchema = z.object({
           maxAttempts: z.number().int().min(0).optional(),
         })
         .optional(),
+    })
+    .optional(),
+  webchat: z
+    .object({
+      enabled: z.boolean().optional(),
+      port: z.number().int().positive().optional(),
     })
     .optional(),
   telegram: z

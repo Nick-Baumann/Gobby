@@ -20,7 +20,6 @@ const WEBCHAT_DEFAULT_PORT = 18788;
 type WebChatServerState = {
   server: http.Server;
   port: number;
-  token?: string;
 };
 
 let state: WebChatServerState | null = null;
@@ -119,7 +118,7 @@ function notFound(res: http.ServerResponse) {
   res.end("Not Found");
 }
 
-export async function startWebChatServer(port = WEBCHAT_DEFAULT_PORT, token?: string) {
+export async function startWebChatServer(port = WEBCHAT_DEFAULT_PORT) {
   if (state) return state;
 
   const root = resolveWebRoot();
@@ -147,7 +146,6 @@ export async function startWebChatServer(port = WEBCHAT_DEFAULT_PORT, token?: st
       res.end(
         JSON.stringify({
           port,
-          token: token ?? null,
           sessionKey,
           storePath,
           sessionId,
@@ -202,9 +200,21 @@ export async function startWebChatServer(port = WEBCHAT_DEFAULT_PORT, token?: st
     server.listen(port, "127.0.0.1", () => resolve());
   });
 
-  state = { server, port, token };
+  state = { server, port };
   logDebug(info(`webchat server listening on 127.0.0.1:${port}`));
   return state;
+}
+
+export async function ensureWebChatServerFromConfig() {
+  const cfg = loadConfig();
+  if (cfg.webchat?.enabled === false) return null;
+  const port = cfg.webchat?.port ?? WEBCHAT_DEFAULT_PORT;
+  try {
+    return await startWebChatServer(port);
+  } catch (err) {
+    logDebug(`webchat server failed to start: ${String(err)}`);
+    throw err;
+  }
 }
 
 export function getWebChatServer(): WebChatServerState | null {

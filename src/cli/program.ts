@@ -17,7 +17,11 @@ import {
   setHeartbeatsEnabled,
   type WebMonitorTuning,
 } from "../provider-web.js";
-import { startWebChatServer, getWebChatServer } from "../webchat/server.js";
+import {
+  startWebChatServer,
+  getWebChatServer,
+  ensureWebChatServerFromConfig,
+} from "../webchat/server.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import { VERSION } from "../version.js";
 import {
@@ -509,6 +513,16 @@ Examples:
         ),
       );
       try {
+        // Start loopback web chat server unless disabled.
+        const webchatServer = await ensureWebChatServerFromConfig();
+        if (webchatServer) {
+          defaultRuntime.log(
+            info(
+              `webchat listening on http://127.0.0.1:${webchatServer.port}/webchat/`,
+            ),
+          );
+        }
+
         await monitorWebProvider(
           Boolean(opts.verbose),
           undefined,
@@ -748,7 +762,6 @@ Shows token usage per session when the agent reports it; set inbound.reply.agent
       const server = await startWebChatServer(port);
       const payload = {
         port: server.port,
-        token: server.token ?? null,
         basePath: "/webchat/",
         host: "127.0.0.1",
       };
