@@ -349,13 +349,15 @@ enum CommandResolver {
         let scriptBody = """
         PATH=\(exportedPath);
         \(prjVar)
-        CLI="";
-        if command -v clawdis >/dev/null 2>&1; then CLI="clawdis";
-        elif [ -n "${PRJ:-}" ] && [ -f "$PRJ/bin/clawdis.js" ] && command -v node >/dev/null 2>&1; then CLI="node $PRJ/bin/clawdis.js";
-        elif command -v pnpm >/dev/null 2>&1; then CLI="pnpm --silent clawdis";
-        fi;
-        if [ -z "$CLI" ]; then echo "clawdis CLI missing on remote host"; exit 127; fi;
-        \(cdPrefix)$CLI \(quotedArgs)
+        if command -v clawdis >/dev/null 2>&1; then
+          \(cdPrefix)clawdis \(quotedArgs);
+        elif [ -n "${PRJ:-}" ] && [ -f "$PRJ/bin/clawdis.js" ] && command -v node >/dev/null 2>&1; then
+          \(cdPrefix)node "$PRJ/bin/clawdis.js" \(quotedArgs);
+        elif command -v pnpm >/dev/null 2>&1; then
+          \(cdPrefix)pnpm --silent clawdis \(quotedArgs);
+        else
+          echo "clawdis CLI missing on remote host"; exit 127;
+        fi
         """
         args.append(contentsOf: ["/bin/sh", "-c", scriptBody])
         return ["/usr/bin/ssh"] + args
