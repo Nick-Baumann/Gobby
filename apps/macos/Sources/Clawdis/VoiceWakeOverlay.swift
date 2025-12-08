@@ -15,6 +15,7 @@ final class VoiceWakeOverlayController: ObservableObject {
         var isVisible: Bool = false
         var forwardEnabled: Bool = false
         var isSending: Bool = false
+        var attributed: NSAttributedString = NSAttributedString(string: "")
     }
 
     private var window: NSPanel?
@@ -25,23 +26,25 @@ final class VoiceWakeOverlayController: ObservableObject {
     private let width: CGFloat = 360
     private let padding: CGFloat = 10
 
-    func showPartial(transcript: String) {
+    func showPartial(transcript: String, attributed: NSAttributedString? = nil) {
         self.autoSendTask?.cancel()
         self.forwardConfig = nil
         self.model.text = transcript
         self.model.isFinal = false
         self.model.forwardEnabled = false
         self.model.isSending = false
+        self.model.attributed = attributed ?? NSAttributedString(string: transcript)
         self.present()
     }
 
-    func presentFinal(transcript: String, forwardConfig: VoiceWakeForwardConfig, delay: TimeInterval) {
+    func presentFinal(transcript: String, forwardConfig: VoiceWakeForwardConfig, delay: TimeInterval, attributed: NSAttributedString? = nil) {
         self.autoSendTask?.cancel()
         self.forwardConfig = forwardConfig
         self.model.text = transcript
         self.model.isFinal = true
         self.model.forwardEnabled = forwardConfig.enabled
         self.model.isSending = false
+        self.model.attributed = attributed ?? NSAttributedString(string: transcript)
         self.present()
         self.scheduleAutoSend(after: delay)
     }
@@ -54,6 +57,7 @@ final class VoiceWakeOverlayController: ObservableObject {
     func updateText(_ text: String) {
         self.model.text = text
         self.model.isSending = false
+        self.model.attributed = NSAttributedString(string: text)
         self.updateWindowFrame(animate: true)
     }
 
@@ -198,6 +202,7 @@ private struct VoiceWakeOverlayView: View {
                 text: Binding(
                     get: { self.controller.model.text },
                     set: { self.controller.updateText($0) }),
+                attributed: self.controller.model.attributed,
                 isFinal: self.controller.model.isFinal,
                 onBeginEditing: {
                     self.controller.userBeganEditing()
@@ -249,6 +254,7 @@ private struct VoiceWakeOverlayView: View {
 
 private struct TranscriptTextView: NSViewRepresentable {
     @Binding var text: String
+    var attributed: NSAttributedString
     var isFinal: Bool
     var onBeginEditing: () -> Void
     var onSend: () -> Void
@@ -286,10 +292,14 @@ private struct TranscriptTextView: NSViewRepresentable {
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = scrollView.documentView as? TranscriptNSTextView else { return }
-        if textView.string != self.text {
-            textView.string = self.text
+        let isEditing = scrollView.window?.firstResponder == textView
+        if isEditing {
+            if textView.string != self.text {
+                textView.string = self.text
+            }
+        } else {
+            textView.textStorage?.setAttributedString(self.attributed)
         }
-        textView.textColor = self.isFinal ? .labelColor : .secondaryLabelColor
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
