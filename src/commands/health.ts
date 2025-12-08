@@ -22,7 +22,7 @@ type HealthConnect = {
   elapsedMs: number;
 };
 
-type HealthSummary = {
+export type HealthSummary = {
   ts: number;
   durationMs: number;
   web: {
@@ -77,10 +77,9 @@ async function probeWebConnect(timeoutMs: number): Promise<HealthConnect> {
   }
 }
 
-export async function healthCommand(
-  opts: { json?: boolean; timeoutMs?: number },
-  runtime: RuntimeEnv,
-) {
+export async function getHealthSnapshot(
+  timeoutMs?: number,
+): Promise<HealthSummary> {
   const cfg = loadConfig();
   const linked = await webAuthExists();
   const authAgeMs = getWebAuthAgeMs();
@@ -101,8 +100,8 @@ export async function healthCommand(
   const ipcExists = Boolean(ipcPath) && fs.existsSync(ipcPath);
 
   const start = Date.now();
-  const timeoutMs = Math.max(1000, opts.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-  const connect = linked ? await probeWebConnect(timeoutMs) : undefined;
+  const cappedTimeout = Math.max(1000, timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  const connect = linked ? await probeWebConnect(cappedTimeout) : undefined;
 
   const summary: HealthSummary = {
     ts: Date.now(),
@@ -117,39 +116,55 @@ export async function healthCommand(
     ipc: { path: ipcPath, exists: ipcExists },
   };
 
-  const fatal = !linked || (connect && !connect.ok);
+  return summary;
+}
+
+export async function healthCommand(
+  opts: { json?: boolean; timeoutMs?: number },
+  runtime: RuntimeEnv,
+) {
+  const summary = await getHealthSnapshot(opts.timeoutMs);
+  const fatal =
+    !summary.web.linked || (summary.web.connect && !summary.web.connect.ok);
 
   if (opts.json) {
     runtime.log(JSON.stringify(summary, null, 2));
   } else {
     runtime.log(
-      linked
-        ? `Web: linked (auth age ${authAgeMs ? `${Math.round(authAgeMs / 60000)}m` : "unknown"})`
+      summary.web.linked
+        ? `Web: linked (auth age ${summary.web.authAgeMs ? `${Math.round(summary.web.authAgeMs / 60000)}m` : "unknown"})`
         : "Web: not linked (run clawdis login)",
     );
-    if (linked) {
+    if (summary.web.linked) {
       logWebSelfId(runtime, true);
     }
-    if (connect) {
-      const base = connect.ok
-        ? info(`Connect: ok (${connect.elapsedMs}ms)`)
-        : `Connect: failed (${connect.status ?? "unknown"})`;
-      runtime.log(base + (connect.error ? ` - ${connect.error}` : ""));
+    if (summary.web.connect) {
+      const base = summary.web.connect.ok
+        ? info(`Connect: ok (${summary.web.connect.elapsedMs}ms)`)
+        : `Connect: failed (${summary.web.connect.status ?? "unknown"})`;
+      runtime.log(
+        base +
+          (summary.web.connect.error ? ` - ${summary.web.connect.error}` : ""),
+      );
     }
-    runtime.log(info(`Heartbeat interval: ${heartbeatSeconds}s`));
+    runtime.log(info(`Heartbeat interval: ${summary.heartbeatSeconds}s`));
     runtime.log(
-      info(`Session store: ${storePath} (${sessions.length} entries)`),
+      info(
+        `Session store: ${summary.sessions.path} (${summary.sessions.count} entries)`,
+      ),
     );
-    if (recent.length > 0) {
+    if (summary.sessions.recent.length > 0) {
       runtime.log("Recent sessions:");
-      for (const r of recent) {
+      for (const r of summary.sessions.recent) {
         runtime.log(
           `- ${r.key} (${r.updatedAt ? `${Math.round((Date.now() - r.updatedAt) / 60000)}m ago` : "no activity"})`,
         );
       }
     }
     runtime.log(
-      info(`IPC socket: ${ipcExists ? "present" : "missing"} (${ipcPath})`),
+      info(
+        `IPC socket: ${summary.ipc.exists ? "present" : "missing"} (${summary.ipc.path})`,
+      ),
     );
   }
 

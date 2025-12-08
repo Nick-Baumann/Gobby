@@ -11,13 +11,10 @@ import {
   saveSessionStore,
 } from "../config/sessions.js";
 import { danger, info, isVerbose, logVerbose, success } from "../globals.js";
+import { emitHeartbeatEvent } from "../infra/heartbeat-events.js";
 import { logInfo } from "../logger.js";
 import { getChildLogger } from "../logging.js";
 import { getQueueSize } from "../process/command-queue.js";
-import {
-  type HeartbeatEvent,
-  writeHeartbeatEvent,
-} from "../process/heartbeat-events.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import { jidToE164, normalizeE164 } from "../utils.js";
 import { monitorWebInbox } from "./inbound.js";
@@ -82,10 +79,6 @@ const formatDuration = (ms: number) =>
 
 const DEFAULT_REPLY_HEARTBEAT_MINUTES = 30;
 export const HEARTBEAT_TOKEN = "HEARTBEAT_OK";
-
-function emitHeartbeatEvent(evt: Omit<HeartbeatEvent, "type" | "ts">) {
-  writeHeartbeatEvent({ type: "heartbeat", ts: Date.now(), ...evt });
-}
 export const HEARTBEAT_PROMPT = "HEARTBEAT /think:high";
 
 function elide(text?: string, limit = 400) {

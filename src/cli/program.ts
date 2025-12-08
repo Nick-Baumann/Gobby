@@ -7,11 +7,12 @@ import { sessionsCommand } from "../commands/sessions.js";
 import { statusCommand } from "../commands/status.js";
 import { loadConfig } from "../config/config.js";
 import { danger, info, setVerbose } from "../globals.js";
-import { getResolvedLoggerSettings } from "../logging.js";
+import { startControlChannel } from "../infra/control-channel.js";
 import {
-  readLatestHeartbeat,
-  tailHeartbeatEvents,
-} from "../process/heartbeat-events.js";
+  getLastHeartbeatEvent,
+  onHeartbeatEvent,
+} from "../infra/heartbeat-events.js";
+import { getResolvedLoggerSettings } from "../logging.js";
 import {
   loginWeb,
   logoutWeb,
@@ -249,9 +250,9 @@ Examples:
         respond({ type: "event", event: "heartbeat", payload });
       };
 
-      const latest = readLatestHeartbeat();
+      const latest = getLastHeartbeatEvent();
       if (latest) forwardHeartbeat(latest);
-      const stopTail = tailHeartbeatEvents(forwardHeartbeat);
+      const stopBus = onHeartbeatEvent(forwardHeartbeat);
 
       rl.on("line", async (line: string) => {
         if (!line.trim()) return;
@@ -324,7 +325,7 @@ Examples:
 
       await new Promise(() => {});
 
-      stopTail();
+      stopBus();
     });
 
   program
@@ -576,6 +577,24 @@ Examples:
 
       const runners: Array<Promise<unknown>> = [];
 
+      let control = null as Awaited<
+        ReturnType<typeof startControlChannel>
+      > | null;
+      try {
+        control = await startControlChannel(
+          {
+            setHeartbeats: async (enabled: boolean) => {
+              setHeartbeatsEnabled(enabled);
+            },
+          },
+          { runtime: defaultRuntime },
+        );
+      } catch (err) {
+        defaultRuntime.error(
+          danger(`Control channel failed to start: ${String(err)}`),
+        );
+      }
+
       if (startWeb) {
         const webTuning: WebMonitorTuning = {};
         if (webHeartbeat !== undefined)
@@ -661,6 +680,8 @@ Examples:
       } catch (err) {
         defaultRuntime.error(danger(`Relay failed: ${String(err)}`));
         defaultRuntime.exit(1);
+      } finally {
+        if (control) await control.close();
       }
     });
 
