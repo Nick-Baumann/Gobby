@@ -289,6 +289,12 @@ actor VoiceWakeRuntime {
     }
 
     #if DEBUG
+    static func _testTrimmedAfterTrigger(_ text: String, triggers: [String]) -> String {
+        self.trimmedAfterTrigger(text, triggers: triggers)
+    }
+    #endif
+
+    #if DEBUG
     static func _testMatches(text: String, triggers: [String]) -> Bool {
         self.matches(text: text, triggers: triggers)
     }
