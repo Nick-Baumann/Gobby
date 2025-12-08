@@ -28,8 +28,8 @@ actor VoiceWakeRuntime {
     private var currentConfig: RuntimeConfig?
 
     // Tunables
-    private let silenceWindow: TimeInterval = 1.0
-    private let captureHardStop: TimeInterval = 8.0
+    private let silenceWindow: TimeInterval = 2.0
+    private let captureHardStop: TimeInterval = 5.0
     private let debounceAfterSend: TimeInterval = 0.35
 
     struct RuntimeConfig: Equatable {
