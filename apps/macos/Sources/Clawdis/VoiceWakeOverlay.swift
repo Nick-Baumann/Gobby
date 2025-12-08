@@ -33,7 +33,7 @@ final class VoiceWakeOverlayController: ObservableObject {
     private let verticalPadding: CGFloat = 8
     private let maxHeight: CGFloat = 400
     private let minHeight: CGFloat = 48
-    private let closeOverflow: CGFloat = 18
+    let closeOverflow: CGFloat = 18
 
     func showPartial(transcript: String, attributed: NSAttributedString? = nil) {
         self.autoSendTask?.cancel()
@@ -302,6 +302,7 @@ private struct VoiceWakeOverlayView: View {
     @ObservedObject var controller: VoiceWakeOverlayController
     @FocusState private var textFocused: Bool
     @State private var isHovering: Bool = false
+    @State private var closeHovering: Bool = false
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -391,10 +392,14 @@ private struct VoiceWakeOverlayView: View {
             .onHover { self.isHovering = $0 }
 
             // Close button rendered above and outside the clipped bubble
-            CloseButtonOverlay(isVisible: self.controller.model.isEditing || self.isHovering) {
+            CloseButtonOverlay(
+                isVisible: self.controller.model.isEditing || self.isHovering || self.closeHovering,
+                onHover: { self.closeHovering = $0 }) {
                 self.controller.cancelEditingAndDismiss()
             }
         }
+        .padding(.top, self.controller.closeOverflow)
+        .padding(.leading, self.controller.closeOverflow)
         .onAppear { self.textFocused = false }
         .onChange(of: self.controller.model.text) { _, _ in
             self.textFocused = self.controller.model.isEditing
@@ -568,13 +573,15 @@ private final class ClickCatcher: NSView {
 
 private struct CloseButtonOverlay: View {
     var isVisible: Bool
+    var onHover: (Bool) -> Void
     var onClose: () -> Void
 
     var body: some View {
         Group {
             if isVisible {
                 CloseHoverButton(onClose: onClose)
-                    .offset(x: -12, y: -12)
+                    .onHover { self.onHover($0) }
+                    .offset(x: -9, y: -9)
                     .transition(.opacity)
             }
         }
