@@ -13,7 +13,7 @@ This repo supports “remote over SSH” by keeping a single relay (the master) 
 1) Establish SSH tunnel.
 2) Open TCP socket to the local forwarded port.
 3) Send `ping` to verify connectivity.
-4) Issue `health` and `last-heartbeat` requests to seed UI.
+4) Issue `health`, `status`, and `last-heartbeat` requests to seed UI.
 5) Listen for `event` frames (heartbeat updates, relay status).
 
 ## Heartbeats
@@ -25,8 +25,12 @@ This repo supports “remote over SSH” by keeping a single relay (the master) 
 - The menu app skips SSH and connects directly to `127.0.0.1:18789` with the same protocol.
 
 ## Failure handling
-- If the tunnel drops, the client reconnects and re-issues `ping`, `health`, and `last-heartbeat` to refresh state.
+- If the tunnel drops, the client reconnects and re-issues `ping`, `health`, and `last-heartbeat` to refresh state (the mac app shows “Control channel disconnected”).
 - If the control port is unavailable (older relay), the app can optionally fall back to the legacy CLI path, but the goal is to rely solely on the control channel.
+
+## Test Remote (in the mac app)
+1) SSH reachability check (`ssh -o BatchMode=yes … echo ok`).
+2) If SSH succeeds, the app opens the control tunnel and issues a `health` request; success marks the remote as ready.
 
 ## Security
 - Control server listens only on localhost.
