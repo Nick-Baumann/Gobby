@@ -98,15 +98,13 @@ final class WebChatWindowController: NSWindowController, WKNavigationDelegate {
         tunnel.process.terminationHandler = { [weak self] _ in
             guard let self else { return }
             webChatLogger.error("webchat tunnel terminated; restarting")
-            Task { [weak self] in
+            Task { @MainActor [weak self] in
                 guard let self else { return }
                 do {
-                    _ = try await self.startOrRestartTunnel()
-                    if let base = self.baseEndpoint {
-                        await MainActor.run { self.loadPage(baseURL: base) }
-                    }
+                    let base = try await self.startOrRestartTunnel()
+                    self.loadPage(baseURL: base)
                 } catch {
-                    await MainActor.run { self.showError(error.localizedDescription) }
+                    self.showError(error.localizedDescription)
                 }
             }
         }
