@@ -600,7 +600,8 @@ private struct CloseButtonOverlay: View {
                         .frame(width: 22, height: 22)
                         .background(Color.black.opacity(0.4))
                         .clipShape(Circle())
-                        .shadow(color: Color.black.opacity(0.35), radius: 6, y: 2)
+                        .shadow(color: Color.black.opacity(0.45), radius: 10, x: 0, y: 3)
+                        .shadow(color: Color.black.opacity(0.2), radius: 2, x: 0, y: 0)
                 }
                 .buttonStyle(.plain)
                 .focusable(false)
