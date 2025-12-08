@@ -3,14 +3,13 @@ import AVFoundation
 import OSLog
 import Speech
 
-/// Observes Cmd+Fn and starts a push-to-talk capture while both are held.
+/// Observes right Option and starts a push-to-talk capture while it is held.
 @MainActor
 final class VoicePushToTalkHotkey {
     static let shared = VoicePushToTalkHotkey()
 
     private var monitor: Any?
-    private var fnDown = false
-    private var commandDown = false
+    private var optionDown = false // right option only
     private var active = false
 
     func setEnabled(_ enabled: Bool) {
@@ -23,7 +22,7 @@ final class VoicePushToTalkHotkey {
 
     private func startMonitoring() {
         guard self.monitor == nil else { return }
-        // Listen-only global monitor; Fn only surfaces on .flagsChanged and cannot be registered as a hotkey.
+        // Listen-only global monitor; we rely on Input Monitoring permission to receive events.
         self.monitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
             guard let self else { return }
             self.updateModifierState(from: event)
@@ -35,23 +34,17 @@ final class VoicePushToTalkHotkey {
             NSEvent.removeMonitor(monitor)
             self.monitor = nil
         }
-        self.fnDown = false
-        self.commandDown = false
+        self.optionDown = false
         self.active = false
     }
 
     private func updateModifierState(from event: NSEvent) {
-        switch event.keyCode {
-        case 63: // Fn
-            self.fnDown = event.modifierFlags.contains(.function)
-        case 55, 54: // Left / Right command
-            self.commandDown = event.modifierFlags.contains(.command)
-        default:
-            break
+        // Right Option (keyCode 61) acts as a hold-to-talk modifier.
+        if event.keyCode == 61 {
+            self.optionDown = event.modifierFlags.contains(.option)
         }
 
-        // “Walkie-talkie” chord is live only while both keys stay down.
-        let chordActive = self.fnDown && self.commandDown
+        let chordActive = self.optionDown
         if chordActive && !self.active {
             self.active = true
             Task {
