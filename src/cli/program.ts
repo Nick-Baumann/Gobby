@@ -1,5 +1,5 @@
-import chalk from "chalk";
 import { randomUUID } from "node:crypto";
+import chalk from "chalk";
 import { Command } from "commander";
 import { agentCommand } from "../commands/agent.js";
 import { healthCommand } from "../commands/health.js";

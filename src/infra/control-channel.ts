@@ -3,13 +3,13 @@ import net from "node:net";
 import { getHealthSnapshot, type HealthSummary } from "../commands/health.js";
 import { getStatusSummary, type StatusSummary } from "../commands/status.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
+import { type AgentEventPayload, onAgentEvent } from "./agent-events.js";
 import {
   emitHeartbeatEvent,
   getLastHeartbeatEvent,
   type HeartbeatEventPayload,
   onHeartbeatEvent,
 } from "./heartbeat-events.js";
-import { onAgentEvent, type AgentEventPayload } from "./agent-events.js";
 
 type ControlRequest = {
   type: "request";

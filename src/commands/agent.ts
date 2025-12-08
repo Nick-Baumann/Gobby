@@ -21,11 +21,11 @@ import {
   type SessionEntry,
   saveSessionStore,
 } from "../config/sessions.js";
+import { emitAgentEvent } from "../infra/agent-events.js";
 import { runCommandWithTimeout } from "../process/exec.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import { normalizeE164 } from "../utils.js";
 import { sendViaIpc } from "../web/ipc.js";
-import { emitAgentEvent } from "../infra/agent-events.js";
 
 type AgentCommandOpts = {
   message: string;
@@ -306,7 +306,7 @@ export async function agentCommand(
     },
   });
 
-  let result;
+  let result: Awaited<ReturnType<typeof runCommandReply>>;
   try {
     result = await runCommandReply({
       reply: { ...replyCfg, mode: "command" },
