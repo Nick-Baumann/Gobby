@@ -324,7 +324,7 @@ private struct VoiceWakeOverlayView: View {
         .padding(.vertical, 8)
         .padding(.horizontal, 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(.regularMaterial)
+        .background(Color(nsColor: .windowBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .onAppear { self.textFocused = false }
         .onChange(of: self.controller.model.text) { _, _ in
