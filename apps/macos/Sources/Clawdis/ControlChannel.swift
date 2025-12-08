@@ -13,6 +13,62 @@ struct ControlHeartbeatEvent: Codable {
     let reason: String?
 }
 
+struct ControlAgentEvent: Codable {
+    let runId: String
+    let seq: Int
+    let stream: String
+    let ts: Double
+    let data: [String: AnyCodable]
+}
+
+struct AnyCodable: Codable {
+    let value: Any
+
+    init(_ value: Any) { self.value = value }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let intVal = try? container.decode(Int.self) {
+            self.value = intVal; return
+        }
+        if let doubleVal = try? container.decode(Double.self) {
+            self.value = doubleVal; return
+        }
+        if let boolVal = try? container.decode(Bool.self) {
+            self.value = boolVal; return
+        }
+        if let stringVal = try? container.decode(String.self) {
+            self.value = stringVal; return
+        }
+        if container.decodeNil() {
+            self.value = NSNull(); return
+        }
+        if let dict = try? container.decode([String: AnyCodable].self) {
+            self.value = dict; return
+        }
+        if let array = try? container.decode([AnyCodable].self) {
+            self.value = array; return
+        }
+        throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unsupported type")
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self.value {
+        case let intVal as Int: try container.encode(intVal)
+        case let doubleVal as Double: try container.encode(doubleVal)
+        case let boolVal as Bool: try container.encode(boolVal)
+        case let stringVal as String: try container.encode(stringVal)
+        case is NSNull: try container.encodeNil()
+        case let dict as [String: AnyCodable]: try container.encode(dict)
+        case let array as [AnyCodable]: try container.encode(array)
+        default:
+            let context = EncodingError.Context(codingPath: encoder.codingPath, debugDescription: "Unsupported type")
+            throw EncodingError.invalidValue(self.value, context)
+        }
+    }
+}
+
 // Handles single-shot continuation resumption without Sendable capture issues
 actor ConnectionWaiter {
     private var cont: CheckedContinuation<Void, Error>?
@@ -349,6 +405,11 @@ final class ControlChannel: ObservableObject {
                 if let payloadData = try? JSONSerialization.data(withJSONObject: payload) {
                     NotificationCenter.default.post(name: .controlHeartbeat, object: payloadData)
                 }
+            } else if event == "agent", let payload = obj["payload"] {
+                if let payloadData = try? JSONSerialization.data(withJSONObject: payload),
+                   let agent = try? JSONDecoder().decode(ControlAgentEvent.self, from: payloadData) {
+                    self.handleAgentEvent(agent)
+                }
             }
             return
         }
@@ -363,6 +424,17 @@ final class ControlChannel: ObservableObject {
                 self.pending[id]?.resume(throwing: ControlChannelError.badResponse(err))
             }
             self.pending.removeValue(forKey: id)
+        }
+    }
+
+    private func handleAgentEvent(_ event: ControlAgentEvent) {
+        if event.stream == "job" {
+            if let state = event.data["state"]?.value as? String {
+                let working = state.lowercased() == "started" || state.lowercased() == "streaming"
+                Task { @MainActor in
+                    AppStateStore.shared.setWorking(working)
+                }
+            }
         }
     }
 

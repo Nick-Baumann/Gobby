@@ -25,6 +25,7 @@ import { runCommandWithTimeout } from "../process/exec.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import { normalizeE164 } from "../utils.js";
 import { sendViaIpc } from "../web/ipc.js";
+import { emitAgentEvent } from "../infra/agent-events.js";
 
 type AgentCommandOpts = {
   message: string;
@@ -293,19 +294,57 @@ export async function agentCommand(
     BodyStripped: commandBody,
   };
 
-  const result = await runCommandReply({
-    reply: { ...replyCfg, mode: "command" },
-    templatingCtx,
-    sendSystemOnce,
-    isNewSession,
-    isFirstTurnInSession,
-    systemSent,
-    timeoutMs,
-    timeoutSeconds,
-    commandRunner: runCommandWithTimeout,
-    thinkLevel: resolvedThinkLevel,
-    verboseLevel: resolvedVerboseLevel,
+  const startedAt = Date.now();
+  emitAgentEvent({
+    runId: sessionId,
+    stream: "job",
+    data: {
+      state: "started",
+      to: opts.to,
+      sessionId,
+      isNewSession,
+    },
   });
+
+  let result;
+  try {
+    result = await runCommandReply({
+      reply: { ...replyCfg, mode: "command" },
+      templatingCtx,
+      sendSystemOnce,
+      isNewSession,
+      isFirstTurnInSession,
+      systemSent,
+      timeoutMs,
+      timeoutSeconds,
+      commandRunner: runCommandWithTimeout,
+      thinkLevel: resolvedThinkLevel,
+      verboseLevel: resolvedVerboseLevel,
+    });
+    emitAgentEvent({
+      runId: sessionId,
+      stream: "job",
+      data: {
+        state: "done",
+        to: opts.to,
+        sessionId,
+        durationMs: Date.now() - startedAt,
+      },
+    });
+  } catch (err) {
+    emitAgentEvent({
+      runId: sessionId,
+      stream: "job",
+      data: {
+        state: "error",
+        to: opts.to,
+        sessionId,
+        durationMs: Date.now() - startedAt,
+        error: String(err),
+      },
+    });
+    throw err;
+  }
 
   // If the agent returned a new session id, persist it.
   const returnedSessionId = result.meta.agentMeta?.sessionId;

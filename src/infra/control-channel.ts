@@ -9,6 +9,7 @@ import {
   type HeartbeatEventPayload,
   onHeartbeatEvent,
 } from "./heartbeat-events.js";
+import { onAgentEvent, type AgentEventPayload } from "./agent-events.js";
 
 type ControlRequest = {
   type: "request";
@@ -38,6 +39,7 @@ type Handlers = {
 type ControlServer = {
   close: () => Promise<void>;
   broadcastHeartbeat: (evt: HeartbeatEventPayload) => void;
+  broadcastAgentEvent: (evt: AgentEventPayload) => void;
 };
 
 const DEFAULT_PORT = 18789;
@@ -91,6 +93,7 @@ export async function startControlChannel(
   });
 
   const stopHeartbeat = onHeartbeatEvent((evt) => broadcast("heartbeat", evt));
+  const stopAgent = onAgentEvent((evt) => broadcast("agent", evt));
 
   const handleLine = async (socket: net.Socket, line: string) => {
     if (!line) return;
@@ -184,6 +187,7 @@ export async function startControlChannel(
   return {
     close: async () => {
       stopHeartbeat();
+      stopAgent();
       await new Promise<void>((resolve) => server.close(() => resolve()));
       for (const client of [...clients]) {
         client.destroy();
@@ -193,6 +197,9 @@ export async function startControlChannel(
     broadcastHeartbeat: (evt: HeartbeatEventPayload) => {
       emitHeartbeatEvent(evt);
       broadcast("heartbeat", evt);
+    },
+    broadcastAgentEvent: (evt: AgentEventPayload) => {
+      broadcast("agent", evt);
     },
   };
 }
