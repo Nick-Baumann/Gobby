@@ -217,7 +217,7 @@ final class WebChatWindowController: NSWindowController, WKScriptMessageHandler,
             thinking: "default",
             session: sessionKey,
             deliver: false,
-            to: nil)
+            to: sessionKey)
         return (result.text, result.error)
     }
 
@@ -225,15 +225,26 @@ final class WebChatWindowController: NSWindowController, WKScriptMessageHandler,
         // Prefer remote session log when running in remote mode; fall back to local files.
         var content: String?
         if self.connectionModeIsRemote(),
-           let sessionId = self.remoteSessionId(for: sessionKey),
-           let data = self.readRemoteFile("$HOME/.clawdis/sessions/\(sessionId).jsonl"),
-           let text = String(data: data, encoding: .utf8)
+           let sessionId = self.remoteSessionId(for: sessionKey)
         {
-            content = text
+            if let data = self.readRemoteFile("$HOME/.clawdis/sessions/\(sessionId).jsonl"),
+               let text = String(data: data, encoding: .utf8)
+            {
+                content = text
+            } else if let data = self.readRemoteFile("$HOME/.tau/agent/sessions/clawdis/\(sessionId).jsonl"),
+                      let text = String(data: data, encoding: .utf8)
+            {
+                content = text
+            }
         } else if let sessionId = self.sessionId(for: sessionKey) {
-            let path = self.expand("~/.clawdis/sessions/\(sessionId).jsonl")
-            if FileManager.default.fileExists(atPath: path),
-               let text = try? String(contentsOfFile: path, encoding: .utf8)
+            let primary = self.expand("~/.clawdis/sessions/\(sessionId).jsonl")
+            let legacy = self.expand("~/.tau/agent/sessions/clawdis/\(sessionId).jsonl")
+            if FileManager.default.fileExists(atPath: primary),
+               let text = try? String(contentsOfFile: primary, encoding: .utf8)
+            {
+                content = text
+            } else if FileManager.default.fileExists(atPath: legacy),
+                      let text = try? String(contentsOfFile: legacy, encoding: .utf8)
             {
                 content = text
             }
@@ -289,10 +300,21 @@ final class WebChatWindowController: NSWindowController, WKScriptMessageHandler,
     }
 
     private static func remoteSessionId(for key: String) -> String? {
-        guard let data = self.readRemoteFile("$HOME/.clawdis/sessions/sessions.json") else { return nil }
-        guard let decoded = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
-        guard let entry = decoded[key] as? [String: Any] else { return nil }
-        return entry["sessionId"] as? String
+        if let data = self.readRemoteFile("$HOME/.clawdis/sessions/sessions.json"),
+           let decoded = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let entry = decoded[key] as? [String: Any],
+           let sessionId = entry["sessionId"] as? String
+        {
+            return sessionId
+        }
+        if let data = self.readRemoteFile("$HOME/.tau/agent/sessions/clawdis/sessions.json"),
+           let decoded = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let entry = decoded[key] as? [String: Any],
+           let sessionId = entry["sessionId"] as? String
+        {
+            return sessionId
+        }
+        return nil
     }
 
     private static func readRemoteFile(_ path: String) -> Data? {
