@@ -14,7 +14,7 @@ struct ClawdisApp: App {
     @StateObject private var activityStore = WorkActivityStore.shared
     @State private var statusItem: NSStatusItem?
     @State private var isMenuPresented = false
-    private let menuDelegate = StatusMenuDelegate()
+    @State private var isPanelVisible = false
 
     init() {
         _state = StateObject(wrappedValue: AppStateStore.shared)
@@ -37,7 +37,6 @@ struct ClawdisApp: App {
             self.statusItem = item
             self.applyStatusItemAppearance(paused: self.state.isPaused)
             self.installStatusItemMouseHandler(for: item)
-            self.attachMenuDelegate(to: item)
         }
         .onChange(of: self.state.isPaused) { _, paused in
             self.applyStatusItemAppearance(paused: paused)
@@ -62,15 +61,18 @@ struct ClawdisApp: App {
         if button.subviews.contains(where: { $0 is StatusItemMouseHandlerView }) { return }
 
         WebChatManager.shared.onPanelVisibilityChanged = { [self] visible in
+            self.isPanelVisible = visible
             self.statusItem?.button?.highlight(visible)
         }
-
-        self.menuDelegate.button = button
 
         let handler = StatusItemMouseHandlerView()
         handler.translatesAutoresizingMaskIntoConstraints = false
         handler.onLeftClick = { [self] in self.toggleWebChatPanel() }
-        handler.onRightClick = { WebChatManager.shared.closePanel() }
+        handler.onRightClick = { [self] in
+            WebChatManager.shared.closePanel()
+            self.statusItem?.button?.highlight(false)
+            self.isMenuPresented = true
+        }
 
         button.addSubview(handler)
         NSLayoutConstraint.activate([
@@ -82,14 +84,11 @@ struct ClawdisApp: App {
     }
 
     @MainActor
-    private func attachMenuDelegate(to item: NSStatusItem) {
-        guard let menu = item.menu else { return }
-        self.menuDelegate.button = item.button
-        menu.delegate = self.menuDelegate
-    }
-
-    @MainActor
     private func toggleWebChatPanel() {
+        guard AppStateStore.webChatEnabled else {
+            self.isMenuPresented = true
+            return
+        }
         self.isMenuPresented = false
         WebChatManager.shared.togglePanel(
             sessionKey: WebChatManager.shared.preferredSessionKey(),
@@ -132,19 +131,7 @@ private final class StatusItemMouseHandlerView: NSView {
 
     override func rightMouseDown(with event: NSEvent) {
         self.onRightClick?()
-        super.rightMouseDown(with: event) // forward to MenuBarExtra so the menu still opens
-    }
-}
-
-private final class StatusMenuDelegate: NSObject, NSMenuDelegate {
-    weak var button: NSStatusBarButton?
-
-    func menuWillOpen(_ menu: NSMenu) {
-        self.button?.highlight(true)
-    }
-
-    func menuDidClose(_ menu: NSMenu) {
-        self.button?.highlight(false)
+        // Do not call super; menu will be driven by isMenuPresented binding.
     }
 }
 
