@@ -32,7 +32,7 @@ struct MenuContent: View {
                 self.voiceWakeMicMenu
             }
             if AppStateStore.webChatEnabled {
-                Button("Open Chat") { WebChatManager.shared.show(sessionKey: self.primarySessionKey()) }
+                Button("Open Chat") { WebChatManager.shared.show(sessionKey: WebChatManager.shared.preferredSessionKey()) }
             }
             Divider()
             Button("Settings…") { self.open(tab: .general) }
@@ -43,6 +43,21 @@ struct MenuContent: View {
             }
             if self.state.debugPaneEnabled {
                 Menu("Debug") {
+                    Button("Open Config Folder") { DebugActions.openConfigFolder() }
+                    Button("Run Health Check Now") {
+                        Task { await DebugActions.runHealthCheckNow() }
+                    }
+                    Button("Send Test Heartbeat") {
+                        Task { _ = await DebugActions.sendTestHeartbeat() }
+                    }
+                    Button(DebugActions.verboseLoggingEnabledMain
+                        ? "Verbose Logging (Main): On"
+                        : "Verbose Logging (Main): Off")
+                    {
+                        Task { _ = await DebugActions.toggleVerboseLoggingMain() }
+                    }
+                    Button("Open Session Store") { DebugActions.openSessionStore() }
+                    Divider()
                     Button("Open Agent Events…") { DebugActions.openAgentEventsWindow() }
                     Button("Open Log") { DebugActions.openLog() }
                     Button("Send Debug Voice Text") {
@@ -53,6 +68,7 @@ struct MenuContent: View {
                     }
                     Divider()
                     Button("Restart Gateway") { DebugActions.restartGateway() }
+                    Button("Restart App") { DebugActions.restartApp() }
                 }
             }
             Button("Quit") { NSApplication.shared.terminate(nil) }
@@ -274,24 +290,6 @@ struct MenuContent: View {
             }
             .map { AudioInputDevice(uid: $0.uniqueID, name: $0.localizedName) }
         self.loadingMics = false
-    }
-
-    private func primarySessionKey() -> String {
-        // Prefer canonical main session; fall back to most recent.
-        let storePath = SessionLoader.defaultStorePath
-        if let data = try? Data(contentsOf: URL(fileURLWithPath: storePath)),
-           let decoded = try? JSONDecoder().decode([String: SessionEntryRecord].self, from: data)
-        {
-            if decoded.keys.contains("main") { return "main" }
-
-            let sorted = decoded.sorted { a, b -> Bool in
-                let lhs = a.value.updatedAt ?? 0
-                let rhs = b.value.updatedAt ?? 0
-                return lhs > rhs
-            }
-            if let first = sorted.first { return first.key }
-        }
-        return "+1003"
     }
 
     private struct AudioInputDevice: Identifiable, Equatable {

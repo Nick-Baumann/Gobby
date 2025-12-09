@@ -3,6 +3,8 @@ import Foundation
 import SwiftUI
 
 enum DebugActions {
+    private static let verboseDefaultsKey = "clawdis.debug.verboseMain"
+
     @MainActor
     static func openAgentEventsWindow() {
         let window = NSWindow(
@@ -30,6 +32,25 @@ enum DebugActions {
             return
         }
         NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    @MainActor
+    static func openConfigFolder() {
+        let url = FileManager.default
+            .homeDirectoryForCurrentUser
+            .appendingPathComponent(".clawdis", isDirectory: true)
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    @MainActor
+    static func openSessionStore() {
+        let path = self.resolveSessionStorePath()
+        let url = URL(fileURLWithPath: path)
+        if FileManager.default.fileExists(atPath: path) {
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        } else {
+            NSWorkspace.shared.open(url.deletingLastPathComponent())
+        }
     }
 
     static func sendTestNotification() async {
@@ -100,6 +121,67 @@ enum DebugActions {
         let rolling = URL(fileURLWithPath: "/tmp/clawdis/clawdis-\(today).log").path
         if FileManager.default.fileExists(atPath: rolling) { return rolling }
         return "/tmp/clawdis.log"
+    }
+
+    @MainActor
+    static func runHealthCheckNow() async {
+        await HealthStore.shared.refresh(onDemand: true)
+    }
+
+    static func sendTestHeartbeat() async -> Result<ControlHeartbeatEvent?, String> {
+        do {
+            _ = await AgentRPC.shared.setHeartbeatsEnabled(true)
+            try await ControlChannel.shared.configure()
+            let data = try await ControlChannel.shared.request(method: "last-heartbeat")
+            if let evt = try? JSONDecoder().decode(ControlHeartbeatEvent.self, from: data) {
+                return .success(evt)
+            }
+            return .success(nil)
+        } catch {
+            return .failure(error.localizedDescription)
+        }
+    }
+
+    static var verboseLoggingEnabledMain: Bool {
+        UserDefaults.standard.bool(forKey: self.verboseDefaultsKey)
+    }
+
+    static func toggleVerboseLoggingMain() async -> Bool {
+        let newValue = !self.verboseLoggingEnabledMain
+        UserDefaults.standard.set(newValue, forKey: self.verboseDefaultsKey)
+        try? await ControlChannel.shared.request(
+            method: "system-event",
+            params: ["text": AnyHashable("verbose-main:\(newValue ? "on" : "off")")])
+        return newValue
+    }
+
+    @MainActor
+    static func restartApp() {
+        let url = Bundle.main.bundleURL
+        let task = Process()
+        task.launchPath = "/usr/bin/open"
+        task.arguments = [url.path]
+        try? task.run()
+        task.waitUntilExit()
+        NSApp.terminate(nil)
+    }
+
+    private static func resolveSessionStorePath() -> String {
+        let defaultPath = SessionLoader.defaultStorePath
+        let configURL = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".clawdis/clawdis.json")
+        guard
+            let data = try? Data(contentsOf: configURL),
+            let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let inbound = parsed["inbound"] as? [String: Any],
+            let reply = inbound["reply"] as? [String: Any],
+            let session = reply["session"] as? [String: Any],
+            let path = session["store"] as? String,
+            !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            return defaultPath
+        }
+        return path
     }
 }
 

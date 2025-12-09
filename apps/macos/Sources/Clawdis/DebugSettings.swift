@@ -194,7 +194,7 @@ struct DebugSettings: View {
                     }
                 }
                 HStack {
-                    Button("Restart app") { self.relaunch() }
+                    Button("Restart app") { DebugActions.restartApp() }
                     Button("Reveal app in Finder") { self.revealApp() }
                     Button("Restart Gateway") { DebugActions.restartGateway() }
                     Button("Clear log") { GatewayProcessManager.shared.clearLog() }
@@ -264,19 +264,6 @@ struct DebugSettings: View {
                 self.debugSendError = error.localizedDescription
             }
         }
-    }
-
-    private func relaunch() {
-        let url = Bundle.main.bundleURL
-        let task = Process()
-        task.launchPath = "/bin/sh"
-        task.arguments = ["-c", "sleep 0.3; open -n \"\(url.path)\""]
-        task.standardOutput = nil
-        task.standardError = nil
-        task.standardInput = nil
-        try? task.run()
-        // Terminate current instance; spawned shell re-opens after a short delay.
-        NSApp.terminate(nil)
     }
 
     private func revealApp() {
