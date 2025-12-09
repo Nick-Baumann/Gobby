@@ -34,6 +34,7 @@ private actor GatewayChannelActor {
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
     private var watchdogTask: Task<Void, Never>?
+    private let defaultRequestTimeoutMs: Double = 15_000
 
     init(url: URL, token: String?) {
         self.url = url
@@ -157,6 +158,7 @@ private actor GatewayChannelActor {
         let wrapped = self.wrap(err, context: "gateway receive")
         self.logger.error("gateway ws receive failed \(wrapped.localizedDescription, privacy: .public)")
         self.connected = false
+        await self.failPending(wrapped)
         await self.scheduleReconnect()
     }
 
@@ -207,6 +209,11 @@ private actor GatewayChannelActor {
                 if delta > tolerance {
                     self.logger.error("gateway tick missed; reconnecting")
                     self.connected = false
+                    await self.failPending(
+                        NSError(
+                            domain: "Gateway",
+                            code: 4,
+                            userInfo: [NSLocalizedDescriptionKey: "gateway tick missed; reconnecting"]))
                     await self.scheduleReconnect()
                     return
                 }
@@ -228,13 +235,14 @@ private actor GatewayChannelActor {
         }
     }
 
-    func request(method: String, params: [String: AnyCodable]?) async throws -> Data {
+    func request(method: String, params: [String: AnyCodable]?, timeoutMs: Double? = nil) async throws -> Data {
         do {
             try await self.connect()
         } catch {
             throw self.wrap(error, context: "gateway connect")
         }
         let id = UUID().uuidString
+        let effectiveTimeout = timeoutMs ?? self.defaultRequestTimeoutMs
         // Encode request using the generated models to avoid JSONSerialization/ObjC bridging pitfalls.
         let paramsObject: ProtoAnyCodable? = params.map { entries in
             let dict = entries.reduce(into: [String: ProtoAnyCodable]()) { dict, entry in
@@ -250,6 +258,11 @@ private actor GatewayChannelActor {
         let data = try self.encoder.encode(frame)
         let response = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<GatewayFrame, Error>) in
             self.pending[id] = cont
+            Task { [weak self] in
+                guard let self else { return }
+                try? await Task.sleep(nanoseconds: UInt64(effectiveTimeout * 1_000_000))
+                await self.timeoutRequest(id: id, timeoutMs: effectiveTimeout)
+            }
             Task {
                 do {
                     try await self.task?.send(.data(data))
@@ -286,6 +299,23 @@ private actor GatewayChannelActor {
         let desc = ns.localizedDescription.isEmpty ? "unknown" : ns.localizedDescription
         return NSError(domain: ns.domain, code: ns.code, userInfo: [NSLocalizedDescriptionKey: "\(context): \(desc)"])
     }
+
+    private func failPending(_ error: Error) async {
+        let waiters = self.pending
+        self.pending.removeAll()
+        for (_, waiter) in waiters {
+            waiter.resume(throwing: error)
+        }
+    }
+
+    private func timeoutRequest(id: String, timeoutMs: Double) async {
+        guard let waiter = self.pending.removeValue(forKey: id) else { return }
+        let err = NSError(
+            domain: "Gateway",
+            code: 5,
+            userInfo: [NSLocalizedDescriptionKey: "gateway request timed out after \(Int(timeoutMs))ms"])
+        waiter.resume(throwing: err)
+    }
 }
 
 actor GatewayChannel {
@@ -295,10 +325,14 @@ actor GatewayChannel {
         self.inner = GatewayChannelActor(url: url, token: token)
     }
 
-    func request(method: String, params: [String: AnyCodable]?) async throws -> Data {
+    func request(
+        method: String,
+        params: [String: AnyCodable]?,
+        timeoutMs: Double? = nil) async throws -> Data
+    {
         guard let inner else {
             throw NSError(domain: "Gateway", code: 0, userInfo: [NSLocalizedDescriptionKey: "not configured"])
         }
-        return try await inner.request(method: method, params: params)
+        return try await inner.request(method: method, params: params, timeoutMs: timeoutMs)
     }
 }

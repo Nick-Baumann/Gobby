@@ -93,7 +93,8 @@ final class ControlChannel: ObservableObject {
             if let timeout {
                 params = ["timeout": AnyHashable(Int(timeout * 1000))]
             }
-            let payload = try await self.request(method: "health", params: params)
+            let timeoutMs = (timeout ?? 15) * 1000
+            let payload = try await self.request(method: "health", params: params, timeoutMs: timeoutMs)
             let ms = Date().timeIntervalSince(start) * 1000
             self.lastPingMs = ms
             self.state = .connected
@@ -110,10 +111,14 @@ final class ControlChannel: ObservableObject {
         nil
     }
 
-    func request(method: String, params: [String: AnyHashable]? = nil) async throws -> Data {
+    func request(
+        method: String,
+        params: [String: AnyHashable]? = nil,
+        timeoutMs: Double? = nil) async throws -> Data
+    {
         do {
             let rawParams = params?.reduce(into: [String: AnyCodable]()) { $0[$1.key] = AnyCodable($1.value) }
-            let data = try await self.gateway.request(method: method, params: rawParams)
+            let data = try await self.gateway.request(method: method, params: rawParams, timeoutMs: timeoutMs)
             self.state = .connected
             return data
         } catch {
@@ -145,6 +150,11 @@ final class ControlChannel: ObservableObject {
             default:
                 break
             }
+        }
+
+        let nsError = error as NSError
+        if nsError.domain == "Gateway", nsError.code == 5 {
+            return "Gateway request timed out; check the gateway process on localhost:\(GatewayEnvironment.gatewayPort())."
         }
 
         let nsError = error as NSError
