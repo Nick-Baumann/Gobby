@@ -122,7 +122,7 @@ export function buildProgram() {
       "clawdis gateway --force",
       "Kill anything bound to the default gateway port, then start it.",
     ],
-    ["clawdis gw:status", "Fetch Gateway status over WS."],
+    ["clawdis gateway ...", "Gateway control via WebSocket."],
     [
       'clawdis agent --to +15555550123 --message "Run summary" --deliver',
       "Talk directly to the agent using the Gateway; optionally send the WhatsApp reply.",
@@ -187,6 +187,11 @@ export function buildProgram() {
     .option(
       "--provider <provider>",
       "Delivery provider: whatsapp|telegram (default: whatsapp)",
+    )
+    .option(
+      "--spawn-gateway",
+      "Start a local gateway on 127.0.0.1:18789 if none is running",
+      false,
     )
     .option("--dry-run", "Print payload and skip sending", false)
     .option("--json", "Output result as JSON", false)
@@ -278,7 +283,7 @@ Examples:
       await runRpcLoop({ input: process.stdin, output: process.stdout });
       await new Promise<never>(() => {});
     });
-  program
+  const gateway = program
     .command("gateway")
     .description("Run the WebSocket Gateway")
     .option("--port <port>", "Port for the gateway WebSocket", "18789")
@@ -343,12 +348,53 @@ Examples:
       .option("--url <url>", "Gateway WebSocket URL", "ws://127.0.0.1:18789")
       .option("--token <token>", "Gateway token (if required)")
       .option("--timeout <ms>", "Timeout in ms", "10000")
-      .option("--expect-final", "Wait for final response (agent)", false);
+      .option("--expect-final", "Wait for final response (agent)", false)
+      .option(
+        "--spawn-gateway",
+        "Start a local gateway if none is listening on --url",
+        false,
+      );
+
+  const callWithSpawn = async (
+    method: string,
+    opts: {
+      url?: string;
+      token?: string;
+      timeout?: string;
+      expectFinal?: boolean;
+      spawnGateway?: boolean;
+    },
+    params?: unknown,
+  ) => {
+    const timeoutMs = Number(opts.timeout ?? 10_000);
+    const attempt = async () =>
+      callGateway({
+        url: opts.url,
+        token: opts.token,
+        method,
+        params,
+        expectFinal: Boolean(opts.expectFinal),
+        timeoutMs,
+        clientName: "cli",
+        mode: "cli",
+      });
+
+    try {
+      return await attempt();
+    } catch (err) {
+      if (!opts.spawnGateway) throw err;
+      // Only spawn if there is clearly no listener.
+      const url = new URL(opts.url ?? "ws://127.0.0.1:18789");
+      const port = Number(url.port || 18789);
+      await startGatewayServer(port);
+      return await attempt();
+    }
+  };
 
   gatewayCallOpts(
-    program
-      .command("gw:call")
-      .description("Call a Gateway method over WS and print JSON")
+    gateway
+      .command("call")
+      .description("Call a Gateway method and print JSON")
       .argument(
         "<method>",
         "Method name (health/status/system-presence/send/agent)",
@@ -357,16 +403,7 @@ Examples:
       .action(async (method, opts) => {
         try {
           const params = JSON.parse(String(opts.params ?? "{}"));
-          const result = await callGateway({
-            url: opts.url,
-            token: opts.token,
-            method,
-            params,
-            expectFinal: Boolean(opts.expectFinal),
-            timeoutMs: Number(opts.timeout ?? 10000),
-            clientName: "cli",
-            mode: "cli",
-          });
+          const result = await callWithSpawn(method, opts, params);
           defaultRuntime.log(JSON.stringify(result, null, 2));
         } catch (err) {
           defaultRuntime.error(`Gateway call failed: ${String(err)}`);
@@ -376,17 +413,12 @@ Examples:
   );
 
   gatewayCallOpts(
-    program
-      .command("gw:health")
-      .description("Fetch Gateway health over WS")
+    gateway
+      .command("health")
+      .description("Fetch Gateway health")
       .action(async (opts) => {
         try {
-          const result = await callGateway({
-            url: opts.url,
-            token: opts.token,
-            method: "health",
-            timeoutMs: Number(opts.timeout ?? 10000),
-          });
+          const result = await callWithSpawn("health", opts);
           defaultRuntime.log(JSON.stringify(result, null, 2));
         } catch (err) {
           defaultRuntime.error(String(err));
@@ -396,17 +428,12 @@ Examples:
   );
 
   gatewayCallOpts(
-    program
-      .command("gw:status")
-      .description("Fetch Gateway status over WS")
+    gateway
+      .command("status")
+      .description("Fetch Gateway status")
       .action(async (opts) => {
         try {
-          const result = await callGateway({
-            url: opts.url,
-            token: opts.token,
-            method: "status",
-            timeoutMs: Number(opts.timeout ?? 10000),
-          });
+          const result = await callWithSpawn("status", opts);
           defaultRuntime.log(JSON.stringify(result, null, 2));
         } catch (err) {
           defaultRuntime.error(String(err));
@@ -416,8 +443,8 @@ Examples:
   );
 
   gatewayCallOpts(
-    program
-      .command("gw:send")
+    gateway
+      .command("send")
       .description("Send a message via the Gateway")
       .requiredOption("--to <jidOrPhone>", "Destination (E.164 or jid)")
       .requiredOption("--message <text>", "Message text")
@@ -426,17 +453,11 @@ Examples:
       .action(async (opts) => {
         try {
           const idempotencyKey = opts.idempotencyKey ?? randomIdempotencyKey();
-          const result = await callGateway({
-            url: opts.url,
-            token: opts.token,
-            method: "send",
-            params: {
-              to: opts.to,
-              message: opts.message,
-              mediaUrl: opts.mediaUrl,
-              idempotencyKey,
-            },
-            timeoutMs: Number(opts.timeout ?? 10000),
+          const result = await callWithSpawn("send", opts, {
+            to: opts.to,
+            message: opts.message,
+            mediaUrl: opts.mediaUrl,
+            idempotencyKey,
           });
           defaultRuntime.log(JSON.stringify(result, null, 2));
         } catch (err) {
@@ -447,8 +468,8 @@ Examples:
   );
 
   gatewayCallOpts(
-    program
-      .command("gw:agent")
+    gateway
+      .command("agent")
       .description("Run an agent turn via the Gateway (waits for final)")
       .requiredOption("--message <text>", "User message")
       .option("--to <jidOrPhone>", "Destination")
@@ -460,11 +481,10 @@ Examples:
       .action(async (opts) => {
         try {
           const idempotencyKey = opts.idempotencyKey ?? randomIdempotencyKey();
-          const result = await callGateway({
-            url: opts.url,
-            token: opts.token,
-            method: "agent",
-            params: {
+          const result = await callWithSpawn(
+            "agent",
+            { ...opts, expectFinal: true },
+            {
               message: opts.message,
               to: opts.to,
               sessionId: opts.sessionId,
@@ -475,9 +495,7 @@ Examples:
                 : undefined,
               idempotencyKey,
             },
-            expectFinal: true,
-            timeoutMs: Number(opts.timeout ?? 10000),
-          });
+          );
           defaultRuntime.log(JSON.stringify(result, null, 2));
         } catch (err) {
           defaultRuntime.error(String(err));

@@ -1,7 +1,8 @@
 import type { CliDeps } from "../cli/deps.js";
 import { info, success } from "../globals.js";
 import type { RuntimeEnv } from "../runtime.js";
-import { sendViaIpc } from "../web/ipc.js";
+import { callGateway, randomIdempotencyKey } from "../gateway/call.js";
+import { startGatewayServer } from "../gateway/server.js";
 
 export async function sendCommand(
   opts: {
@@ -11,6 +12,7 @@ export async function sendCommand(
     json?: boolean;
     dryRun?: boolean;
     media?: string;
+    spawnGateway?: boolean;
   },
   deps: CliDeps,
   runtime: RuntimeEnv,
@@ -53,56 +55,44 @@ export async function sendCommand(
     return;
   }
 
-  // Try to send via IPC to running gateway first (avoids Signal session corruption)
-  const ipcResult = await sendViaIpc(opts.to, opts.message, opts.media);
-  if (ipcResult) {
-    if (ipcResult.success) {
-      runtime.log(
-        success(`✅ Sent via gateway IPC. Message ID: ${ipcResult.messageId}`),
-      );
-      if (opts.json) {
-        runtime.log(
-          JSON.stringify(
-            {
-              provider: "web",
-              via: "ipc",
-              to: opts.to,
-              messageId: ipcResult.messageId,
-              mediaUrl: opts.media ?? null,
-            },
-            null,
-            2,
-          ),
-        );
-      }
-      return;
-    }
-    // IPC failed but gateway is running - warn and fall back
-    runtime.log(
-      info(
-        `IPC send failed (${ipcResult.error}), falling back to direct connection`,
-      ),
-    );
+  // Always send via gateway over WS to avoid multi-session corruption.
+  const sendViaGateway = async () =>
+    callGateway<{
+      messageId: string;
+    }>({
+      url: "ws://127.0.0.1:18789",
+      method: "send",
+      params: {
+        to: opts.to,
+        message: opts.message,
+        mediaUrl: opts.media,
+        idempotencyKey: randomIdempotencyKey(),
+      },
+      timeoutMs: 10_000,
+      clientName: "cli",
+      mode: "cli",
+    });
+
+  let result: { messageId: string } | undefined;
+  try {
+    result = await sendViaGateway();
+  } catch (err) {
+    if (!opts.spawnGateway) throw err;
+    await startGatewayServer(18789);
+    result = await sendViaGateway();
   }
 
-  // Fall back to direct connection (creates new Baileys socket)
-  const res = await deps
-    .sendMessageWhatsApp(opts.to, opts.message, {
-      verbose: false,
-      mediaUrl: opts.media,
-    })
-    .catch((err) => {
-      runtime.error(`❌ Web send failed: ${String(err)}`);
-      throw err;
-    });
+  runtime.log(
+    success(`✅ Sent via gateway. Message ID: ${result.messageId ?? "unknown"}`),
+  );
   if (opts.json) {
     runtime.log(
       JSON.stringify(
         {
           provider: "web",
-          via: "direct",
+          via: "gateway",
           to: opts.to,
-          messageId: res.messageId,
+          messageId: result.messageId,
           mediaUrl: opts.media ?? null,
         },
         null,

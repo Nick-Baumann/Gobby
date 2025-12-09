@@ -4,9 +4,10 @@ import type { CliDeps } from "../cli/deps.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { sendCommand } from "./send.js";
 
-const sendViaIpcMock = vi.fn().mockResolvedValue(null);
-vi.mock("../web/ipc.js", () => ({
-  sendViaIpc: (...args: unknown[]) => sendViaIpcMock(...args),
+const callGatewayMock = vi.fn();
+vi.mock("../gateway/call.js", () => ({
+  callGateway: (...args: unknown[]) => callGatewayMock(...args),
+  randomIdempotencyKey: () => "idem-1",
 }));
 
 const originalTelegramToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -48,8 +49,8 @@ describe("sendCommand", () => {
     expect(deps.sendMessageWhatsApp).not.toHaveBeenCalled();
   });
 
-  it("uses IPC when available", async () => {
-    sendViaIpcMock.mockResolvedValueOnce({ success: true, messageId: "ipc1" });
+  it("sends via gateway", async () => {
+    callGatewayMock.mockResolvedValueOnce({ messageId: "g1" });
     const deps = makeDeps();
     await sendCommand(
       {
@@ -59,25 +60,8 @@ describe("sendCommand", () => {
       deps,
       runtime,
     );
-    expect(deps.sendMessageWhatsApp).not.toHaveBeenCalled();
-    expect(runtime.log).toHaveBeenCalledWith(expect.stringContaining("ipc1"));
-  });
-
-  it("falls back to direct send when IPC fails", async () => {
-    sendViaIpcMock.mockResolvedValueOnce({ success: false, error: "nope" });
-    const deps = makeDeps({
-      sendMessageWhatsApp: vi.fn().mockResolvedValue({ messageId: "direct1" }),
-    });
-    await sendCommand(
-      {
-        to: "+1",
-        message: "hi",
-        media: "pic.jpg",
-      },
-      deps,
-      runtime,
-    );
-    expect(deps.sendMessageWhatsApp).toHaveBeenCalled();
+    expect(callGatewayMock).toHaveBeenCalled();
+    expect(runtime.log).toHaveBeenCalledWith(expect.stringContaining("g1"));
   });
 
   it("routes to telegram provider", async () => {
@@ -100,10 +84,8 @@ describe("sendCommand", () => {
   });
 
   it("emits json output", async () => {
-    sendViaIpcMock.mockResolvedValueOnce(null);
-    const deps = makeDeps({
-      sendMessageWhatsApp: vi.fn().mockResolvedValue({ messageId: "direct2" }),
-    });
+    callGatewayMock.mockResolvedValueOnce({ messageId: "direct2" });
+    const deps = makeDeps();
     await sendCommand(
       {
         to: "+1",

@@ -19,7 +19,6 @@ import { getQueueSize } from "../process/command-queue.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import { jidToE164, normalizeE164 } from "../utils.js";
 import { monitorWebInbox } from "./inbound.js";
-import { sendViaIpc, startIpcServer, stopIpcServer } from "./ipc.js";
 import { loadWebMedia } from "./media.js";
 import { sendMessageWhatsApp } from "./outbound.js";
 import {
@@ -41,23 +40,13 @@ export function setHeartbeatsEnabled(enabled: boolean) {
   heartbeatsEnabled = enabled;
 }
 
-/**
- * Send a message via IPC if gateway is running, otherwise fall back to direct.
- * This avoids Signal session corruption from multiple Baileys connections.
- */
+// Send via the active gateway-backed listener. The monitor already owns the single
+// Baileys session, so use its send API directly.
 async function sendWithIpcFallback(
   to: string,
   message: string,
   opts: { verbose: boolean; mediaUrl?: string },
 ): Promise<{ messageId: string; toJid: string }> {
-  const ipcResult = await sendViaIpc(to, message, opts.mediaUrl);
-  if (ipcResult?.success && ipcResult.messageId) {
-    if (opts.verbose) {
-      console.log(info(`Sent via gateway IPC (avoiding session corruption)`));
-    }
-    return { messageId: ipcResult.messageId, toJid: `${to}@s.whatsapp.net` };
-  }
-  // Fall back to direct send
   return sendMessageWhatsApp(to, message, opts);
 }
 
@@ -1027,47 +1016,7 @@ export async function monitorWebProvider(
       `WhatsApp gateway connected${selfE164 ? ` as ${selfE164}` : ""}.`,
     );
 
-    // Start IPC server so `clawdis send` can use this connection
-    // instead of creating a new one (which would corrupt Signal session)
-    if ("sendMessage" in listener && "sendComposingTo" in listener) {
-      startIpcServer(async (to, message, mediaUrl) => {
-        let mediaBuffer: Buffer | undefined;
-        let mediaType: string | undefined;
-        if (mediaUrl) {
-          const media = await loadWebMedia(mediaUrl);
-          mediaBuffer = media.buffer;
-          mediaType = media.contentType;
-        }
-        const result = await listener.sendMessage(
-          to,
-          message,
-          mediaBuffer,
-          mediaType,
-        );
-        // Add to echo detection so we don't process our own message
-        if (message) {
-          recentlySent.add(message);
-          if (recentlySent.size > MAX_RECENT_MESSAGES) {
-            const firstKey = recentlySent.values().next().value;
-            if (firstKey) recentlySent.delete(firstKey);
-          }
-        }
-        logInfo(
-          `📤 IPC send to ${to}: ${message.substring(0, 50)}...`,
-          runtime,
-        );
-        // Show typing indicator after send so user knows more may be coming
-        try {
-          await listener.sendComposingTo(to);
-        } catch {
-          // Ignore typing indicator errors - not critical
-        }
-        return result;
-      });
-    }
-
     const closeListener = async () => {
-      stopIpcServer();
       if (heartbeat) clearInterval(heartbeat);
       if (replyHeartbeatTimer) clearInterval(replyHeartbeatTimer);
       if (watchdogTimer) clearInterval(watchdogTimer);
