@@ -28,7 +28,10 @@ final class WebChatWindowController: NSWindowController, WKNavigationDelegate, N
     private var bootWatchTask: Task<Void, Never>?
     let presentation: WebChatPresentation
     var onPanelClosed: (() -> Void)?
+    var onVisibilityChanged: ((Bool) -> Void)?
     private var panelCloseNotified = false
+    private var localDismissMonitor: Any?
+    private var observers: [NSObjectProtocol] = []
 
     init(sessionKey: String, presentation: WebChatPresentation = .window) {
         webChatLogger.debug("init WebChatWindowController sessionKey=\(sessionKey, privacy: .public)")
@@ -50,6 +53,10 @@ final class WebChatWindowController: NSWindowController, WKNavigationDelegate, N
 
         self.loadPlaceholder()
         Task { await self.bootstrap() }
+
+        if case .panel = presentation {
+            self.installPanelObservers()
+        }
     }
 
     @available(*, unavailable)
@@ -59,6 +66,8 @@ final class WebChatWindowController: NSWindowController, WKNavigationDelegate, N
         self.reachabilityTask?.cancel()
         self.bootWatchTask?.cancel()
         self.stopTunnel(allowRestart: false)
+        self.removeDismissMonitor()
+        self.removePanelObservers()
     }
 
     private static func makeWindow(for presentation: WebChatPresentation, contentView: NSView) -> NSWindow {
@@ -266,14 +275,18 @@ final class WebChatWindowController: NSWindowController, WKNavigationDelegate, N
         guard case .panel = self.presentation, let window else { return }
         self.panelCloseNotified = false
         self.repositionPanel(using: anchorProvider)
+        self.installDismissMonitor()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         window.makeFirstResponder(self.webView)
+        self.onVisibilityChanged?(true)
     }
 
     func closePanel() {
         guard case .panel = self.presentation else { return }
+        self.removeDismissMonitor()
         self.window?.orderOut(nil)
+        self.onVisibilityChanged?(false)
         self.notifyPanelClosedOnce()
     }
 
@@ -324,6 +337,8 @@ final class WebChatWindowController: NSWindowController, WKNavigationDelegate, N
 
     func windowWillClose(_ notification: Notification) {
         guard case .panel = self.presentation else { return }
+        self.removeDismissMonitor()
+        self.onVisibilityChanged?(false)
         self.notifyPanelClosedOnce()
     }
 
@@ -331,6 +346,59 @@ final class WebChatWindowController: NSWindowController, WKNavigationDelegate, N
         guard !self.panelCloseNotified else { return }
         self.panelCloseNotified = true
         self.onPanelClosed?()
+    }
+
+    private func installDismissMonitor() {
+        guard self.localDismissMonitor == nil, let panel = self.window else { return }
+        self.localDismissMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        ) { [weak self] event in
+            guard let self else { return event }
+            if event.window !== panel {
+                self.closePanel()
+            }
+            return event
+        }
+    }
+
+    private func removeDismissMonitor() {
+        if let monitor = self.localDismissMonitor {
+            NSEvent.removeMonitor(monitor)
+            self.localDismissMonitor = nil
+        }
+    }
+
+    private func installPanelObservers() {
+        guard let window = self.window else { return }
+        let nc = NotificationCenter.default
+        let o1 = nc.addObserver(
+            forName: NSApplication.didResignActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.closePanel()
+            }
+        }
+        let o2 = nc.addObserver(
+            forName: NSWindow.didChangeOcclusionStateNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, case .panel = self.presentation else { return }
+                if !(window.occlusionState.contains(.visible)) {
+                    self.closePanel()
+                }
+            }
+        }
+        self.observers.append(contentsOf: [o1, o2])
+    }
+
+    private func removePanelObservers() {
+        let nc = NotificationCenter.default
+        for o in self.observers { nc.removeObserver(o) }
+        self.observers.removeAll()
     }
 }
 
@@ -396,10 +464,8 @@ final class WebChatManager {
         if let controller = self.panelController {
             if controller.window?.isVisible == true {
                 controller.closePanel()
-                self.onPanelVisibilityChanged?(false)
             } else {
                 controller.presentAnchoredPanel(anchorProvider: anchorProvider)
-                self.onPanelVisibilityChanged?(true)
             }
             return
         }
@@ -411,14 +477,15 @@ final class WebChatManager {
         controller.onPanelClosed = { [weak self] in
             self?.panelHidden()
         }
+        controller.onVisibilityChanged = { [weak self] visible in
+            self?.onPanelVisibilityChanged?(visible)
+        }
         controller.presentAnchoredPanel(anchorProvider: anchorProvider)
-        self.onPanelVisibilityChanged?(true)
     }
 
     func closePanel() {
         guard let controller = self.panelController else { return }
         controller.closePanel()
-        self.onPanelVisibilityChanged?(false)
     }
 
     func preferredSessionKey() -> String {
@@ -451,6 +518,7 @@ final class WebChatManager {
 
     private func panelHidden() {
         self.onPanelVisibilityChanged?(false)
+        self.panelController = nil
     }
 }
 
