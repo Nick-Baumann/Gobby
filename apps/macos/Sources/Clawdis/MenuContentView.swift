@@ -43,32 +43,67 @@ struct MenuContent: View {
             }
             if self.state.debugPaneEnabled {
                 Menu("Debug") {
-                    Button("Open Config Folder") { DebugActions.openConfigFolder() }
-                    Button("Run Health Check Now") {
+                    Button {
+                        DebugActions.openConfigFolder()
+                    } label: {
+                        Label("Open Config Folder", systemImage: "folder")
+                    }
+                    Button {
                         Task { await DebugActions.runHealthCheckNow() }
+                    } label: {
+                        Label("Run Health Check Now", systemImage: "stethoscope")
                     }
-                    Button("Send Test Heartbeat") {
+                    Button {
                         Task { _ = await DebugActions.sendTestHeartbeat() }
+                    } label: {
+                        Label("Send Test Heartbeat", systemImage: "waveform.path.ecg")
                     }
-                    Button(DebugActions.verboseLoggingEnabledMain
-                        ? "Verbose Logging (Main): On"
-                        : "Verbose Logging (Main): Off")
-                    {
+                    Button {
                         Task { _ = await DebugActions.toggleVerboseLoggingMain() }
+                    } label: {
+                        Label(
+                            DebugActions.verboseLoggingEnabledMain
+                                ? "Verbose Logging (Main): On"
+                                : "Verbose Logging (Main): Off",
+                            systemImage: "text.alignleft")
                     }
-                    Button("Open Session Store") { DebugActions.openSessionStore() }
+                    Button {
+                        DebugActions.openSessionStore()
+                    } label: {
+                        Label("Open Session Store", systemImage: "externaldrive")
+                    }
                     Divider()
-                    Button("Open Agent Events…") { DebugActions.openAgentEventsWindow() }
-                    Button("Open Log") { DebugActions.openLog() }
-                    Button("Send Debug Voice Text") {
+                    Button {
+                        DebugActions.openAgentEventsWindow()
+                    } label: {
+                        Label("Open Agent Events…", systemImage: "bolt.horizontal.circle")
+                    }
+                    Button {
+                        DebugActions.openLog()
+                    } label: {
+                        Label("Open Log", systemImage: "doc.text.magnifyingglass")
+                    }
+                    Button {
                         Task { _ = await DebugActions.sendDebugVoice() }
+                    } label: {
+                        Label("Send Debug Voice Text", systemImage: "waveform.circle")
                     }
-                    Button("Send Test Notification") {
+                    Button {
                         Task { await DebugActions.sendTestNotification() }
+                    } label: {
+                        Label("Send Test Notification", systemImage: "bell")
                     }
                     Divider()
-                    Button("Restart Gateway") { DebugActions.restartGateway() }
-                    Button("Restart App") { DebugActions.restartApp() }
+                    Button {
+                        DebugActions.restartGateway()
+                    } label: {
+                        Label("Restart Gateway", systemImage: "arrow.clockwise")
+                    }
+                    Button {
+                        DebugActions.restartApp()
+                    } label: {
+                        Label("Restart App", systemImage: "arrow.triangle.2.circlepath")
+                    }
                 }
             }
             Button("Quit") { NSApplication.shared.terminate(nil) }
