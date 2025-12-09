@@ -110,15 +110,19 @@ enum GatewayEnvironment {
 
             let gatewayLabel = gatewayBin != nil ? "global" : "local"
             let gatewayVersionText = installed?.description ?? "unknown"
+            // Avoid repeating "(local)" twice; if using the local entrypoint, show the path once.
             let localPathHint = gatewayBin == nil && projectEntrypoint != nil
                 ? " (local: \(projectEntrypoint ?? "unknown"))"
                 : ""
+            let gatewayLabelText = gatewayBin != nil
+                ? "(\(gatewayLabel))"
+                : localPathHint.isEmpty ? "(\(gatewayLabel))" : localPathHint
             return GatewayEnvironmentStatus(
                 kind: .ok,
                 nodeVersion: runtime.version.description,
                 gatewayVersion: gatewayVersionText,
                 requiredGateway: expected?.description,
-                message: "Node \(runtime.version.description); gateway \(gatewayVersionText) (\(gatewayLabel))\(localPathHint)")
+                message: "Node \(runtime.version.description); gateway \(gatewayVersionText) \(gatewayLabelText)")
         }
     }
 
