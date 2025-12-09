@@ -84,6 +84,9 @@ actor VoicePushToTalk {
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
 
+    // Session token used to drop stale callbacks when a new capture starts.
+    private var sessionID = UUID()
+
     private var committed: String = ""
     private var volatile: String = ""
     private var activeConfig: Config?
@@ -105,6 +108,10 @@ actor VoicePushToTalk {
     func begin() async {
         guard voiceWakeSupported else { return }
         guard !self.isCapturing else { return }
+
+        // Start a fresh session and invalidate any in-flight callbacks tied to an older one.
+        let sessionID = UUID()
+        self.sessionID = sessionID
 
         // Ensure permissions up front.
         let granted = await PermissionManager.ensureVoiceWakePermissions(interactive: true)
@@ -139,7 +146,7 @@ actor VoicePushToTalk {
         }
 
         do {
-            try await self.startRecognition(localeID: config.localeID)
+            try await self.startRecognition(localeID: config.localeID, sessionID: sessionID)
         } catch {
             await MainActor.run {
                 VoiceWakeOverlayController.shared.dismiss()
@@ -151,6 +158,7 @@ actor VoicePushToTalk {
     func end() async {
         guard self.isCapturing else { return }
         self.isCapturing = false
+        let sessionID = self.sessionID
 
         self.recognitionRequest?.endAudio()
         self.audioEngine.inputNode.removeTap(onBus: 0)
@@ -160,13 +168,13 @@ actor VoicePushToTalk {
         self.timeoutTask?.cancel()
         self.timeoutTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 1_500_000_000) // 1.5s grace period to await final result
-            await self?.finalize(transcriptOverride: nil, reason: "timeout")
+            await self?.finalize(transcriptOverride: nil, reason: "timeout", sessionID: sessionID)
         }
     }
 
     // MARK: - Private
 
-    private func startRecognition(localeID: String?) async throws {
+    private func startRecognition(localeID: String?, sessionID: UUID) async throws {
         let locale = localeID.flatMap { Locale(identifier: $0) } ?? Locale(identifier: Locale.current.identifier)
         self.recognizer = SFSpeechRecognizer(locale: locale)
         guard let recognizer, recognizer.isAvailable else {
@@ -199,17 +207,21 @@ actor VoicePushToTalk {
             let transcript = result?.bestTranscription.formattedString
             let isFinal = result?.isFinal ?? false
             // Hop to a Task so UI updates stay off the Speech callback thread.
-            Task.detached { [weak self, transcript, isFinal] in
+            Task.detached { [weak self, transcript, isFinal, sessionID] in
                 guard let self else { return }
-                await self.handle(transcript: transcript, isFinal: isFinal)
+                await self.handle(transcript: transcript, isFinal: isFinal, sessionID: sessionID)
                 if isFinal {
-                    await self.finalize(transcriptOverride: transcript, reason: "speechFinal")
+                    await self.finalize(transcriptOverride: transcript, reason: "speechFinal", sessionID: sessionID)
                 }
             }
         }
     }
 
-    private func handle(transcript: String?, isFinal: Bool) async {
+    private func handle(transcript: String?, isFinal: Bool, sessionID: UUID) async {
+        guard sessionID == self.sessionID else {
+            self.logger.debug("push-to-talk drop transcript for stale session")
+            return
+        }
         guard let transcript else { return }
         if isFinal {
             self.committed = transcript
@@ -231,9 +243,14 @@ actor VoicePushToTalk {
         }
     }
 
-    private func finalize(transcriptOverride: String?, reason: String) async {
+    private func finalize(transcriptOverride: String?, reason: String, sessionID: UUID?) async {
         if self.finalized { return }
+        if let sessionID, sessionID != self.sessionID {
+            self.logger.debug("push-to-talk drop finalize for stale session")
+            return
+        }
         self.finalized = true
+        self.isCapturing = false
         self.timeoutTask?.cancel(); self.timeoutTask = nil
 
         let finalRecognized: String = {
