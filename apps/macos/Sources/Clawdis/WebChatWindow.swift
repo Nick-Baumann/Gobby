@@ -172,7 +172,10 @@ final class WebChatWindowController: NSWindowController, WKNavigationDelegate, N
     }
 
     private func loadWebChat(baseEndpoint: URL) {
-        var comps = URLComponents(url: baseEndpoint.appendingPathComponent("webchat/"), resolvingAgainstBaseURL: false)
+        var comps = URLComponents(url: baseEndpoint, resolvingAgainstBaseURL: false)
+        if comps?.path.isEmpty ?? true {
+            comps?.path = "/"
+        }
         var items = [URLQueryItem(name: "session", value: self.sessionKey)]
         if let hostName = Host.current().localizedName ?? Host.current().name {
             items.append(URLQueryItem(name: "host", value: hostName))
