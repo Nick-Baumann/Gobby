@@ -172,7 +172,11 @@ actor VoiceWakeRuntime {
         self.overlayToken = nil
         guard dismissOverlay else { return }
         Task { @MainActor in
-            VoiceWakeOverlayController.shared.dismiss(token: token)
+            if let token {
+                VoiceSessionCoordinator.shared.dismiss(token: token, reason: .explicit, outcome: .empty)
+            } else {
+                VoiceWakeOverlayController.shared.dismiss()
+            }
         }
     }
 
@@ -218,9 +222,9 @@ actor VoiceWakeRuntime {
                 let snapshot = self.committedTranscript + self.volatileTranscript
                 if let token = self.overlayToken {
                     await MainActor.run {
-                        VoiceWakeOverlayController.shared.updatePartial(
+                        VoiceSessionCoordinator.shared.updatePartial(
                             token: token,
-                            transcript: snapshot,
+                            text: snapshot,
                             attributed: attributed)
                     }
                 }
@@ -271,10 +275,11 @@ actor VoiceWakeRuntime {
             volatile: self.volatileTranscript,
             isFinal: false)
         self.overlayToken = await MainActor.run {
-            VoiceWakeOverlayController.shared.startSession(
+            VoiceSessionCoordinator.shared.startSession(
                 source: .wakeWord,
-                transcript: snapshot,
-                attributed: attributed)
+                text: snapshot,
+                attributed: attributed,
+                forwardEnabled: true)
         }
 
         // Keep the "ears" boosted for the capture window so the status icon animates while recording.
@@ -326,27 +331,20 @@ actor VoiceWakeRuntime {
 
         await MainActor.run { AppStateStore.shared.stopVoiceEars() }
         if let token = self.overlayToken {
-            await MainActor.run { VoiceWakeOverlayController.shared.updateLevel(token: token, 0) }
+            await MainActor.run { VoiceSessionCoordinator.shared.updateLevel(token: token, 0) }
         }
 
         let forwardConfig = await MainActor.run { AppStateStore.shared.voiceWakeForwardConfig }
-        // Auto-send should fire as soon as the silence threshold is satisfied (2s after speech, 5s after trigger-only).
-        // Keep the overlay visible during capture; once we finalize, we dispatch immediately.
         let delay: TimeInterval = 0.0
-        let finalAttributed = Self.makeAttributed(
-            committed: finalTranscript,
-            volatile: "",
-            isFinal: true)
         let sendChime = finalTranscript.isEmpty ? .none : config.sendChime
         if let token = self.overlayToken {
             await MainActor.run {
-                VoiceWakeOverlayController.shared.presentFinal(
+                VoiceSessionCoordinator.shared.finalize(
                     token: token,
-                    transcript: finalTranscript,
+                    text: finalTranscript,
                     forwardConfig: forwardConfig,
-                    autoSendAfter: delay,
                     sendChime: sendChime,
-                    attributed: finalAttributed)
+                    autoSendAfter: delay)
             }
         } else if forwardConfig.enabled, !finalTranscript.isEmpty {
             if sendChime != .none {
@@ -380,7 +378,7 @@ actor VoiceWakeRuntime {
         let clamped = min(1.0, max(0.0, rms / max(self.minSpeechRMS, threshold)))
         if let token = self.overlayToken {
             Task { @MainActor in
-                VoiceWakeOverlayController.shared.updateLevel(token: token, clamped)
+                VoiceSessionCoordinator.shared.updateLevel(token: token, clamped)
             }
         }
     }

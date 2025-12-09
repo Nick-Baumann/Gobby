@@ -417,7 +417,7 @@ final class VoiceWakeOverlayController: ObservableObject {
         }
     }
 
-    private func makeAttributed(from text: String) -> NSAttributedString {
+    func makeAttributed(from text: String) -> NSAttributedString {
         NSAttributedString(
             string: text,
             attributes: [

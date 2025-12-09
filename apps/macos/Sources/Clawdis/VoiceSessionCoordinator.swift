@@ -1,0 +1,137 @@
+import AppKit
+import Foundation
+import OSLog
+
+@MainActor
+final class VoiceSessionCoordinator: ObservableObject {
+    static let shared = VoiceSessionCoordinator()
+
+    enum Source: String { case wakeWord, pushToTalk }
+
+    struct Session {
+        let token: UUID
+        let source: Source
+        var text: String
+        var attributed: NSAttributedString?
+        var isFinal: Bool
+        var forwardConfig: VoiceWakeForwardConfig?
+        var sendChime: VoiceWakeChime
+        var autoSendDelay: TimeInterval?
+    }
+
+    private let logger = Logger(subsystem: "com.steipete.clawdis", category: "voicewake.coordinator")
+    private var session: Session?
+    private var autoSendTask: Task<Void, Never>?
+
+    // MARK: - API
+
+    func startSession(
+        source: Source,
+        text: String,
+        attributed: NSAttributedString? = nil,
+        forwardEnabled: Bool = false
+    ) -> UUID {
+        // If a send is in-flight, ignore new sessions to avoid token churn.
+        if VoiceWakeOverlayController.shared.model.isSending {
+            self.logger.info("coordinator drop start while sending")
+            return self.session?.token ?? UUID()
+        }
+
+        let token = UUID()
+        self.logger.info("coordinator start token=\(token.uuidString) source=\(source.rawValue) len=\(text.count)")
+        let attributedText = attributed ?? VoiceWakeOverlayController.shared.makeAttributed(from: text)
+        self.session = Session(
+            token: token,
+            source: source,
+            text: text,
+            attributed: attributedText,
+            isFinal: false,
+            forwardConfig: forwardEnabled ? AppStateStore.shared.voiceWakeForwardConfig : nil,
+            sendChime: .none,
+            autoSendDelay: nil)
+        VoiceWakeOverlayController.shared.startSession(
+            source: VoiceWakeOverlayController.Source(rawValue: source.rawValue) ?? .wakeWord,
+            transcript: text,
+            attributed: attributedText,
+            forwardEnabled: forwardEnabled,
+            isFinal: false)
+        return token
+    }
+
+    func updatePartial(token: UUID, text: String, attributed: NSAttributedString? = nil) {
+        guard let session, session.token == token else { return }
+        self.session?.text = text
+        self.session?.attributed = attributed
+        VoiceWakeOverlayController.shared.updatePartial(token: token, transcript: text, attributed: attributed)
+    }
+
+    func finalize(
+        token: UUID,
+        text: String,
+        forwardConfig: VoiceWakeForwardConfig,
+        sendChime: VoiceWakeChime,
+        autoSendAfter: TimeInterval?)
+    {
+        guard let session, session.token == token else { return }
+        self.logger.info("coordinator finalize token=\(token.uuidString) len=\(text.count) autoSendAfter=\(autoSendAfter ?? -1)")
+        self.autoSendTask?.cancel(); self.autoSendTask = nil
+        self.session?.text = text
+        self.session?.isFinal = true
+        self.session?.forwardConfig = forwardConfig
+        self.session?.sendChime = sendChime
+        self.session?.autoSendDelay = autoSendAfter
+
+        let attributed = VoiceWakeOverlayController.shared.makeAttributed(from: text)
+        VoiceWakeOverlayController.shared.presentFinal(
+            token: token,
+            transcript: text,
+            forwardConfig: forwardConfig,
+            autoSendAfter: autoSendAfter,
+            sendChime: sendChime,
+            attributed: attributed)
+    }
+
+    func sendNow(token: UUID, reason: String = "explicit") {
+        guard let session, session.token == token else { return }
+        let text = session.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let forward = session.forwardConfig, forward.enabled else {
+            self.logger.info("coordinator sendNow \(reason) no forward config -> dismiss")
+            VoiceWakeOverlayController.shared.dismiss(token: token, reason: .explicit, outcome: .empty)
+            self.clearSession()
+            return
+        }
+        guard !text.isEmpty else {
+            self.logger.info("coordinator sendNow \(reason) empty -> dismiss")
+            VoiceWakeOverlayController.shared.dismiss(token: token, reason: .empty, outcome: .empty)
+            self.clearSession()
+            return
+        }
+        VoiceWakeOverlayController.shared.sendNow(token: token, sendChime: session.sendChime)
+        Task.detached {
+            _ = await VoiceWakeForwarder.forward(transcript: VoiceWakeForwarder.prefixedTranscript(text), config: forward)
+        }
+    }
+
+    func dismiss(token: UUID, reason: VoiceWakeOverlayController.DismissReason, outcome: VoiceWakeOverlayController.SendOutcome) {
+        guard let session, session.token == token else { return }
+        VoiceWakeOverlayController.shared.dismiss(token: token, reason: reason, outcome: outcome)
+        self.clearSession()
+    }
+
+    func updateLevel(token: UUID, _ level: Double) {
+        guard let session, session.token == token else { return }
+        VoiceWakeOverlayController.shared.updateLevel(token: token, level)
+    }
+
+    func snapshot() -> (token: UUID?, text: String, visible: Bool) {
+        (self.session?.token, self.session?.text ?? "", VoiceWakeOverlayController.shared.isVisible)
+    }
+
+    // MARK: - Private
+
+    private func clearSession() {
+        self.session = nil
+        self.autoSendTask?.cancel()
+        self.autoSendTask = nil
+    }
+}

@@ -116,8 +116,8 @@ actor VoicePushToTalk {
         self.triggerChimePlayed = false
         self.finalized = false
         self.timeoutTask?.cancel(); self.timeoutTask = nil
-        let snapshot = await MainActor.run { VoiceWakeOverlayController.shared.snapshot() }
-        self.adoptedPrefix = snapshot.isVisible ? snapshot.text.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+        let snapshot = await MainActor.run { VoiceSessionCoordinator.shared.snapshot() }
+        self.adoptedPrefix = snapshot.visible ? snapshot.text.trimmingCharacters(in: .whitespacesAndNewlines) : ""
         self.logger.info("ptt begin adopted_prefix_len=\(self.adoptedPrefix.count, privacy: .public)")
         if config.triggerChime != .none {
             self.triggerChimePlayed = true
@@ -131,10 +131,11 @@ actor VoicePushToTalk {
             volatile: "",
             isFinal: false)
         self.overlayToken = await MainActor.run {
-            VoiceWakeOverlayController.shared.startSession(
+            VoiceSessionCoordinator.shared.startSession(
                 source: .pushToTalk,
-                transcript: adoptedPrefix,
-                attributed: adoptedAttributed)
+                text: adoptedPrefix,
+                attributed: adoptedAttributed,
+                forwardEnabled: true)
         }
 
         do {
@@ -222,9 +223,9 @@ actor VoicePushToTalk {
         let attributed = Self.makeAttributed(committed: committedWithPrefix, volatile: self.volatile, isFinal: isFinal)
         if let token = self.overlayToken {
             await MainActor.run {
-                VoiceWakeOverlayController.shared.updatePartial(
+                VoiceSessionCoordinator.shared.updatePartial(
                     token: token,
-                    transcript: snapshot,
+                    text: snapshot,
                     attributed: attributed)
             }
         }
@@ -243,10 +244,6 @@ actor VoicePushToTalk {
         }()
         let finalText = Self.join(self.adoptedPrefix, finalRecognized)
 
-        let attributed = Self.makeAttributed(
-            committed: Self.join(self.adoptedPrefix, self.committed),
-            volatile: self.volatile,
-            isFinal: true)
         let forward: VoiceWakeForwardConfig = if let cached = self.activeConfig?.forwardConfig {
             cached
         } else {
@@ -258,18 +255,15 @@ actor VoicePushToTalk {
         let logger = self.logger
         await MainActor.run {
             logger.info("ptt finalize reason=\(reason, privacy: .public) len=\(finalText.count, privacy: .public)")
-            if finalText.isEmpty {
-                VoiceWakeOverlayController.shared.dismiss(token: token, reason: .empty)
-            } else if let token {
-                VoiceWakeOverlayController.shared.presentFinal(
+            if let token {
+                VoiceSessionCoordinator.shared.finalize(
                     token: token,
-                    transcript: finalText,
+                    text: finalText,
                     forwardConfig: forward,
-                    autoSendAfter: nil,
                     sendChime: chime,
-                    attributed: attributed)
-                VoiceWakeOverlayController.shared.sendNow(token: token, sendChime: chime)
-            } else {
+                    autoSendAfter: nil)
+                VoiceSessionCoordinator.shared.sendNow(token: token, reason: reason)
+            } else if !finalText.isEmpty, forward.enabled {
                 if chime != .none {
                     VoiceWakeChimePlayer.play(chime, reason: "ptt.fallback_send")
                 }
