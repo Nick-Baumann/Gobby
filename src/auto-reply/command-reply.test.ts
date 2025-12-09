@@ -247,7 +247,11 @@ describe("runCommandReply (pi)", () => {
 
     expect(events).toContainEqual({
       stream: "tool",
-      data: expect.objectContaining({ phase: "start", name: "bash", toolCallId: "call-1" }),
+      data: expect.objectContaining({
+        phase: "start",
+        name: "bash",
+        toolCallId: "call-1",
+      }),
     });
     expect(events).toContainEqual({
       stream: "tool",

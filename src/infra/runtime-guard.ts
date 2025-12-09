@@ -43,10 +43,16 @@ export function isAtLeast(version: Semver | null, minimum: Semver): boolean {
 
 export function detectRuntime(): RuntimeDetails {
   const isBun = Boolean(process.versions?.bun);
-  const kind: RuntimeKind = isBun ? "bun" : process.versions?.node ? "node" : "unknown";
+  const kind: RuntimeKind = isBun
+    ? "bun"
+    : process.versions?.node
+      ? "node"
+      : "unknown";
+  const bunVersion =
+    (globalThis as { Bun?: { version?: string } })?.Bun?.version ?? null;
   const version = isBun
-    ? process.versions?.bun ?? (globalThis as any)?.Bun?.version ?? null
-    : process.versions?.node ?? null;
+    ? (process.versions?.bun ?? bunVersion)
+    : (process.versions?.node ?? null);
 
   return {
     kind,
@@ -70,7 +76,10 @@ export function assertSupportedRuntime(
   if (runtimeSatisfies(details)) return;
 
   const versionLabel = details.version ?? "unknown";
-  const runtimeLabel = details.kind === "unknown" ? "unknown runtime" : `${details.kind} ${versionLabel}`;
+  const runtimeLabel =
+    details.kind === "unknown"
+      ? "unknown runtime"
+      : `${details.kind} ${versionLabel}`;
   const execLabel = details.execPath ?? "unknown";
 
   runtime.error(
@@ -87,4 +96,3 @@ export function assertSupportedRuntime(
   );
   runtime.exit(1);
 }
-

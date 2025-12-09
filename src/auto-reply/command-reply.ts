@@ -1,7 +1,11 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-
+import type {
+  AgentEvent,
+  AssistantMessage,
+  Message,
+} from "@mariozechner/pi-ai";
 import { piSpec } from "../agents/pi.js";
 import type { AgentMeta, AgentToolResult } from "../agents/types.js";
 import type { WarelayConfig } from "../config/config.js";
@@ -13,7 +17,6 @@ import { splitMediaFromOutput } from "../media/parse.js";
 import { enqueueCommand } from "../process/command-queue.js";
 import type { runCommandWithTimeout } from "../process/exec.js";
 import { runPiRpc } from "../process/tau-rpc.js";
-import type { AgentEvent, AssistantMessage, Message } from "@mariozechner/pi-ai";
 import { applyTemplate, type TemplateContext } from "./templating.js";
 import {
   formatToolAggregate,
@@ -614,63 +617,72 @@ export async function runCommandReply(
           }
 
           if (
-            ("message" in ev && ev.message) &&
+            "message" in ev &&
+            ev.message &&
             (ev.type === "message" || ev.type === "message_end")
           ) {
-            const msg = ev.message as Message;
-            const role = (msg as any).role;
-            const isToolResult = role === "toolResult" || role === "tool_result";
+            const msg = ev.message as Message & {
+              toolCallId?: string;
+              tool_call_id?: string;
+            };
+            const role = msg.role;
+            const isToolResult =
+              role === "toolResult" || role === "tool_result";
             if (!isToolResult || !Array.isArray(msg.content)) {
               // not a tool result message we care about
             } else {
-            const toolName = inferToolName(msg);
-            const toolCallId =
-              (msg as any).toolCallId ?? (msg as any).tool_call_id;
-            const meta =
-              inferToolMeta(msg) ??
-              (toolCallId ? toolMetaById.get(toolCallId) : undefined);
+              const toolName = inferToolName(msg);
+              const toolCallId = msg.toolCallId ?? msg.tool_call_id;
+              const meta =
+                inferToolMeta(msg) ??
+                (toolCallId ? toolMetaById.get(toolCallId) : undefined);
 
-            emitAgentEvent({
-              runId,
-              stream: "tool",
-              data: {
-                phase: "result",
-                name: toolName,
-                toolCallId,
-                meta,
-              },
-            });
-            params.onAgentEvent?.({
-              stream: "tool",
-              data: {
-                phase: "result",
-                name: toolName,
-                toolCallId,
-                meta,
-              },
-            });
+              emitAgentEvent({
+                runId,
+                stream: "tool",
+                data: {
+                  phase: "result",
+                  name: toolName,
+                  toolCallId,
+                  meta,
+                },
+              });
+              params.onAgentEvent?.({
+                stream: "tool",
+                data: {
+                  phase: "result",
+                  name: toolName,
+                  toolCallId,
+                  meta,
+                },
+              });
 
-            if (pendingToolName && toolName && toolName !== pendingToolName) {
-              flushPendingTool();
-            }
-            if (!pendingToolName) pendingToolName = toolName;
-            if (meta) pendingMetas.push(meta);
-            if (
-              TOOL_RESULT_FLUSH_COUNT > 0 &&
-              pendingMetas.length >= TOOL_RESULT_FLUSH_COUNT
-            ) {
-              flushPendingTool();
-              return;
-            }
-            if (pendingTimer) clearTimeout(pendingTimer);
-            pendingTimer = setTimeout(
-              flushPendingTool,
-              TOOL_RESULT_DEBOUNCE_MS,
-            );
+              if (pendingToolName && toolName && toolName !== pendingToolName) {
+                flushPendingTool();
+              }
+              if (!pendingToolName) pendingToolName = toolName;
+              if (meta) pendingMetas.push(meta);
+              if (
+                TOOL_RESULT_FLUSH_COUNT > 0 &&
+                pendingMetas.length >= TOOL_RESULT_FLUSH_COUNT
+              ) {
+                flushPendingTool();
+                return;
+              }
+              if (pendingTimer) clearTimeout(pendingTimer);
+              pendingTimer = setTimeout(
+                flushPendingTool,
+                TOOL_RESULT_DEBOUNCE_MS,
+              );
             }
           }
 
-          if (ev.type === "message_end" && "message" in ev && ev.message && ev.message.role === "assistant") {
+          if (
+            ev.type === "message_end" &&
+            "message" in ev &&
+            ev.message &&
+            ev.message.role === "assistant"
+          ) {
             streamAssistantFinal(ev.message as AssistantMessage);
             const text = extractRpcAssistantText(line);
             if (text) {
@@ -682,7 +694,11 @@ export async function runCommandReply(
           }
 
           // Preserve existing partial reply hook when provided.
-          if (onPartialReply && "message" in ev && ev.message?.role === "assistant") {
+          if (
+            onPartialReply &&
+            "message" in ev &&
+            ev.message?.role === "assistant"
+          ) {
             // Let the existing logic reuse the already-parsed message.
             try {
               streamAssistantFinal(ev.message as AssistantMessage);

@@ -9,7 +9,6 @@ import { createDefaultDeps } from "./cli/deps.js";
 import { promptYesNo } from "./cli/prompt.js";
 import { waitForever } from "./cli/wait.js";
 import { loadConfig } from "./config/config.js";
-import { assertSupportedRuntime } from "./infra/runtime-guard.js";
 import {
   deriveSessionKey,
   loadSessionStore,
@@ -24,6 +23,7 @@ import {
   handlePortError,
   PortInUseError,
 } from "./infra/ports.js";
+import { assertSupportedRuntime } from "./infra/runtime-guard.js";
 import { enableConsoleCapture } from "./logging.js";
 import { runCommandWithTimeout, runExec } from "./process/exec.js";
 import { monitorWebProvider } from "./provider-web.js";
