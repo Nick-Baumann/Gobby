@@ -53,8 +53,8 @@ final class VoiceWakeOverlayController: ObservableObject {
     {
         let token = UUID()
         let message = """
-        overlay session_start source=\(source.rawValue, privacy: .public) \
-        len=\(transcript.count, privacy: .public)
+        overlay session_start source=\(source.rawValue) \
+        len=\(transcript.count)
         """
         self.logger.log(level: .info, "\(message)")
         self.activeToken = token
@@ -81,8 +81,8 @@ final class VoiceWakeOverlayController: ObservableObject {
         guard self.guardToken(token, context: "partial") else { return }
         guard !self.model.isFinal else { return }
         let message = """
-        overlay partial token=\(token.uuidString, privacy: .public) \
-        len=\(transcript.count, privacy: .public)
+        overlay partial token=\(token.uuidString) \
+        len=\(transcript.count)
         """
         self.logger.log(level: .info, "\(message)")
         self.autoSendTask?.cancel(); self.autoSendTask = nil; self.autoSendToken = nil
@@ -108,10 +108,10 @@ final class VoiceWakeOverlayController: ObservableObject {
     {
         guard self.guardToken(token, context: "final") else { return }
         let message = """
-        overlay presentFinal token=\(token.uuidString, privacy: .public) \
-        len=\(transcript.count, privacy: .public) \
-        autoSendAfter=\(delay ?? -1, privacy: .public) \
-        forwardEnabled=\(forwardConfig.enabled, privacy: .public)
+        overlay presentFinal token=\(token.uuidString) \
+        len=\(transcript.count) \
+        autoSendAfter=\(delay ?? -1) \
+        forwardEnabled=\(forwardConfig.enabled)
         """
         self.logger.log(level: .info, "\(message)")
         self.autoSendTask?.cancel()
@@ -126,7 +126,12 @@ final class VoiceWakeOverlayController: ObservableObject {
         self.model.level = 0
         self.present()
         if let delay {
-            self.scheduleAutoSend(token: token, after: delay, sendChime: sendChime)
+            if delay <= 0 {
+                self.logger.log(level: .info, "overlay autoSend immediate token=\(token.uuidString)")
+                self.sendNow(token: token, sendChime: sendChime)
+            } else {
+                self.scheduleAutoSend(token: token, after: delay, sendChime: sendChime)
+            }
         }
     }
 
@@ -157,10 +162,10 @@ final class VoiceWakeOverlayController: ObservableObject {
     func sendNow(token: UUID? = nil, sendChime: VoiceWakeChime = .none) {
         guard self.guardToken(token, context: "send") else { return }
         let message = """
-        overlay sendNow called token=\(self.activeToken?.uuidString ?? "nil", privacy: .public) \
-        isSending=\(self.model.isSending, privacy: .public) \
-        forwardEnabled=\(self.model.forwardEnabled, privacy: .public) \
-        textLen=\(self.model.text.count, privacy: .public)
+        overlay sendNow called token=\(self.activeToken?.uuidString ?? "nil") \
+        isSending=\(self.model.isSending) \
+        forwardEnabled=\(self.model.forwardEnabled) \
+        textLen=\(self.model.text.count)
         """
         self.logger.log(level: .info, "\(message)")
         self.autoSendTask?.cancel(); self.autoSendToken = nil
@@ -179,7 +184,7 @@ final class VoiceWakeOverlayController: ObservableObject {
         }
 
         if sendChime != .none {
-            let message = "overlay sendNow playing sendChime=\(String(describing: sendChime), privacy: .public)"
+            let message = "overlay sendNow playing sendChime=\(String(describing: sendChime))"
             self.logger.log(level: .info, "\(message)")
             VoiceWakeChimePlayer.play(sendChime, reason: "overlay.send")
         }
@@ -191,6 +196,7 @@ final class VoiceWakeOverlayController: ObservableObject {
             await VoiceWakeForwarder.forward(transcript: payload, config: forwardConfig)
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+            self.logger.log(level: .info, "overlay sendNow dismiss ticking token=\(self.activeToken?.uuidString ?? "nil")")
             self.dismiss(token: token, reason: .explicit, outcome: .sent)
         }
     }
@@ -198,11 +204,11 @@ final class VoiceWakeOverlayController: ObservableObject {
     func dismiss(token: UUID? = nil, reason: DismissReason = .explicit, outcome: SendOutcome = .empty) {
         guard self.guardToken(token, context: "dismiss") else { return }
         let message = """
-        overlay dismiss token=\(self.activeToken?.uuidString ?? "nil", privacy: .public) \
-        reason=\(String(describing: reason), privacy: .public) \
-        outcome=\(String(describing: outcome), privacy: .public) \
-        visible=\(self.model.isVisible, privacy: .public) \
-        sending=\(self.model.isSending, privacy: .public)
+        overlay dismiss token=\(self.activeToken?.uuidString ?? "nil") \
+        reason=\(String(describing: reason)) \
+        outcome=\(String(describing: outcome)) \
+        visible=\(self.model.isVisible) \
+        sending=\(self.model.isSending)
         """
         self.logger.log(level: .info, "\(message)")
         self.autoSendTask?.cancel(); self.autoSendToken = nil
@@ -247,11 +253,11 @@ final class VoiceWakeOverlayController: ObservableObject {
 
     private func guardToken(_ token: UUID?, context: String) -> Bool {
         guard let active = self.activeToken else {
-            self.logger.debug("overlay drop \(context, privacy: .public) no_active")
+            self.logger.log(level: .info, "overlay drop \(context, privacy: .public) no_active")
             return false
         }
         if let token, token != active {
-            self.logger.debug("overlay drop \(context, privacy: .public) token_mismatch")
+            self.logger.log(level: .info, "overlay drop \(context, privacy: .public) token_mismatch active=\(active.uuidString, privacy: .public) got=\(token.uuidString, privacy: .public)")
             return false
         }
         return true
@@ -384,9 +390,9 @@ final class VoiceWakeOverlayController: ObservableObject {
         self.logger.log(
             level: .info,
             """
-            overlay scheduleAutoSend token=\(token.uuidString, privacy: .public) \
-            after=\(delay, privacy: .public) \
-            sendChime=\(String(describing: sendChime), privacy: .public)
+            overlay scheduleAutoSend token=\(token.uuidString) \
+            after=\(delay) \
+            sendChime=\(String(describing: sendChime))
             """)
         self.autoSendTask?.cancel()
         self.autoSendToken = token
