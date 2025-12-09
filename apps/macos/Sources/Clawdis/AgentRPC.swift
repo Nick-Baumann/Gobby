@@ -331,6 +331,7 @@ actor AgentRPC {
         guard let data = line.data(using: .utf8) else { return false }
         guard let parsed = try? JSONDecoder().decode(ControlResponse.self, from: data) else { return false }
         guard parsed.type == "control-response" else { return false }
+        self.logger.debug("control response parsed id=\(parsed.id, privacy: .public) ok=\(parsed.ok, privacy: .public)")
         guard let waiter = self.controlWaiters.removeValue(forKey: parsed.id) else {
             self.logger.debug("control response with no waiter id=\(parsed.id, privacy: .public)")
             return true
