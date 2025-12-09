@@ -41,7 +41,12 @@ private actor GatewayChannelActor {
         self.task?.cancel(with: .goingAway, reason: nil)
         self.task = self.session.webSocketTask(with: self.url)
         self.task?.resume()
-        try await self.sendHello()
+        do {
+            try await self.sendHello()
+        } catch {
+            let wrapped = self.wrap(error, context: "connect to gateway @ \(self.url.absoluteString)")
+            throw wrapped
+        }
         self.listen()
         self.connected = true
         self.backoffMs = 500
@@ -110,7 +115,8 @@ private actor GatewayChannelActor {
     }
 
     private func handleReceiveFailure(_ err: Error) async {
-        self.logger.error("gateway ws receive failed \(err.localizedDescription, privacy: .public)")
+        let wrapped = self.wrap(err, context: "gateway receive")
+        self.logger.error("gateway ws receive failed \(wrapped.localizedDescription, privacy: .public)")
         self.connected = false
         await self.scheduleReconnect()
     }
@@ -177,13 +183,18 @@ private actor GatewayChannelActor {
         do {
             try await self.connect()
         } catch {
-            self.logger.error("gateway reconnect failed \(error.localizedDescription, privacy: .public)")
+            let wrapped = self.wrap(error, context: "gateway reconnect")
+            self.logger.error("gateway reconnect failed \(wrapped.localizedDescription, privacy: .public)")
             await self.scheduleReconnect()
         }
     }
 
     func request(method: String, params: [String: AnyCodable]?) async throws -> Data {
-        try await self.connect()
+        do {
+            try await self.connect()
+        } catch {
+            throw self.wrap(error, context: "gateway connect")
+        }
         let id = UUID().uuidString
         let paramsObject = params?.reduce(into: [String: Any]()) { dict, entry in
             dict[entry.key] = entry.value.value
@@ -202,7 +213,7 @@ private actor GatewayChannelActor {
                     try await self.task?.send(.data(data))
                 } catch {
                     self.pending.removeValue(forKey: id)
-                    cont.resume(throwing: error)
+                    cont.resume(throwing: self.wrap(error, context: "gateway send \(method)"))
                 }
             }
         }
@@ -220,6 +231,20 @@ private actor GatewayChannelActor {
             }
         }
         return Data()
+    }
+
+    // Wrap low-level URLSession/WebSocket errors with context so UI can surface them.
+    private func wrap(_ error: Error, context: String) -> Error {
+        if let urlError = error as? URLError {
+            let desc = urlError.localizedDescription.isEmpty ? "cancelled" : urlError.localizedDescription
+            return NSError(
+                domain: urlError.errorDomain,
+                code: urlError.errorCode,
+                userInfo: [NSLocalizedDescriptionKey: "\(context): \(desc)"])
+        }
+        let ns = error as NSError
+        let desc = ns.localizedDescription.isEmpty ? "unknown" : ns.localizedDescription
+        return NSError(domain: ns.domain, code: ns.code, userInfo: [NSLocalizedDescriptionKey: "\(context): \(desc)"])
     }
 }
 

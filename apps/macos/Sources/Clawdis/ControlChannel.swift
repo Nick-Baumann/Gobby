@@ -99,8 +99,9 @@ final class ControlChannel: ObservableObject {
             self.state = .connected
             return payload
         } catch {
-            self.state = .degraded(error.localizedDescription)
-            throw error
+            let message = self.friendlyGatewayMessage(error)
+            self.state = .degraded(message)
+            throw ControlChannelError.badResponse(message)
         }
     }
 
@@ -116,9 +117,39 @@ final class ControlChannel: ObservableObject {
             self.state = .connected
             return data
         } catch {
-            self.state = .degraded(error.localizedDescription)
-            throw error
+            let message = self.friendlyGatewayMessage(error)
+            self.state = .degraded(message)
+            throw ControlChannelError.badResponse(message)
         }
+    }
+
+    private func friendlyGatewayMessage(_ error: Error) -> String {
+        // Map URLSession/WS errors into user-facing, actionable text.
+        if let ctrlErr = error as? ControlChannelError, let desc = ctrlErr.errorDescription {
+            return desc
+        }
+
+        if let urlError = error as? URLError {
+            let port = RelayEnvironment.gatewayPort()
+            switch urlError.code {
+            case .cancelled:
+                return "Gateway connection was closed; start the relay (localhost:\(port)) and retry."
+            case .cannotFindHost, .cannotConnectToHost:
+                return "Cannot reach gateway at localhost:\(port); ensure the relay is running."
+            case .networkConnectionLost:
+                return "Gateway connection dropped; relay likely restarted—retry."
+            case .timedOut:
+                return "Gateway request timed out; check relay on localhost:\(port)."
+            case .notConnectedToInternet:
+                return "No network connectivity; cannot reach gateway."
+            default:
+                break
+            }
+        }
+
+        let nsError = error as NSError
+        let detail = nsError.localizedDescription.isEmpty ? "unknown gateway error" : nsError.localizedDescription
+        return "Gateway error: \(detail)"
     }
 
     func sendSystemEvent(_ text: String) async throws {
