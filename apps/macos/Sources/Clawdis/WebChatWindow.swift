@@ -134,11 +134,10 @@ final class WebChatWindowController: NSWindowController, WKNavigationDelegate {
 
         // Auto-restart on unexpected termination while window lives
         tunnel.process.terminationHandler = { [weak self] _ in
-            guard let self else { return }
-            guard self.tunnelRestartEnabled else { return }
-            webChatLogger.error("webchat tunnel terminated; restarting")
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                guard self.tunnelRestartEnabled else { return }
+                webChatLogger.error("webchat tunnel terminated; restarting")
                 do {
                     // Recreate the tunnel silently so the window keeps working without user intervention.
                     let base = try await self.startOrRestartTunnel()
