@@ -164,7 +164,13 @@ actor VoicePushToTalk {
         self.audioEngine.inputNode.removeTap(onBus: 0)
         self.audioEngine.stop()
 
-        // Give Speech a brief window to deliver the final result; otherwise fall back to current text.
+        // If we captured nothing, dismiss immediately when the user lets go.
+        if self.committed.isEmpty, self.volatile.isEmpty, self.adoptedPrefix.isEmpty {
+            await self.finalize(transcriptOverride: "", reason: "emptyOnRelease", sessionID: sessionID)
+            return
+        }
+
+        // Otherwise, give Speech a brief window to deliver the final result; then fall back.
         self.timeoutTask?.cancel()
         self.timeoutTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 1_500_000_000) // 1.5s grace period to await final result

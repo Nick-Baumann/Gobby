@@ -206,6 +206,10 @@ final class GatewayProcessManager: ObservableObject {
         }
     }
 
+    func clearLog() {
+        self.log = ""
+    }
+
     private func makeEnvironment() -> Environment {
         let merged = CommandResolver.preferredPaths().joined(separator: ":")
         return .inherit.updating([
