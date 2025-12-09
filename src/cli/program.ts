@@ -397,18 +397,39 @@ Examples:
     .command("status")
     .description("Show web session health and recent session recipients")
     .option("--json", "Output JSON instead of text", false)
+    .option("--deep", "Probe providers (WA connect + Telegram API)", false)
+    .option("--timeout <ms>", "Probe timeout in milliseconds", "10000")
     .option("--verbose", "Verbose logging", false)
     .addHelpText(
       "after",
       `
 Examples:
   clawdis status                   # show linked account + session store summary
-  clawdis status --json            # machine-readable output`,
+  clawdis status --json            # machine-readable output
+  clawdis status --deep            # run provider probes (WA + Telegram)
+  clawdis status --deep --timeout 5000 # tighten probe timeout`,
     )
     .action(async (opts) => {
       setVerbose(Boolean(opts.verbose));
+      const timeout = opts.timeout
+        ? Number.parseInt(String(opts.timeout), 10)
+        : undefined;
+      if (timeout !== undefined && (Number.isNaN(timeout) || timeout <= 0)) {
+        defaultRuntime.error(
+          "--timeout must be a positive integer (milliseconds)",
+        );
+        defaultRuntime.exit(1);
+        return;
+      }
       try {
-        await statusCommand(opts, defaultRuntime);
+        await statusCommand(
+          {
+            json: Boolean(opts.json),
+            deep: Boolean(opts.deep),
+            timeoutMs: timeout,
+          },
+          defaultRuntime,
+        );
       } catch (err) {
         defaultRuntime.error(String(err));
         defaultRuntime.exit(1);

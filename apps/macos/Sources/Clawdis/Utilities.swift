@@ -201,12 +201,6 @@ enum CommandResolver {
     private static let projectRootDefaultsKey = "clawdis.relayProjectRootPath"
     private static let helperName = "clawdis"
 
-    private static func bundledRelayRoot() -> URL? {
-        guard let resource = Bundle.main.resourceURL else { return nil }
-        let relay = resource.appendingPathComponent("Relay")
-        return FileManager.default.fileExists(atPath: relay.path) ? relay : nil
-    }
-
     static func relayEntrypoint(in root: URL) -> String? {
         let distEntry = root.appendingPathComponent("dist/index.js").path
         if FileManager.default.isReadableFile(atPath: distEntry) { return distEntry }
@@ -244,11 +238,9 @@ enum CommandResolver {
     }
 
     static func projectRoot() -> URL {
-        if let bundled = self.bundledRelayRoot() {
-            return bundled
-        }
         if let stored = UserDefaults.standard.string(forKey: self.projectRootDefaultsKey),
-           let url = self.expandPath(stored)
+           let url = self.expandPath(stored),
+           FileManager.default.fileExists(atPath: url.path)
         {
             return url
         }
@@ -272,16 +264,13 @@ enum CommandResolver {
         let current = ProcessInfo.processInfo.environment["PATH"]?
             .split(separator: ":").map(String.init) ?? []
         var extras = [
-            self.projectRoot().appendingPathComponent("node_modules/.bin").path,
             FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/pnpm").path,
             "/opt/homebrew/bin",
             "/usr/local/bin",
             "/usr/bin",
             "/bin",
         ]
-        if let relay = self.bundledRelayRoot() {
-            extras.insert(relay.appendingPathComponent("node_modules/.bin").path, at: 0)
-        }
+        extras.insert(self.projectRoot().appendingPathComponent("node_modules/.bin").path, at: 0)
         var seen = Set<String>()
         // Preserve order while stripping duplicates so PATH lookups remain deterministic.
         return (extras + current).filter { seen.insert($0).inserted }
@@ -327,14 +316,8 @@ enum CommandResolver {
 
         switch runtimeResult {
         case let .success(runtime):
-            if let relay = self.bundledRelayRoot(),
-               let entry = self.relayEntrypoint(in: relay)
-            {
-                return self.makeRuntimeCommand(
-                    runtime: runtime,
-                    entrypoint: entry,
-                    subcommand: subcommand,
-                    extraArgs: extraArgs)
+            if let clawdisPath = self.clawdisExecutable() {
+                return [clawdisPath, subcommand] + extraArgs
             }
 
             if let entry = self.relayEntrypoint(in: self.projectRoot()) {
@@ -343,10 +326,6 @@ enum CommandResolver {
                     entrypoint: entry,
                     subcommand: subcommand,
                     extraArgs: extraArgs)
-            }
-
-            if let clawdisPath = self.clawdisExecutable() {
-                return [clawdisPath, subcommand] + extraArgs
             }
             if let pnpm = self.findExecutable(named: "pnpm") {
                 // Use --silent to avoid pnpm lifecycle banners that would corrupt JSON outputs.

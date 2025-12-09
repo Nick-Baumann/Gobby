@@ -57,9 +57,8 @@ final class ControlChannel: ObservableObject {
     private let logger = Logger(subsystem: "com.steipete.clawdis", category: "control")
     private let gateway = GatewayChannel()
     private var gatewayURL: URL {
-        let port = UserDefaults.standard.integer(forKey: "gatewayPort")
-        let effectivePort = port > 0 ? port : 18789
-        return URL(string: "ws://127.0.0.1:\(effectivePort)")!
+        let port = RelayEnvironment.gatewayPort()
+        return URL(string: "ws://127.0.0.1:\(port)")!
     }
 
     private var gatewayToken: String? {

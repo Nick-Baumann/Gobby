@@ -8,6 +8,9 @@ struct GeneralSettings: View {
     @State private var cliStatus: String?
     @State private var cliInstalled = false
     @State private var cliInstallLocation: String?
+    @State private var relayStatus: RelayEnvironmentStatus = .checking
+    @State private var relayInstallMessage: String?
+    @State private var relayInstalling = false
     @State private var remoteStatus: RemoteStatus = .idle
     @State private var showRemoteAdvanced = false
 
@@ -61,7 +64,10 @@ struct GeneralSettings: View {
             .padding(.horizontal, 22)
             .padding(.bottom, 16)
         }
-        .onAppear { self.refreshCLIStatus() }
+        .onAppear {
+            self.refreshCLIStatus()
+            self.refreshRelayStatus()
+        }
     }
 
     private var activeBinding: Binding<Bool> {
@@ -84,6 +90,7 @@ struct GeneralSettings: View {
             .frame(width: 380, alignment: .leading)
 
             if self.state.connectionMode == .local {
+                self.relayInstallerCard
                 self.healthRow
             }
 
@@ -239,6 +246,64 @@ struct GeneralSettings: View {
         }
     }
 
+    private var relayInstallerCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Circle()
+                    .fill(self.relayStatusColor)
+                    .frame(width: 10, height: 10)
+                Text(self.relayStatus.message)
+                    .font(.callout)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if let relayVersion = self.relayStatus.relayVersion,
+               let required = self.relayStatus.requiredRelay,
+               relayVersion != required
+            {
+                Text("Installed: \(relayVersion) · Required: \(required)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if let relayVersion = self.relayStatus.relayVersion {
+                Text("Relay \(relayVersion) detected")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let node = self.relayStatus.nodeVersion {
+                Text("Node \(node)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 10) {
+                Button {
+                    Task { await self.installRelay() }
+                } label: {
+                    if self.relayInstalling {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Text("Install/Update relay")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(self.relayInstalling)
+
+                Button("Recheck") { self.refreshRelayStatus() }
+                    .buttonStyle(.bordered)
+                    .disabled(self.relayInstalling)
+            }
+
+            Text(self.relayInstallMessage ?? "Installs the global \"clawdis\" package and expects the gateway on port 18789.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+        }
+        .padding(12)
+        .background(Color.gray.opacity(0.08))
+        .cornerRadius(10)
+    }
+
     private func installCLI() async {
         guard !self.isInstallingCLI else { return }
         self.isInstallingCLI = true
@@ -255,6 +320,30 @@ struct GeneralSettings: View {
         let installLocation = CLIInstaller.installedLocation()
         self.cliInstallLocation = installLocation
         self.cliInstalled = installLocation != nil
+    }
+
+    private func refreshRelayStatus() {
+        self.relayStatus = RelayEnvironment.check()
+    }
+
+    private func installRelay() async {
+        guard !self.relayInstalling else { return }
+        self.relayInstalling = true
+        defer { self.relayInstalling = false }
+        self.relayInstallMessage = nil
+        let expected = RelayEnvironment.expectedRelayVersion()
+        await RelayEnvironment.installGlobal(version: expected) { message in
+            Task { @MainActor in self.relayInstallMessage = message }
+        }
+        self.refreshRelayStatus()
+    }
+
+    private var relayStatusColor: Color {
+        switch self.relayStatus.kind {
+        case .ok: .green
+        case .checking: .secondary
+        case .missingNode, .missingRelay, .incompatible, .error: .orange
+        }
     }
 
     private var healthCard: some View {

@@ -35,6 +35,7 @@ final class RelayProcessManager: ObservableObject {
     @Published private(set) var status: Status = .stopped
     @Published private(set) var log: String = ""
     @Published private(set) var restartCount: Int = 0
+    @Published private(set) var environmentStatus: RelayEnvironmentStatus = .checking
 
     private var execution: Execution?
     private var desiredActive = false
@@ -48,6 +49,7 @@ final class RelayProcessManager: ObservableObject {
 
     func setActive(_ active: Bool) {
         self.desiredActive = active
+        self.refreshEnvironmentStatus()
         if active {
             self.startIfNeeded()
         } else {
@@ -82,10 +84,22 @@ final class RelayProcessManager: ObservableObject {
         self.execution = nil
     }
 
+    func refreshEnvironmentStatus() {
+        self.environmentStatus = RelayEnvironment.check()
+    }
+
     // MARK: - Internals
 
     private func spawnRelay() async {
-        let command = self.resolveCommand()
+        let resolution = RelayEnvironment.resolveGatewayCommand()
+        await MainActor.run { self.environmentStatus = resolution.status }
+        guard let command = resolution.command else {
+            await MainActor.run {
+                self.status = .failed(resolution.status.message)
+            }
+            return
+        }
+
         let cwd = self.defaultProjectRoot().path
         self.appendLog("[relay] starting: \(command.joined(separator: " ")) (cwd: \(cwd))\n")
 
@@ -190,29 +204,6 @@ final class RelayProcessManager: ObservableObject {
         if self.log.count > self.logLimit {
             self.log = String(self.log.suffix(self.logLimit))
         }
-    }
-
-    private func resolveCommand() -> [String] {
-        // Force the app-managed relay to use system Node (no bundled runtime, no bun).
-        let runtimeResult = CommandResolver.runtimeResolution()
-        guard case let .success(runtime) = runtimeResult else {
-            if case let .failure(err) = runtimeResult {
-                return CommandResolver.runtimeErrorCommand(err)
-            }
-            return ["/bin/sh", "-c", "echo 'runtime resolution failed' >&2; exit 1"]
-        }
-
-        let relayRoot = CommandResolver.projectRoot()
-        if let entry = CommandResolver.relayEntrypoint(in: relayRoot) {
-            return CommandResolver.makeRuntimeCommand(
-                runtime: runtime,
-                entrypoint: entry,
-                subcommand: "relay",
-                extraArgs: [])
-        }
-
-        return CommandResolver.errorCommand(
-            with: "clawdis entrypoint missing (looked for dist/index.js or bin/clawdis.js); run pnpm build.")
     }
 
     private func makeEnvironment() -> Environment {

@@ -21,6 +21,9 @@ vi.mock("../config/sessions.js", () => ({
 
 const waitForWaConnection = vi.fn();
 const webAuthExists = vi.fn();
+const fetchMock = vi.fn();
+
+vi.stubGlobal("fetch", fetchMock);
 
 vi.mock("../web/session.js", () => ({
   createWaSocket: vi.fn(async () => ({
@@ -41,11 +44,25 @@ vi.mock("../web/reconnect.js", () => ({
 describe("healthCommand", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.TELEGRAM_BOT_TOKEN;
+    fetchMock.mockReset();
   });
 
   it("outputs JSON when linked and connect succeeds", async () => {
     webAuthExists.mockResolvedValue(true);
     waitForWaConnection.mockResolvedValue(undefined);
+    process.env.TELEGRAM_BOT_TOKEN = "123:abc";
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true, result: { id: 1, username: "bot" } }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true, result: { url: "https://hook" } }),
+      });
 
     await healthCommand({ json: true, timeoutMs: 5000 }, runtime as never);
 
@@ -54,6 +71,8 @@ describe("healthCommand", () => {
     const parsed = JSON.parse(logged);
     expect(parsed.web.linked).toBe(true);
     expect(parsed.web.connect.ok).toBe(true);
+    expect(parsed.telegram.configured).toBe(true);
+    expect(parsed.telegram.probe.ok).toBe(true);
     expect(parsed.sessions.count).toBe(1);
   });
 
@@ -74,5 +93,25 @@ describe("healthCommand", () => {
     const parsed = JSON.parse(logged);
     expect(parsed.web.connect.ok).toBe(false);
     expect(parsed.web.connect.status).toBe(440);
+  });
+
+  it("exits non-zero when telegram probe fails", async () => {
+    webAuthExists.mockResolvedValue(true);
+    waitForWaConnection.mockResolvedValue(undefined);
+    process.env.TELEGRAM_BOT_TOKEN = "123:abc";
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({ ok: false, description: "unauthorized" }),
+    });
+
+    await healthCommand({ json: true }, runtime as never);
+
+    expect(runtime.exit).toHaveBeenCalledWith(1);
+    const logged = runtime.log.mock.calls[0][0] as string;
+    const parsed = JSON.parse(logged);
+    expect(parsed.telegram.configured).toBe(true);
+    expect(parsed.telegram.probe.ok).toBe(false);
+    expect(parsed.telegram.probe.status).toBe(401);
   });
 });

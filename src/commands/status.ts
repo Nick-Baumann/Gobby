@@ -7,6 +7,7 @@ import {
   type SessionEntry,
 } from "../config/sessions.js";
 import { info } from "../globals.js";
+import { getHealthSnapshot, type HealthSummary } from "./health.js";
 import { buildProviderSummary } from "../infra/provider-summary.js";
 import { peekSystemEvents } from "../infra/system-events.js";
 import type { RuntimeEnv } from "../runtime.js";
@@ -187,13 +188,22 @@ const buildFlags = (entry: SessionEntry): string[] => {
 };
 
 export async function statusCommand(
-  opts: { json?: boolean },
+  opts: { json?: boolean; deep?: boolean; timeoutMs?: number },
   runtime: RuntimeEnv,
 ) {
   const summary = await getStatusSummary();
+  const health: HealthSummary | undefined = opts.deep
+    ? await getHealthSnapshot(opts.timeoutMs)
+    : undefined;
 
   if (opts.json) {
-    runtime.log(JSON.stringify(summary, null, 2));
+    runtime.log(
+      JSON.stringify(
+        health ? { ...summary, health } : summary,
+        null,
+        2,
+      ),
+    );
     return;
   }
 
@@ -204,6 +214,28 @@ export async function statusCommand(
     logWebSelfId(runtime, true);
   }
   runtime.log(info(`System: ${summary.providerSummary}`));
+  if (health) {
+    const waLine = health.web.connect
+      ? health.web.connect.ok
+        ? info(`WA connect: ok (${health.web.connect.elapsedMs}ms)`)
+        : `WA connect: failed (${health.web.connect.status ?? "unknown"})${health.web.connect.error ? ` - ${health.web.connect.error}` : ""}`
+      : info("WA connect: skipped (not linked)");
+    runtime.log(waLine);
+
+    const tgLine = health.telegram.configured
+      ? health.telegram.probe?.ok
+        ? info(
+            `Telegram: ok${health.telegram.probe.bot?.username ? ` (@${health.telegram.probe.bot.username})` : ""} (${health.telegram.probe.elapsedMs}ms)` +
+              (health.telegram.probe.webhook?.url
+                ? ` - webhook ${health.telegram.probe.webhook.url}`
+                : ""),
+          )
+        : `Telegram: failed (${health.telegram.probe?.status ?? "unknown"})${health.telegram.probe?.error ? ` - ${health.telegram.probe.error}` : ""}`
+      : info("Telegram: not configured");
+    runtime.log(tgLine);
+  } else {
+    runtime.log(info("Provider probes: skipped (use --deep)"));
+  }
   if (summary.queuedSystemEvents.length > 0) {
     const preview = summary.queuedSystemEvents.slice(0, 3).join(" | ");
     runtime.log(

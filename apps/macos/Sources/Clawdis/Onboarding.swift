@@ -46,13 +46,16 @@ struct OnboardingView: View {
     @State private var monitoringPermissions = false
     @State private var cliInstalled = false
     @State private var cliInstallLocation: String?
+    @State private var relayStatus: RelayEnvironmentStatus = .checking
+    @State private var relayInstalling = false
+    @State private var relayInstallMessage: String?
     @ObservedObject private var state = AppStateStore.shared
     @ObservedObject private var permissionMonitor = PermissionMonitor.shared
 
     private let pageWidth: CGFloat = 680
     private let contentHeight: CGFloat = 520
-    private let permissionsPageIndex = 2
-    private var pageCount: Int { 6 }
+    private let permissionsPageIndex = 3
+    private var pageCount: Int { 7 }
     private var buttonTitle: String { self.currentPage == self.pageCount - 1 ? "Finish" : "Next" }
     private let devLinkCommand = "ln -sf $(pwd)/apps/macos/.build/debug/ClawdisCLI /usr/local/bin/clawdis-mac"
 
@@ -67,6 +70,7 @@ struct OnboardingView: View {
                 HStack(spacing: 0) {
                     self.welcomePage().frame(width: self.pageWidth)
                     self.connectionPage().frame(width: self.pageWidth)
+                    self.relayPage().frame(width: self.pageWidth)
                     self.permissionsPage().frame(width: self.pageWidth)
                     self.cliPage().frame(width: self.pageWidth)
                     self.whatsappPage().frame(width: self.pageWidth)
@@ -96,6 +100,7 @@ struct OnboardingView: View {
         .task {
             await self.refreshPerms()
             self.refreshCLIStatus()
+            self.refreshRelayStatus()
         }
     }
 
@@ -167,6 +172,81 @@ struct OnboardingView: View {
                             .lineLimit(1)
                     }
                     .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
+        }
+    }
+
+    private func relayPage() -> some View {
+        self.onboardingPage {
+            Text("Install the relay")
+                .font(.largeTitle.weight(.semibold))
+            Text("Clawdis now runs the WebSocket gateway from the global \"clawdis\" package. Install/update it here and we’ll check Node for you.")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 520)
+                .fixedSize(horizontal: false, vertical: true)
+
+            self.onboardingCard(spacing: 10, padding: 14) {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 10) {
+                        Circle()
+                            .fill(self.relayStatusColor)
+                            .frame(width: 10, height: 10)
+                        Text(self.relayStatus.message)
+                            .font(.callout.weight(.semibold))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    if let relayVersion = self.relayStatus.relayVersion,
+                       let required = self.relayStatus.requiredRelay,
+                       relayVersion != required
+                    {
+                        Text("Installed: \(relayVersion) · Required: \(required)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if let relayVersion = self.relayStatus.relayVersion {
+                        Text("Relay \(relayVersion) detected")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if let node = self.relayStatus.nodeVersion {
+                        Text("Node \(node)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    HStack(spacing: 12) {
+                        Button {
+                            Task { await self.installRelay() }
+                        } label: {
+                            if self.relayInstalling {
+                                ProgressView()
+                            } else {
+                                Text("Install / Update relay")
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(self.relayInstalling)
+
+                        Button("Recheck") { self.refreshRelayStatus() }
+                            .buttonStyle(.bordered)
+                            .disabled(self.relayInstalling)
+                    }
+
+                    if let relayInstallMessage {
+                        Text(relayInstallMessage)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    } else {
+                        Text("Uses \"pnpm add -g clawdis@<version>\" on your PATH. We keep the gateway on port 18789.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
                 }
             }
         }
@@ -479,6 +559,30 @@ struct OnboardingView: View {
         let installLocation = CLIInstaller.installedLocation()
         self.cliInstallLocation = installLocation
         self.cliInstalled = installLocation != nil
+    }
+
+    private func refreshRelayStatus() {
+        self.relayStatus = RelayEnvironment.check()
+    }
+
+    private func installRelay() async {
+        guard !self.relayInstalling else { return }
+        self.relayInstalling = true
+        defer { self.relayInstalling = false }
+        self.relayInstallMessage = nil
+        let expected = RelayEnvironment.expectedRelayVersion()
+        await RelayEnvironment.installGlobal(version: expected) { message in
+            Task { @MainActor in self.relayInstallMessage = message }
+        }
+        self.refreshRelayStatus()
+    }
+
+    private var relayStatusColor: Color {
+        switch self.relayStatus.kind {
+        case .ok: .green
+        case .checking: .secondary
+        case .missingNode, .missingRelay, .incompatible, .error: .orange
+        }
     }
 
     private func copyToPasteboard(_ text: String) {
