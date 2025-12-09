@@ -14,6 +14,7 @@ struct ClawdisApp: App {
     @StateObject private var activityStore = WorkActivityStore.shared
     @State private var statusItem: NSStatusItem?
     @State private var isMenuPresented = false
+    private let menuDelegate = StatusMenuDelegate()
 
     init() {
         _state = StateObject(wrappedValue: AppStateStore.shared)
@@ -36,6 +37,7 @@ struct ClawdisApp: App {
             self.statusItem = item
             self.applyStatusItemAppearance(paused: self.state.isPaused)
             self.installStatusItemMouseHandler(for: item)
+            self.attachMenuDelegate(to: item)
         }
         .onChange(of: self.state.isPaused) { _, paused in
             self.applyStatusItemAppearance(paused: paused)
@@ -63,6 +65,8 @@ struct ClawdisApp: App {
             self.statusItem?.button?.highlight(visible)
         }
 
+        self.menuDelegate.button = button
+
         let handler = StatusItemMouseHandlerView()
         handler.translatesAutoresizingMaskIntoConstraints = false
         handler.onLeftClick = { [self] in self.toggleWebChatPanel() }
@@ -75,6 +79,13 @@ struct ClawdisApp: App {
             handler.topAnchor.constraint(equalTo: button.topAnchor),
             handler.bottomAnchor.constraint(equalTo: button.bottomAnchor)
         ])
+    }
+
+    @MainActor
+    private func attachMenuDelegate(to item: NSStatusItem) {
+        guard let menu = item.menu else { return }
+        self.menuDelegate.button = item.button
+        menu.delegate = self.menuDelegate
     }
 
     @MainActor
@@ -127,6 +138,18 @@ private final class StatusItemMouseHandlerView: NSView {
     override func rightMouseDown(with event: NSEvent) {
         self.onRightClick?()
         super.rightMouseDown(with: event) // forward to MenuBarExtra so the menu still opens
+    }
+}
+
+private final class StatusMenuDelegate: NSObject, NSMenuDelegate {
+    weak var button: NSStatusBarButton?
+
+    func menuWillOpen(_ menu: NSMenu) {
+        self.button?.highlight(true)
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        self.button?.highlight(false)
     }
 }
 
