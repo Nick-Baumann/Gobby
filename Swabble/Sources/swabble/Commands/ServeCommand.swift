@@ -17,19 +17,19 @@ struct ServeCommand: ParsableCommand {
 
     init(parsed: ParsedValues) {
         self.init()
-        if parsed.flags.contains("noWake") { self.noWake = true }
-        if let cfg = parsed.options["config"]?.last { self.configPath = cfg }
+        if parsed.flags.contains("noWake") { noWake = true }
+        if let cfg = parsed.options["config"]?.last { configPath = cfg }
     }
 
     mutating func run() async throws {
         var cfg: SwabbleConfig
         do {
-            cfg = try ConfigLoader.load(at: self.configURL)
+            cfg = try ConfigLoader.load(at: configURL)
         } catch {
             cfg = SwabbleConfig()
-            try ConfigLoader.save(cfg, at: self.configURL)
+            try ConfigLoader.save(cfg, at: configURL)
         }
-        if self.noWake {
+        if noWake {
             cfg.wake.enabled = false
         }
 
@@ -64,7 +64,7 @@ struct ServeCommand: ParsableCommand {
     }
 
     private var configURL: URL? {
-        self.configPath.map { URL(fileURLWithPath: $0) }
+        configPath.map { URL(fileURLWithPath: $0) }
     }
 
     private static func matchesWake(text: String, cfg: SwabbleConfig) -> Bool {

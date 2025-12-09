@@ -13,11 +13,11 @@ struct StatusCommand: ParsableCommand {
     init() {}
     init(parsed: ParsedValues) {
         self.init()
-        if let cfg = parsed.options["config"]?.last { self.configPath = cfg }
+        if let cfg = parsed.options["config"]?.last { configPath = cfg }
     }
 
     mutating func run() async throws {
-        let cfg = try? ConfigLoader.load(at: self.configURL)
+        let cfg = try? ConfigLoader.load(at: configURL)
         let wake = cfg?.wake.word ?? "clawd"
         let wakeEnabled = cfg?.wake.enabled ?? false
         let latest = await TranscriptsStore.shared.latest().suffix(3)
@@ -30,5 +30,5 @@ struct StatusCommand: ParsableCommand {
         }
     }
 
-    private var configURL: URL? { self.configPath.map { URL(fileURLWithPath: $0) } }
+    private var configURL: URL? { configPath.map { URL(fileURLWithPath: $0) } }
 }

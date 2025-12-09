@@ -11,24 +11,24 @@ public actor TranscriptsStore {
         let dir = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/swabble", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        self.fileURL = dir.appendingPathComponent("transcripts.log")
+        fileURL = dir.appendingPathComponent("transcripts.log")
         if let data = try? Data(contentsOf: fileURL),
            let text = String(data: data, encoding: .utf8)
         {
-            self.entries = text.split(separator: "\n").map(String.init).suffix(self.limit)
+            entries = text.split(separator: "\n").map(String.init).suffix(limit)
         }
     }
 
     public func append(text: String) {
-        self.entries.append(text)
-        if self.entries.count > self.limit {
-            self.entries.removeFirst(self.entries.count - self.limit)
+        entries.append(text)
+        if entries.count > limit {
+            entries.removeFirst(entries.count - limit)
         }
-        let body = self.entries.joined(separator: "\n")
-        try? body.write(to: self.fileURL, atomically: false, encoding: .utf8)
+        let body = entries.joined(separator: "\n")
+        try? body.write(to: fileURL, atomically: false, encoding: .utf8)
     }
 
-    public func latest() -> [String] { self.entries }
+    public func latest() -> [String] { entries }
 }
 
 extension String {

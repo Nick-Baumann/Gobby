@@ -17,11 +17,11 @@ public actor HookRunner {
 
     public init(config: SwabbleConfig) {
         self.config = config
-        self.hostname = Host.current().localizedName ?? "host"
+        hostname = Host.current().localizedName ?? "host"
     }
 
     public func shouldRun() -> Bool {
-        guard self.config.hook.cooldownSeconds > 0 else { return true }
+        guard config.hook.cooldownSeconds > 0 else { return true }
         if let lastRun, Date().timeIntervalSince(lastRun) < config.hook.cooldownSeconds {
             return false
         }
@@ -29,23 +29,23 @@ public actor HookRunner {
     }
 
     public func run(job: HookJob) async throws {
-        guard self.shouldRun() else { return }
-        guard !self.config.hook.command.isEmpty else { throw NSError(
+        guard shouldRun() else { return }
+        guard !config.hook.command.isEmpty else { throw NSError(
             domain: "Hook",
             code: 1,
             userInfo: [NSLocalizedDescriptionKey: "hook command not set"]) }
 
-        let prefix = self.config.hook.prefix.replacingOccurrences(of: "${hostname}", with: self.hostname)
+        let prefix = config.hook.prefix.replacingOccurrences(of: "${hostname}", with: hostname)
         let payload = prefix + job.text
 
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: self.config.hook.command)
-        process.arguments = self.config.hook.args + [payload]
+        process.executableURL = URL(fileURLWithPath: config.hook.command)
+        process.arguments = config.hook.args + [payload]
 
         var env = ProcessInfo.processInfo.environment
         env["SWABBLE_TEXT"] = job.text
         env["SWABBLE_PREFIX"] = prefix
-        for (k, v) in self.config.hook.env {
+        for (k, v) in config.hook.env {
             env[k] = v
         }
         process.environment = env
@@ -70,6 +70,6 @@ public actor HookRunner {
             try await group.next()
             group.cancelAll()
         }
-        self.lastRun = Date()
+        lastRun = Date()
     }
 }

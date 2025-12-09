@@ -35,18 +35,18 @@ public actor SpeechPipeline {
             transcriptionOptions: etiquette ? [.etiquetteReplacements] : [],
             reportingOptions: [.volatileResults],
             attributeOptions: [])
-        self.transcriber = transcriberModule
+        transcriber = transcriberModule
 
         guard let analyzerFormat = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriberModule])
         else {
             throw SpeechPipelineError.analyzerFormatUnavailable
         }
 
-        self.analyzer = SpeechAnalyzer(modules: [transcriberModule])
+        analyzer = SpeechAnalyzer(modules: [transcriberModule])
         let (stream, continuation) = AsyncStream<AnalyzerInput>.makeStream()
-        self.inputContinuation = continuation
+        inputContinuation = continuation
 
-        let inputNode = self.engine.inputNode
+        let inputNode = engine.inputNode
         let inputFormat = inputNode.outputFormat(forBus: 0)
         inputNode.removeTap(onBus: 0)
         inputNode.installTap(onBus: 0, bufferSize: 2048, format: inputFormat) { [weak self] buffer, _ in
@@ -55,11 +55,11 @@ public actor SpeechPipeline {
             Task { await self.handleBuffer(boxed.buffer, targetFormat: analyzerFormat) }
         }
 
-        self.engine.prepare()
-        try self.engine.start()
-        try await self.analyzer?.start(inputSequence: stream)
+        engine.prepare()
+        try engine.start()
+        try await analyzer?.start(inputSequence: stream)
 
-        guard let transcriberForStream = self.transcriber else {
+        guard let transcriberForStream = transcriber else {
             throw SpeechPipelineError.transcriberUnavailable
         }
 
@@ -82,18 +82,18 @@ public actor SpeechPipeline {
     }
 
     public func stop() async {
-        self.resultTask?.cancel()
-        self.inputContinuation?.finish()
-        self.engine.inputNode.removeTap(onBus: 0)
-        self.engine.stop()
-        try? await self.analyzer?.finalizeAndFinishThroughEndOfInput()
+        resultTask?.cancel()
+        inputContinuation?.finish()
+        engine.inputNode.removeTap(onBus: 0)
+        engine.stop()
+        try? await analyzer?.finalizeAndFinishThroughEndOfInput()
     }
 
     private func handleBuffer(_ buffer: AVAudioPCMBuffer, targetFormat: AVAudioFormat) async {
         do {
             let converted = try converter.convert(buffer, to: targetFormat)
             let input = AnalyzerInput(buffer: converted)
-            self.inputContinuation?.yield(input)
+            inputContinuation?.yield(input)
         } catch {
             // drop on conversion failure
         }
