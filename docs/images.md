@@ -1,6 +1,11 @@
+---
+summary: "Image and media handling rules for send, gateway, and agent replies"
+read_when:
+  - Modifying media pipeline or attachments
+---
 # Image & Media Support — 2025-12-05
 
-CLAWDIS is now **web-only** (Baileys). This document captures the current media handling rules for send, relay, and agent replies.
+CLAWDIS is now **web-only** (Baileys). This document captures the current media handling rules for send, gateway, and agent replies.
 
 ## Goals
 - Send media with optional captions via `clawdis send --media`.

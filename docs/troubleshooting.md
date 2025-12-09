@@ -1,3 +1,8 @@
+---
+summary: "Quick troubleshooting guide for common Clawdis failures"
+read_when:
+  - Investigating runtime issues or failures
+---
 # Troubleshooting 🔧
 
 When your CLAWDIS misbehaves, here's how to fix it.

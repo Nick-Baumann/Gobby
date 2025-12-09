@@ -1,3 +1,8 @@
+---
+summary: "Loopback WebChat server and SSH tunnel usage for chat UI"
+read_when:
+  - Debugging or configuring WebChat access
+---
 # WebChat (loopback + SSH tunnel)
 
 Updated: 2025-12-09

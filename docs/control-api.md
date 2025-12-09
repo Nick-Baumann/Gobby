@@ -1,3 +1,8 @@
+---
+summary: "Deprecated newline-delimited control channel API (pre-gateway)"
+read_when:
+  - Maintaining legacy control channel support
+---
 # Control channel API (newline-delimited JSON)
 
 **Deprecated:** superseded by the WebSocket Gateway protocol (`clawdis gateway`, see `docs/architecture.md` and `docs/gateway.md`). Use only for legacy builds predating the Gateway rollout.
@@ -8,13 +13,13 @@ Endpoint: `127.0.0.1:18789` (TCP, localhost only). Clients reach it via SSH port
 Each line is a JSON object. Two shapes exist:
 - **Request**: `{ "type": "request", "id": "<uuid>", "method": "health" | "status" | "last-heartbeat" | "set-heartbeats" | "ping", "params"?: { ... } }`
 - **Response**: `{ "type": "response", "id": "<same id>", "ok": true, "payload"?: { ... } }` or `{ "type": "response", "id": "<same id>", "ok": false, "error": "message" }`
-- **Event**: `{ "type": "event", "event": "heartbeat" | "relay-status" | "log", "payload": { ... } }`
+- **Event**: `{ "type": "event", "event": "heartbeat" | "gateway-status" | "log", "payload": { ... } }`
 
 ## Methods
 - `ping`: sanity check. Payload: `{ pong: true, ts }`.
-- `health`: returns the relay health snapshot (same shape as `clawdis health --json`).
+- `health`: returns the gateway health snapshot (same shape as `clawdis health --json`).
 - `status`: shorter summary (linked/authAge/heartbeatSeconds, session counts).
-- `last-heartbeat`: returns the most recent heartbeat event the relay has seen.
+- `last-heartbeat`: returns the most recent heartbeat event the gateway has seen.
 - `set-heartbeats { enabled: boolean }`: toggle heartbeat scheduling.
 
 ## Events
@@ -30,7 +35,7 @@ Each line is a JSON object. Two shapes exist:
     "reason": "<error text>" // only on failed/skipped
   }
   ```
-- `relay-status` payload: `{ "state": "starting" | "running" | "restarting" | "failed" | "stopped", "pid"?: number, "reason"?: string }`
+- `gateway-status` payload: `{ "state": "starting" | "running" | "restarting" | "failed" | "stopped", "pid"?: number, "reason"?: string }`
 - `log` payload: arbitrary log line; optional, can be disabled.
 
 ## Suggested client flow
@@ -40,4 +45,4 @@ Each line is a JSON object. Two shapes exist:
 4) For user toggles, send `set-heartbeats` and await response.
 
 ## Backward compatibility
-- If the control port is unavailable (older relay), the client may fall back to the legacy CLI path, but the intended path is to rely solely on this API.
+- If the control port is unavailable (older gateway), the client may fall back to the legacy CLI path, but the intended path is to rely solely on this API.

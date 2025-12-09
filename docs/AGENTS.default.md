@@ -1,7 +1,13 @@
+---
+summary: "Default Clawdis agent instructions and tool roster for the personal assistant setup"
+read_when:
+  - Starting a new Clawdis agent session
+  - Enabling or auditing default tools
+---
 # AGENTS.md — Clawdis Personal Assistant (default)
 
 ## What Clawdis Does
-- Runs WhatsApp relay + Pi/Tau coding agent so the assistant can read/write chats, fetch context, and run tools via the host Mac.
+- Runs WhatsApp gateway + Pi/Tau coding agent so the assistant can read/write chats, fetch context, and run tools via the host Mac.
 - macOS app manages permissions (screen recording, notifications, microphone) and exposes a CLI helper `clawdis-mac` for scripts.
 - Sessions are per-sender; heartbeats keep background tasks alive.
 

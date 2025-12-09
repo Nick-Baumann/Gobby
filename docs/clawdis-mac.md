@@ -1,3 +1,9 @@
+---
+summary: "Spec for the Clawdis macOS companion menu bar app and XPC broker"
+read_when:
+  - Implementing macOS app features
+  - Touching XPC/CLI bridging
+---
 # Clawdis macOS Companion (menu bar + XPC broker)
 
 Author: steipete · Status: draft spec · Date: 2025-12-05

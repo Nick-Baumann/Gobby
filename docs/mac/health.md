@@ -1,3 +1,8 @@
+---
+summary: "How the macOS app reports gateway/Baileys health states"
+read_when:
+  - Debugging mac app health indicators
+---
 # Health Checks on macOS
 
 How to see whether the WhatsApp Web/Baileys bridge is healthy from the menu bar app.
@@ -19,4 +24,4 @@ How to see whether the WhatsApp Web/Baileys bridge is healthy from the menu bar 
 - Cache the last good snapshot and the last error separately to avoid flicker; show the timestamp of each.
 
 ## When in doubt
-- You can still use the CLI flow in `docs/health.md` (status, heartbeat dry-run, relay heartbeat) and tail `/tmp/clawdis/clawdis.log` for `web-heartbeat` / `web-reconnect`.
+- You can still use the CLI flow in `docs/health.md` (status, heartbeat dry-run, gateway heartbeat) and tail `/tmp/clawdis/clawdis.log` for `web-heartbeat` / `web-reconnect`.

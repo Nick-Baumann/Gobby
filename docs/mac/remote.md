@@ -1,8 +1,13 @@
+---
+summary: "macOS app flow for controlling a remote Clawdis gateway over SSH"
+read_when:
+  - Setting up or debugging remote mac control
+---
 # Remote Clawdis (macOS ⇄ remote host)
 
 Updated: 2025-12-08
 
-This flow lets the macOS app act as a full remote control for a Clawdis relay running on another host (e.g. a Mac Studio). All features—health checks, permissions bootstrapping via the helper CLI, Voice Wake forwarding, and Web Chat—reuse the same remote SSH configuration from *Settings → General*.
+This flow lets the macOS app act as a full remote control for a Clawdis gateway running on another host (e.g. a Mac Studio). All features—health checks, permissions bootstrapping via the helper CLI, Voice Wake forwarding, and Web Chat—reuse the same remote SSH configuration from *Settings → General*.
 
 ## Modes
 - **Local (this Mac)**: Everything runs on the laptop. No SSH involved.
@@ -23,8 +28,8 @@ This flow lets the macOS app act as a full remote control for a Clawdis relay ru
 4) Health checks and Web Chat will now run through this SSH tunnel automatically.
 
 ## Web Chat over SSH
-- The relay hosts a loopback-only HTTP server (default 18788, see `webchat.port`).
-- The mac app forwards `127.0.0.1:<port>` over SSH (`ssh -L <ephemeral>:127.0.0.1:<port>`), then loads `/webchat/?session=<key>` in-app. Sends go in-process on the relay (no CLI spawn/PATH issues).
+- The gateway hosts a loopback-only HTTP server (default 18788, see `webchat.port`).
+- The mac app forwards `127.0.0.1:<port>` over SSH (`ssh -L <ephemeral>:127.0.0.1:<port>`), then loads `/webchat/?session=<key>` in-app. Sends go in-process on the gateway (no CLI spawn/PATH issues).
 - Keep the feature enabled in *Settings → Config → Web chat*. Disable it to hide the menu entry entirely.
 
 ## Permissions
@@ -38,14 +43,14 @@ This flow lets the macOS app act as a full remote control for a Clawdis relay ru
 ## Troubleshooting
 - **exit 127 / not found**: `clawdis` isn’t on PATH for non-login shells. Add it to `/etc/paths`, your shell rc, or symlink into `/usr/local/bin`/`/opt/homebrew/bin`.
 - **Health probe failed**: check SSH reachability, PATH, and that Baileys is logged in (`clawdis status --json`).
-- **Web Chat stuck**: confirm the relay is running on the remote host and `webchat.enabled` is true; ensure the forwarded port matches *Settings → Config*. Since RPC is in-process, PATH is no longer a factor.
+- **Web Chat stuck**: confirm the gateway is running on the remote host and `webchat.enabled` is true; ensure the forwarded port matches *Settings → Config*. Since RPC is in-process, PATH is no longer a factor.
 - **Voice Wake**: trigger phrases are forwarded automatically in remote mode; no separate forwarder is needed.
 
 ## Notification sounds
 Pick sounds per notification from scripts with the helper CLI, e.g.:
 
 ```bash
-clawdis-mac notify --title "Ping" --body "Remote relay ready" --sound Glass
+clawdis-mac notify --title "Ping" --body "Remote gateway ready" --sound Glass
 ```
 
 There is no global “default sound” toggle in the app anymore; callers choose a sound (or none) per request.

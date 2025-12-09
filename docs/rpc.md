@@ -1,6 +1,11 @@
+---
+summary: "JSON RPC contract used by the mac app to talk to the gateway"
+read_when:
+  - Changing mac app RPC or agent toggles
+---
 # Clawdis Agent RPC
 
-Live, stdin/stdout JSON RPC used by the mac app (XPC) to avoid spawning `clawdis agent --json` for every send and to toggle runtime features (e.g., heartbeats) without restarting the relay.
+Live, stdin/stdout JSON RPC used by the mac app (XPC) to avoid spawning `clawdis agent --json` for every send and to toggle runtime features (e.g., heartbeats) without restarting the gateway.
 
 ## How it is launched
 - The mac app starts `clawdis rpc` in the configured project root (`CommandResolver.projectRoot()`, defaults to `~/Projects/clawdis`).
@@ -11,7 +16,7 @@ Live, stdin/stdout JSON RPC used by the mac app (XPC) to avoid spawning `clawdis
 ### Requests (stdin)
 - `{"type":"status"}` → health ping.
 - `{"type":"send","text":"hi","session":"main","thinking":"low","deliver":false,"to":"+1555..."}` → invokes existing agent send path.
-- `{"type":"set-heartbeats","enabled":true|false}` → enables/disables web heartbeat timers in the running relay process.
+- `{"type":"set-heartbeats","enabled":true|false}` → enables/disables web heartbeat timers in the running gateway process.
 
 ### Responses (stdout)
 - `{"type":"result","ok":true,"payload":{...}}` on success.
@@ -23,8 +28,8 @@ Notes:
 
 ## Heartbeat control (new)
 - The mac menu exposes “Send heartbeats” toggle (persisted in UserDefaults).
-- On change, mac sends `set-heartbeats` RPC; the relay updates an in-memory flag and short-circuits its heartbeat timers (`web-heartbeat` logging + reply heartbeats).
-- No relay restart required.
+- On change, mac sends `set-heartbeats` RPC; the gateway updates an in-memory flag and short-circuits its heartbeat timers (`web-heartbeat` logging + reply heartbeats).
+- No gateway restart required.
 
 ## Fallbacks / safety
 - If the RPC process is not running, mac-side RPC calls fail fast and the app logs/clears state; callers may fall back to one-shot CLI where appropriate.
@@ -32,5 +37,5 @@ Notes:
 
 ## Future extensions
 - Add `abort` to cancel in-flight sends.
-- Add `compact` / `status --verbose` to return relay internals (queue depth, session info).
+- Add `compact` / `status --verbose` to return gateway internals (queue depth, session info).
 - Add a JSON schema test for the RPC contract.

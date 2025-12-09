@@ -1,7 +1,7 @@
 {
   "name": "clawdis",
   "version": "2.0.0",
-  "description": "WhatsApp relay CLI (Baileys web) with Pi RPC agent",
+  "description": "WhatsApp gateway CLI (Baileys web) with Pi RPC agent",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "tsx src/index.ts",
+    "docs:list": "tsx scripts/docs-list.ts",
     "build": "tsc -p tsconfig.json",
     "start": "tsx src/index.ts",
     "clawdis": "tsx src/index.ts",

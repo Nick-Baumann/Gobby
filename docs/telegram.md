@@ -1,3 +1,8 @@
+---
+summary: "Telegram bot support status, capabilities, and configuration"
+read_when:
+  - Working on Telegram features or webhooks
+---
 # Telegram (Bot API)
 
 Updated: 2025-12-07
@@ -12,7 +17,7 @@ Status: ready for bot-mode use with grammY (long-poll + webhook). Text + media s
 ## How it will work (Bot API)
 1) Create a bot with @BotFather and grab the token.
 2) Configure Clawdis with `TELEGRAM_BOT_TOKEN` (or `telegram.botToken` in `~/.clawdis/clawdis.json`).
-3) Run the relay; it auto-starts Telegram when the bot token is set. To force Telegram-only: `clawdis relay --provider telegram`. Webhook mode: `clawdis relay --provider telegram --webhook --port 8787 --webhook-secret <secret>` (optionally `--webhook-url` when the public URL differs).
+3) Run the gateway; it auto-starts Telegram when the bot token is set. To force Telegram-only: `clawdis gateway --provider telegram`. Webhook mode: `clawdis gateway --provider telegram --webhook --port 8787 --webhook-secret <secret>` (optionally `--webhook-url` when the public URL differs).
 4) Direct chats: user sends the first message; all subsequent turns land in the shared `main` session (default, no extra config).
 5) Groups: add the bot, disable privacy mode (or make it admin) so it can read messages; group threads stay on `group:<chatId>` and require mention/command to trigger replies.
 6) Optional allowlist: reuse `inbound.allowFrom` for direct chats by chat id (`123456789` or `telegram:123456789`).
@@ -24,7 +29,7 @@ Status: ready for bot-mode use with grammY (long-poll + webhook). Text + media s
 - Typing indicators (`sendChatAction`) supported; inline reply/threading supported where Telegram allows.
 
 ## Planned implementation details
-- Library: grammY is the only client for send + relay (fetch fallback removed); grammY throttler is enabled by default to stay under Bot API limits.
+- Library: grammY is the only client for send + gateway (fetch fallback removed); grammY throttler is enabled by default to stay under Bot API limits.
 - Inbound normalization: maps Bot API updates to `MsgContext` with `Surface: "telegram"`, `ChatType: direct|group`, `SenderName`, `MediaPath`/`MediaType` when attachments arrive, and `Timestamp`; groups require @bot mention by default.
 - Outbound: text and media (photo/video/audio/document) with optional caption; chunked to limits. Typing cue sent best-effort.
 - Config: `TELEGRAM_BOT_TOKEN` env or `telegram.botToken` required; `telegram.requireMention`, `telegram.allowFrom`, `telegram.mediaMaxMb`, `telegram.proxy`, `telegram.webhookSecret`, `telegram.webhookUrl` supported.
@@ -52,7 +57,7 @@ Example config:
 
 ## Roadmap
 - ✅ Design and defaults (this doc)
-- ✅ grammY long-poll relay + text/media send
+- ✅ grammY long-poll gateway + text/media send
 - ✅ Proxy + webhook helpers (setWebhook/deleteWebhook, health endpoint, optional public URL)
 - ⏳ Add more grammY coverage (webhook payloads, media edge cases)
 

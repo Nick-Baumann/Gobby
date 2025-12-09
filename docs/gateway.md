@@ -1,10 +1,15 @@
+---
+summary: "Runbook for the Gateway daemon, lifecycle, and operations"
+read_when:
+  - Running or debugging the gateway process
+---
 # Gateway (daemon) runbook
 
 Last updated: 2025-12-09
 
 ## What it is
 - The always-on process that owns the single Baileys/Telegram connection and the control/event plane.
-- Replaces the legacy `relay` command. CLI entry point: `clawdis gateway`.
+- Replaces the legacy `gateway` command. CLI entry point: `clawdis gateway`.
 - Runs until stopped; exits non-zero on fatal errors so the supervisor restarts it.
 
 ## How to run (local)
@@ -128,5 +133,5 @@ Enable with `systemctl enable --now clawdis-gateway.service`.
 - `clawdis gw:call <method> --params '{"k":"v"}'` — raw method invoker for debugging.
 
 ## Migration guidance
-- Retire uses of `clawdis relay` and the legacy TCP control port.
+- Retire uses of `clawdis gateway` and the legacy TCP control port.
 - Update clients to speak the WS protocol with mandatory hello and structured presence.

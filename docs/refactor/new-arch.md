@@ -1,8 +1,13 @@
+---
+summary: "Implementation plan for the new gateway architecture and protocol"
+read_when:
+  - Executing the gateway refactor
+---
 # New Gateway Architecture – Implementation Plan (detailed)
 
 Last updated: 2025-12-09
 
-Goal: replace legacy relay/stdin/TCP control with a single WebSocket Gateway, typed protocol, and first-frame snapshot. No backward compatibility.
+Goal: replace legacy gateway/stdin/TCP control with a single WebSocket Gateway, typed protocol, and first-frame snapshot. No backward compatibility.
 
 ---
 

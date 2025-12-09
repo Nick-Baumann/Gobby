@@ -1,3 +1,8 @@
+---
+summary: "Enabling verbose macOS unified logging for Clawdis with privacy flags"
+read_when:
+  - Capturing macOS logs or investigating private data logging
+---
 # Logging private data on macOS
 
 Unified logging redacts most payloads unless a subsystem opts into `privacy -off`. Per Peter's write-up on macOS [logging privacy shenanigans](https://steipete.me/posts/2025/logging-privacy-shenanigans) (2025) this is controlled by a plist in `/Library/Preferences/Logging/Subsystems/` keyed by the subsystem name. Only new log entries pick up the flag, so enable it before reproducing an issue.

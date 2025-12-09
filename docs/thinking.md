@@ -1,3 +1,8 @@
+---
+summary: "Directive syntax for /think levels and how they affect model reasoning"
+read_when:
+  - Adjusting thinking level parsing or defaults
+---
 # Thinking Levels (/think directives)
 
 ## What it does

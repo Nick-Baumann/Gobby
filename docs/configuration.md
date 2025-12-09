@@ -1,3 +1,8 @@
+---
+summary: "All configuration options for ~/.clawdis/clawdis.json with examples"
+read_when:
+  - Adding or modifying config fields
+---
 # Configuration 🔧
 
 CLAWDIS uses a JSON configuration file at `~/.clawdis/clawdis.json`.
@@ -147,7 +152,7 @@ export CLAWDIS_LOG_LEVEL=debug
 export CLAWDIS_CONFIG_PATH=~/.clawdis/clawdis.json
 ```
 
-## Migrating from Warelay
+## Migrating from Clawdis
 
 If you're upgrading from the old `clawdis` name:
 

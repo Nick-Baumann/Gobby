@@ -1,3 +1,8 @@
+---
+summary: "Session management rules, keys, and persistence for chats"
+read_when:
+  - Modifying session handling or storage
+---
 # Session Management
 
 Clawdis treats **one session as primary**. By default the canonical key is `main` for every direct chat; no configuration is required. You can rename it via `inbound.reply.session.mainKey` if you really want, but there is still only a single primary session. Older/local sessions can stay on disk, but only the primary key is used for desktop/web chat and direct agent calls.

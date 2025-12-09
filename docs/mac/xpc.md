@@ -1,8 +1,13 @@
+---
+summary: "macOS XPC architecture for Clawdis app, CLI helper, and gateway bridge"
+read_when:
+  - Editing XPC contracts or menu bar app IPC
+---
 # Clawdis macOS XPC architecture (Dec 2025)
 
 ## Goals
 - Single GUI app instance that owns all TCC-facing work (notifications, screen recording, mic, speech, AppleScript).
-- A small surface for automation: the `clawdis-mac` CLI and the Node relay talk to the app via a local XPC channel.
+- A small surface for automation: the `clawdis-mac` CLI and the Node gateway talk to the app via a local XPC channel.
 - Predictable permissions: always the same signed bundle ID, launched by launchd, so TCC grants stick.
 - Limit who can connect: only signed clients from our team (with a same-UID fallback for development).
 
@@ -10,7 +15,7 @@
 - The app registers a Mach service named `com.steipete.clawdis.xpc` via a user LaunchAgent at `~/Library/LaunchAgents/com.steipete.clawdis.plist`.
 - The launch agent runs `dist/Clawdis.app/Contents/MacOS/Clawdis` with `RunAtLoad=true`, `KeepAlive=false`, and a `MachServices` entry for the XPC name.
 - The app hosts the XPC listener (`NSXPCListener(machServiceName:)`) and exports `ClawdisXPCService`.
-- The CLI (`clawdis-mac`) connects with `NSXPCConnection(machServiceName:)`; the Node relay shells out to the CLI.
+- The CLI (`clawdis-mac`) connects with `NSXPCConnection(machServiceName:)`; the Node gateway shells out to the CLI.
 - Security: on incoming connections we read the audit token (or PID) and allow only:
   - Code-signed clients with team ID `Y5PE65HELJ`; or
   - Same-UID processes (fallback to avoid blocking local dev).

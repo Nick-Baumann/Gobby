@@ -1,3 +1,8 @@
+---
+summary: "Routing rules per surface (WhatsApp, Telegram, web) and shared context"
+read_when:
+  - Changing surface routing or inbox behavior
+---
 # Surfaces & Routing
 
 Updated: 2025-12-07
@@ -9,6 +14,6 @@ Goal: make replies deterministic per channel while keeping one shared context fo
 - **Session store:** Keys are resolved via `resolveSessionKey(scope, ctx, mainKey)`; the Tau JSONL path still lives under `~/.clawdis/sessions/<SessionId>.jsonl`.
 - **WebChat:** Always attaches to `main`, loads the full Tau transcript so desktop reflects cross-surface history, and writes new turns back to the same session.
 - **Implementation hints:**
-  - Set `Surface` in each ingress (WhatsApp relay, WebChat bridge, future Telegram). 
+  - Set `Surface` in each ingress (WhatsApp gateway, WebChat bridge, future Telegram). 
   - Keep routing deterministic: originate → same surface. Use IPC/web senders accordingly.
   - Do not let the agent emit “send to X” decisions; keep that policy in the host code.

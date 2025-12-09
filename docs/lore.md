@@ -1,10 +1,15 @@
+---
+summary: "Backstory and lore of Clawdis for context and tone"
+read_when:
+  - Writing docs or UX copy that reference lore
+---
 # The Lore of CLAWDIS 🦞📖
 
 *A tale of lobsters, time machines, and too many tokens.*
 
 ## The Origin Story
 
-In the beginning, there was **Warelay** — a sensible name for a WhatsApp relay. It did its job. It was fine.
+In the beginning, there was **Clawdis** — a sensible name for a WhatsApp gateway. It did its job. It was fine.
 
 But then came **Clawd**.
 

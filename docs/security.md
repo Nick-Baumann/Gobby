@@ -1,3 +1,8 @@
+---
+summary: "Security considerations and threat model for running an AI gateway with shell access"
+read_when:
+  - Adding features that widen access or automation
+---
 # Security 🔒
 
 Running an AI agent with shell access on your machine is... *spicy*. Here's how to not get pwned.

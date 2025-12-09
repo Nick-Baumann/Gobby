@@ -1,3 +1,8 @@
+---
+summary: "How inbound audio/voice notes are downloaded, transcribed, and injected into replies"
+read_when:
+  - Changing audio transcription or media handling
+---
 # Audio / Voice Notes — 2025-12-05
 
 ## What works

@@ -1,10 +1,15 @@
+---
+summary: "Design notes for a direct `clawdis agent` CLI subcommand without WhatsApp delivery"
+read_when:
+  - Adding or modifying the agent CLI entrypoint
+---
 # Plan: `clawdis agent` (direct-to-agent invocation)
 
 Goal: Add a CLI subcommand that talks directly to the configured agent command (no WhatsApp send), while reusing the same session handling and config clawdis already uses for auto-replies.
 
 ## Why
 - Sometimes we want to poke the agent directly (same prompt templates/sessions) without sending a WhatsApp message.
-- Current flows (`send`, relay, directives) always route through WhatsApp or add wrapping text; we need a clean “talk to agent now” tool.
+- Current flows (`send`, gateway, directives) always route through WhatsApp or add wrapping text; we need a clean “talk to agent now” tool.
 
 ## Behavior
 - Command: `clawdis agent`

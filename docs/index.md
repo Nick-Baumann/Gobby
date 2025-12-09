@@ -1,3 +1,8 @@
+---
+summary: "Top-level overview of Clawdis, features, and purpose"
+read_when:
+  - Introducing Clawdis to newcomers
+---
 # CLAWDIS 🦞
 
 > *"EXFOLIATE! EXFOLIATE!"* — A space lobster, probably
@@ -8,7 +13,7 @@
 
 ## What is this?
 
-CLAWDIS (née Warelay) bridges WhatsApp to AI coding agents like [Tau/Pi](https://github.com/badlogic/pi-mono). Send a message, get an AI response. It's like having a genius lobster on call 24/7.
+CLAWDIS bridges WhatsApp to AI coding agents like [Tau/Pi](https://github.com/badlogic/pi-mono). Send a message, get an AI response. It's like having a genius lobster on call 24/7.
 
 ```
 ┌─────────────┐      ┌──────────┐      ┌─────────────┐
@@ -66,9 +71,9 @@ clawdis status
 - [Security](./security.md) — Keeping your lobster safe
 - [Troubleshooting](./troubleshooting.md) — When the CLAWDIS misbehaves
 
-## Why "Warelay"?
+## Why "Clawdis"?
 
-The original name was **Warelay** (WhatsApp + Relay). It worked. It was fine. 
+The original name was **Clawdis** (WhatsApp + Gateway). It worked. It was fine. 
 
 But then Clawd happened, and suddenly we needed something with more... *personality*. 
 

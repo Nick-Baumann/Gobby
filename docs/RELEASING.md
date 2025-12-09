@@ -1,3 +1,10 @@
+---
+summary: "Step-by-step npm release checklist for the Clawdis CLI"
+read_when:
+  - Cutting a new npm release
+  - Verifying metadata before publishing
+---
+
 # Release Checklist (npm)
 
 Use `pnpm` (Node 22+) from the repo root. Keep the working tree clean before tagging/publishing.
@@ -20,7 +27,7 @@ Use `pnpm` (Node 22+) from the repo root. Keep the working tree clean before tag
 - [ ] `pnpm lint`
 - [ ] `pnpm test` (or `pnpm test:coverage` if you need coverage output)
 - [ ] `pnpm run build` (last sanity check after tests)
-- [ ] (Optional) Spot-check the web relay if your changes affect send/receive paths.
+- [ ] (Optional) Spot-check the web gateway if your changes affect send/receive paths.
 
 5) **Publish**
 - [ ] Confirm git status is clean; commit and push as needed.

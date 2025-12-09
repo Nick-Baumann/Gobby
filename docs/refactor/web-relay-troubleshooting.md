@@ -1,14 +1,19 @@
-# Web Relay Troubleshooting (Nov 26, 2025)
+---
+summary: "Troubleshooting guide for the web gateway/Baileys relay"
+read_when:
+  - Diagnosing web relay socket or login issues
+---
+# Web Gateway Troubleshooting (Nov 26, 2025)
 
 ## Symptoms & quick fixes
-- **Stream Errored / Conflict / status 409–515:** WhatsApp closed the socket because another session is active or creds went stale. Run `clawdis logout` then `clawdis login --provider web` and restart the relay.
+- **Stream Errored / Conflict / status 409–515:** WhatsApp closed the socket because another session is active or creds went stale. Run `clawdis logout` then `clawdis login --provider web` and restart the gateway.
 - **Logged out:** Console prints “session logged out”; re-link with `clawdis login --provider web`.
 - **Repeated retries then exit:** Reconnects are capped (default 12 attempts). Tune with `--web-retries`, `--web-retry-initial`, `--web-retry-max`, or config `web.reconnect`.
 - **No inbound messages:** Ensure the QR-linked account is online in WhatsApp, and check logs for `web-heartbeat` to confirm auth age/connection.
 - **Fast nuke:** From an allowed WhatsApp sender you can send `/restart` to kick `com.steipete.clawdis` via launchd; wait a few seconds for it to relink.
 
 ## Helpful commands
-- Start relay web-only: `pnpm clawdis gateway --provider web --verbose`
+- Start gateway web-only: `pnpm clawdis gateway --provider web --verbose`
 - Show who is linked: `pnpm clawdis gateway --provider web --verbose` (first line prints the linked E.164)
 - Logout (clear creds): `pnpm clawdis logout`
 - Relink: `pnpm clawdis login --provider web`

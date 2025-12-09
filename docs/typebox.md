@@ -1,3 +1,8 @@
+---
+summary: "TypeBox schemas as the single source of truth for the gateway protocol"
+read_when:
+  - Updating protocol schemas or codegen
+---
 # TypeBox as Protocol Source of Truth
 
 Last updated: 2025-12-09

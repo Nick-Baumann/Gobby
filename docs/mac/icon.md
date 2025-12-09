@@ -1,3 +1,8 @@
+---
+summary: "Menu bar icon states and animations for Clawdis on macOS"
+read_when:
+  - Changing menu bar icon behavior
+---
 # Menu Bar Icon States
 
 Author: steipete · Updated: 2025-12-06 · Scope: macOS app (`apps/macos`)

@@ -1,3 +1,8 @@
+---
+summary: "Command queue design that serializes auto-reply command execution"
+read_when:
+  - Changing auto-reply execution or concurrency
+---
 # Command Queue (2025-11-25)
 
 We now serialize all command-based auto-replies (WhatsApp Web listener) through a tiny in-process queue to prevent multiple commands from running at once.

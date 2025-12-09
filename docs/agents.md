@@ -1,3 +1,8 @@
+---
+summary: "Current agent integration: Pi/Tau as the sole coding agent with config examples"
+read_when:
+  - Changing agent invocation or defaults
+---
 # Agent Integration 🤖
 
 CLAWDIS now ships with a single coding agent: Pi (the Tau CLI). Legacy Claude/Codex/Gemini/Opencode paths have been removed.

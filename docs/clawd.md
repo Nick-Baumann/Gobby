@@ -1,3 +1,9 @@
+---
+summary: "End-to-end guide for running Clawdis as a personal assistant with safety cautions"
+read_when:
+  - Onboarding a new assistant instance
+  - Reviewing safety/permission implications
+---
 # Building Your Own AI Personal Assistant with clawdis
 
 > **TL;DR:** CLAWDIS (Pi/Tau only) lets you run a proactive assistant over WhatsApp. It can check in on you, remember context across conversations, run commands on your Mac, and even wake you up with music. This doc was originally written for Claude Code; where you see `claude ...`, use `pi --mode rpc ...` instead. A Pi-specific rewrite is coming soon.
@@ -205,7 +211,7 @@ clawdis heartbeat --provider web --to +1234567890 --verbose
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
 │  WhatsApp   │────▶│   clawdis   │────▶│   Claude    │────▶│  Your Mac   │
-│  (phone)    │◀────│   relay     │◀────│   CLI       │◀────│  (commands) │
+│  (phone)    │◀────│   gateway     │◀────│   CLI       │◀────│  (commands) │
 └─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
 ```
 
@@ -234,17 +240,17 @@ Inbound images/audio/video are downloaded and available as `{{MediaPath}}`. Voic
 ### Sending Media
 Include `MEDIA:/path/to/file.png` in Claude's output to attach images. clawdis handles resizing and format conversion automatically.
 
-## Starting the Relay
+## Starting the Gateway
 
 ```sh
 # Foreground (see all logs)
-clawdis relay --provider web --verbose
+clawdis gateway --provider web --verbose
 
 # With immediate heartbeat on startup
-clawdis relay --heartbeat-now
+clawdis gateway --heartbeat-now
 ```
 
-For backgrounding, run the relay under your preferred supervisor (e.g., launchd/systemd) and point it at the same `clawdis relay --provider web --verbose` command.
+For backgrounding, run the gateway under your preferred supervisor (e.g., launchd/systemd) and point it at the same `clawdis gateway --provider web --verbose` command.
 
 ## Tips for a Great Personal Assistant
 
