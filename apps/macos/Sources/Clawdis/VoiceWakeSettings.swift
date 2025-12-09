@@ -15,8 +15,6 @@ struct VoiceWakeSettings: View {
     @State private var meterError: String?
     private let meter = MicLevelMonitor()
     @State private var availableLocales: [Locale] = []
-    @State private var showForwardAdvanced = false
-    @State private var forwardStatus: VoiceWakeForwardStatus = .idle
     private let fieldLabelWidth: CGFloat = 120
     private let controlWidth: CGFloat = 240
 
@@ -470,26 +468,6 @@ struct VoiceWakeSettings: View {
     private var levelLabel: String {
         let db = (meterLevel * 50) - 50
         return String(format: "%.0f dB", db)
-    }
-
-    private func checkForwardConnection() async {
-        VoiceWakeForwarder.clearCliCache()
-        self.forwardStatus = .checking
-        let config = AppStateStore.shared.voiceWakeForwardConfig
-        let result = await VoiceWakeForwarder.checkConnection(config: config)
-        await MainActor.run {
-            switch result {
-            case .success:
-                self.forwardStatus = .ok
-            case let .failure(error):
-                self.forwardStatus = .failed(error.localizedDescription)
-            }
-        }
-    }
-
-    private func forwardConfigChanged() {
-        self.forwardStatus = .idle
-        VoiceWakeForwarder.clearCliCache()
     }
 
     @MainActor
