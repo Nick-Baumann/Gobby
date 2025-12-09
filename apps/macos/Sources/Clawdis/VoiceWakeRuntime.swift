@@ -406,19 +406,20 @@ actor VoiceWakeRuntime {
         }
     }
 
-    private func scheduleRestartRecognizer(delay: TimeInterval = 0.7) {
-        Task { [weak self] in
-            let nanos = UInt64(max(0, delay) * 1_000_000_000)
-            try? await Task.sleep(nanoseconds: nanos)
-            await self?.restartIfIdleAfterDelay()
-        }
-    }
-
-    private func restartIfIdleAfterDelay() async {
+    private func restartRecognizerIfIdleAndOverlayHidden() async {
         if self.isCapturing { return }
         let overlayVisible = await MainActor.run { VoiceWakeOverlayController.shared.isVisible }
         if overlayVisible { return }
         self.restartRecognizer()
+    }
+
+    private func scheduleRestartRecognizer(delay: TimeInterval = 0.7) {
+        Task { [weak self] in
+            let nanos = UInt64(max(0, delay) * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: nanos)
+            guard let self else { return }
+            await self.restartRecognizerIfIdleAndOverlayHidden()
+        }
     }
 
     func applyPushToTalkCooldown() {

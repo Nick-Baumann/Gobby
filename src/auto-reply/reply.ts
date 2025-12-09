@@ -287,13 +287,16 @@ export async function getReplyFromConfig(
       abortedLastRun = false;
     }
 
+    const baseEntry = !isNewSession && freshEntry ? entry : undefined;
     sessionEntry = {
+      ...baseEntry,
       sessionId,
       updatedAt: Date.now(),
       systemSent,
       abortedLastRun,
-      thinkingLevel: persistedThinking,
-      verboseLevel: persistedVerbose,
+      // Persist previously stored thinking/verbose levels when present.
+      thinkingLevel: persistedThinking ?? baseEntry?.thinkingLevel,
+      verboseLevel: persistedVerbose ?? baseEntry?.verboseLevel,
     };
     sessionStore[sessionKey] = sessionEntry;
     await saveSessionStore(storePath, sessionStore);
