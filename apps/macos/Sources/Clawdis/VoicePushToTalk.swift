@@ -216,9 +216,6 @@ actor VoicePushToTalk {
             Task.detached { [weak self, transcript, isFinal, sessionID] in
                 guard let self else { return }
                 await self.handle(transcript: transcript, isFinal: isFinal, sessionID: sessionID)
-                if isFinal {
-                    await self.finalize(transcriptOverride: transcript, reason: "speechFinal", sessionID: sessionID)
-                }
             }
         }
     }
