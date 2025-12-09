@@ -1,33 +1,39 @@
-# Web Chat (loopback + SSH tunnel)
+# WebChat (loopback + SSH tunnel)
 
-Updated: 2025-12-08
+Updated: 2025-12-09
 
-## What shipped
-- The relay now starts a loopback-only web chat server automatically (default port **18788**, configurable via `webchat.port`).
-- Endpoints:
-  - `GET /webchat/info?session=<key>` → `{port, sessionId, initialMessages, basePath}` plus history from the relay’s session store.
-  - `GET /webchat/*` → static Web Chat assets.
-  - `POST /webchat/rpc` → runs the agent in-process and returns `{ ok, payloads?, error? }` (no CLI spawn, no PATH dependency).
-- The macOS app simply loads `http://127.0.0.1:<port>/webchat/?session=<key>` (or the SSH-forwarded port in remote mode). No Swift bridge is used for sends; all chat traffic stays inside the Node relay.
-- Initial messages are fetched from `/webchat/info`, so history appears immediately.
-- Enable/disable via `webchat.enabled` (default **true**); set the port with `webchat.port`.
+## What it is
+- A local web UI for chatting with the Gateway.
+- Static assets served by the WebChat HTTP server (default port **18788**, configurable).
+- The WebChat backend holds a single WebSocket connection to the Gateway (`ws://127.0.0.1:18789` by default) for all control/data: history fetch, sends, agent runs, presence.
+- Trust model: access is granted by being on localhost or inside your SSH/Tailscale tunnel. No additional auth prompts once you can reach the box.
+- `webchat.gatewayPort` config can point at a non-default Gateway port if needed.
 
-## Security
-- Loopback only; remote access requires SSH port-forwarding.
-- No bearer token; the trust model is “local machine or your SSH tunnel”.
+## Endpoints
+- `GET /webchat/info?session=<key>` → `{ port, sessionId, initialMessages, basePath }` plus history from the Gateway session store.
+- `GET /webchat/*` → static assets.
+- `POST /webchat/rpc` → proxies a chat/agent action through the Gateway connection and returns `{ ok, payloads?, error? }`.
+
+## How it connects
+- On startup, the WebChat server dials the Gateway WebSocket and performs the mandatory `hello` handshake; the `hello-ok` snapshot seeds presence + health immediately.
+- All outgoing sends/agent calls are requests on that WS; streamed events (`agent`, `presence`, `tick`) are forwarded to the browser client.
+- If a seq gap is detected in Gateway events, WebChat auto-refreshes health + presence and broadcasts a `gateway-refresh` to connected browsers.
+- If the Gateway WS is unavailable, WebChat fails fast and surfaces the error in the UI.
+
+## Remote use
+- SSH tunnel example: `ssh -N -L 18788:127.0.0.1:18788 -L 18789:127.0.0.1:18789 user@host`.
+- Browse to `http://127.0.0.1:18788/webchat/?session=<key>` through the tunnel; the backend WS also rides the tunnel.
+
+## Config
+- `webchat.enabled` (default true)
+- `webchat.port` (default 18788)
+- Gateway WS port is set by `clawdis gateway --port`; WebChat expects it at 18789 unless overridden.
 
 ## Failure handling
-- Bootstrap errors show in-app (“Web chat failed to connect …”) instead of hanging.
-- The mac app logs tunnel and endpoint details to the `com.steipete.clawdis/WebChat` subsystem.
+- Clear UI error when the Gateway handshake fails or the WS drops.
+- WebChat does not attempt fallback transports; the Gateway WS is required.
 
 ## Dev notes
-- Static assets stay in `apps/macos/Sources/Clawdis/Resources/WebChat`; the server reads them directly.
-- Server code: `src/webchat/server.ts`.
-- CLI entrypoint (optional): `clawdis webchat --json [--port N]` to query/start manually.
-- RPC send path is in-process; the relay does not spawn `clawdis` or rely on PATH.
-- Mac glue: `WebChatWindow.swift` (bootstrap + tunnel) and `WebChatTunnel` (SSH -L).
-
-## TODO / nice-to-haves
-- Enforce token by default once mobile/remote auth flows are in place.
-- Stream responses instead of one-shot payloads.
-- Expose a readiness endpoint for health checks.
+- Assets live in `apps/macos/Sources/Clawdis/Resources/WebChat`.
+- Server implementation: `src/webchat/server.ts`.
+- macOS glue: `WebChatWindow.swift` + `WebChatTunnel` for SSH -L helpers.
