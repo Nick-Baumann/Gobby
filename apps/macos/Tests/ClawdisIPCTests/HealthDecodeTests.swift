@@ -5,7 +5,7 @@ import Testing
 @Suite struct HealthDecodeTests {
     private let sampleJSON: String = // minimal but complete payload
         """
-        {"ts":1733622000,"durationMs":420,"web":{"linked":true,"authAgeMs":120000,"connect":{"ok":true,"status":200,"error":null,"elapsedMs":800}},"heartbeatSeconds":60,"sessions":{"path":"/tmp/sessions.json","count":1,"recent":[{"key":"abc","updatedAt":1733621900,"age":120000}]},"ipc":{"path":"/tmp/ipc.sock","exists":true}}
+        {"ts":1733622000,"durationMs":420,"web":{"linked":true,"authAgeMs":120000,"connect":{"ok":true,"status":200,"error":null,"elapsedMs":800}},"heartbeatSeconds":60,"sessions":{"path":"/tmp/sessions.json","count":1,"recent":[{"key":"abc","updatedAt":1733621900,"age":120000}]}}
         """
 
     @Test func decodesCleanJSON() async throws {

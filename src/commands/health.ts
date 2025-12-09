@@ -54,7 +54,6 @@ export type HealthSummary = {
       age: number | null;
     }>;
   };
-  ipc: { path: string; exists: boolean };
 };
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -209,9 +208,6 @@ export async function getHealthSnapshot(
     age: s.updatedAt ? Date.now() - s.updatedAt : null,
   }));
 
-  const ipcPath = path.join(process.env.HOME ?? "", ".clawdis", "clawdis.sock");
-  const ipcExists = Boolean(ipcPath) && fs.existsSync(ipcPath);
-
   const start = Date.now();
   const cappedTimeout = Math.max(1000, timeoutMs ?? DEFAULT_TIMEOUT_MS);
   const connect = linked ? await probeWebConnect(cappedTimeout) : undefined;
@@ -235,7 +231,6 @@ export async function getHealthSnapshot(
       count: sessions.length,
       recent,
     },
-    ipc: { path: ipcPath, exists: ipcExists },
   };
 
   return summary;
@@ -300,11 +295,6 @@ export async function healthCommand(
         );
       }
     }
-    runtime.log(
-      info(
-        `IPC socket: ${summary.ipc.exists ? "present" : "missing"} (${summary.ipc.path})`,
-      ),
-    );
   }
 
   if (fatal) {

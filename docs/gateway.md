@@ -127,10 +127,11 @@ Enable with `systemctl enable --now clawdis-gateway.service`.
 - Graceful shutdown: emit `shutdown` event before closing; clients must handle close + reconnect.
 
 ## CLI helpers
-- `clawdis gw:health` / `gw:status` — request health/status over the Gateway WS.
-- `clawdis gw:send --to <num> --message "hi" [--media-url ...]` — send via Gateway (idempotent).
-- `clawdis gw:agent --message "hi" [--to ...]` — run an agent turn (waits for final by default).
-- `clawdis gw:call <method> --params '{"k":"v"}'` — raw method invoker for debugging.
+- `clawdis gateway health|status` — request health/status over the Gateway WS.
+- `clawdis gateway send --to <num> --message "hi" [--media-url ...]` — send via Gateway (idempotent).
+- `clawdis gateway agent --message "hi" [--to ...]` — run an agent turn (waits for final by default).
+- `clawdis gateway call <method> --params '{"k":"v"}'` — raw method invoker for debugging.
+- All gateway helpers accept `--spawn-gateway` to start a local gateway if none is listening on `--url`.
 
 ## Migration guidance
 - Retire uses of `clawdis gateway` and the legacy TCP control port.

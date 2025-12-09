@@ -103,7 +103,7 @@ Goal: replace legacy gateway/stdin/TCP control with a single WebSocket Gateway, 
   - Remove immediate `health/system-presence` fetch on connect. ✅ presence hydrated from snapshot; periodic refresh kept as fallback.
   - Handle `hello-error` and retry with backoff if version/token mismatched. ✅ macOS GatewayChannel reconnects with exponential backoff.
 - **CLI**:
-  - Add lightweight WS client helper for `status/health/send/agent` when Gateway is up. ✅ `gw:*` commands use the Gateway over WS.
+- Add lightweight WS client helper for `status/health/send/agent` when Gateway is up. ✅ `gateway` subcommands use the Gateway over WS.
   - Consider a “local only” flag to avoid accidental remote connects. (optional; not needed with tunnel-first model.)
 - **WebChat backend**:
   - Single WS to Gateway; seed UI from snapshot; forward `presence/tick/agent` to browser. ✅ implemented via `GatewayClient` in `webchat/server.ts`.

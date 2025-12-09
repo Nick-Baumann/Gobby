@@ -4,6 +4,11 @@ import OSLog
 import SwiftUI
 
 struct HealthSnapshot: Codable, Sendable {
+    struct Ipc: Codable, Sendable {
+        let exists: Bool?
+        let path: String?
+    }
+
     struct Web: Codable, Sendable {
         struct Connect: Codable, Sendable {
             let ok: Bool
@@ -29,17 +34,12 @@ struct HealthSnapshot: Codable, Sendable {
         let recent: [SessionInfo]
     }
 
-    struct IPC: Codable, Sendable {
-        let path: String
-        let exists: Bool
-    }
-
     let ts: Double
     let durationMs: Double
     let web: Web
+    let ipc: Ipc?
     let heartbeatSeconds: Int?
     let sessions: Sessions
-    let ipc: IPC
 }
 
 enum HealthState: Equatable {
@@ -176,9 +176,6 @@ final class HealthStore: ObservableObject {
             let code = connect.status.map { "status \($0)" } ?? "status unknown"
             let reason = connect.error ?? "connect failed"
             return "\(reason) (\(code), \(elapsed))"
-        }
-        if !snap.ipc.exists {
-            return "IPC socket missing at \(snap.ipc.path)"
         }
         if let fallback, !fallback.isEmpty {
             return fallback
