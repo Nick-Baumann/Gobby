@@ -734,9 +734,17 @@ export async function startGatewayServer(port = 18789): Promise<GatewayServer> {
   // Start loopback WebChat server (unless disabled via config).
   void ensureWebChatServerFromConfig({
     gatewayUrl: `ws://127.0.0.1:${port}`,
-  }).catch((err) => {
-    logError(`gateway: webchat failed to start: ${String(err)}`);
-  });
+  })
+    .then((webchat) => {
+      if (webchat) {
+        defaultRuntime.log(
+          `webchat listening on http://127.0.0.1:${webchat.port}/`,
+        );
+      }
+    })
+    .catch((err) => {
+      logError(`gateway: webchat failed to start: ${String(err)}`);
+    });
 
   // Launch configured providers (WhatsApp Web, Telegram) so gateway replies via the
   // surface the message came from. Tests can opt out via CLAWDIS_SKIP_PROVIDERS.

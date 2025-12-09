@@ -4,7 +4,6 @@ const sendCommand = vi.fn();
 const statusCommand = vi.fn();
 const loginWeb = vi.fn();
 const startWebChatServer = vi.fn(async () => ({ port: 18788 }));
-const ensureWebChatServerFromConfig = vi.fn(async () => ({ port: 18788 }));
 
 const runtime = {
   log: vi.fn(),
@@ -22,7 +21,6 @@ vi.mock("../provider-web.js", () => ({
 }));
 vi.mock("../webchat/server.js", () => ({
   startWebChatServer,
-  ensureWebChatServerFromConfig,
   getWebChatServer: () => null,
 }));
 vi.mock("./deps.js", () => ({
