@@ -10,6 +10,7 @@ import { statusCommand } from "../commands/status.js";
 import { callGateway, randomIdempotencyKey } from "../gateway/call.js";
 import { startGatewayServer } from "../gateway/server.js";
 import { danger, info, setVerbose } from "../globals.js";
+import { GatewayLockError } from "../infra/gateway-lock.js";
 import { loginWeb, logoutWeb } from "../provider-web.js";
 import { runRpcLoop } from "../rpc/loop.js";
 import { defaultRuntime } from "../runtime.js";
@@ -325,6 +326,11 @@ Examples:
       try {
         await startGatewayServer(port);
       } catch (err) {
+        if (err instanceof GatewayLockError) {
+          defaultRuntime.error(`Gateway failed to start: ${err.message}`);
+          defaultRuntime.exit(1);
+          return;
+        }
         defaultRuntime.error(`Gateway failed to start: ${String(err)}`);
         defaultRuntime.exit(1);
       }

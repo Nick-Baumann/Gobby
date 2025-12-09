@@ -1,6 +1,7 @@
 import Foundation
 import OSLog
 import Subprocess
+import Network
 #if canImport(Darwin)
 import Darwin
 #endif
@@ -153,6 +154,10 @@ final class GatewayProcessManager: ObservableObject {
         self.appendLog("[gateway] starting: \(command.joined(separator: " ")) (cwd: \(cwd))\n")
 
         do {
+            // Acquire the same UDS lock the CLI uses to guarantee a single instance.
+            let lockPath = FileManager.default.temporaryDirectory.appendingPathComponent("clawdis-gateway.lock").path
+            let listener = try self.acquireGatewayLock(path: lockPath)
+
             let result = try await run(
                 .name(command.first ?? "clawdis"),
                 arguments: Arguments(Array(command.dropFirst())),
@@ -168,10 +173,29 @@ final class GatewayProcessManager: ObservableObject {
                 await err
             }
 
+            // Release the lock after the process exits.
+            listener.cancel()
+
             await self.handleTermination(status: result.terminationStatus)
         } catch {
             await self.handleError(error)
         }
+    }
+
+    /// Minimal clone of the Node gateway lock: bind a UDS and return the listener.
+    private func acquireGatewayLock(path: String) throws -> NWListener {
+        // Remove stale socket if needed
+        try? FileManager.default.removeItem(atPath: path)
+        let params = NWParameters.tcp
+        params.allowLocalEndpointReuse = false
+        let endpoint = NWEndpoint.unix(path: path)
+        let listener = try NWListener(using: params, on: endpoint)
+        listener.newConnectionHandler = { connection in
+            // Any new connection indicates another starter; reject.
+            connection.cancel()
+        }
+        listener.start(queue: .global())
+        return listener
     }
 
     private func didStart(_ execution: Execution) {

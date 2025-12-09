@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import os from "node:os";
 import { type WebSocket, WebSocketServer } from "ws";
+import { GatewayLockError, acquireGatewayLock } from "../infra/gateway-lock.js";
 import { createDefaultDeps } from "../cli/deps.js";
 import { agentCommand } from "../commands/agent.js";
 import { getHealthSnapshot } from "../commands/health.js";
@@ -102,6 +103,12 @@ function formatError(err: unknown): string {
 }
 
 export async function startGatewayServer(port = 18789): Promise<GatewayServer> {
+  const releaseLock = await acquireGatewayLock().catch((err) => {
+    // Bubble known lock errors so callers can present a nice message.
+    if (err instanceof GatewayLockError) throw err;
+    throw new GatewayLockError(String(err));
+  });
+
   const wss = new WebSocketServer({
     port,
     host: "127.0.0.1",
@@ -623,6 +630,7 @@ export async function startGatewayServer(port = 18789): Promise<GatewayServer> {
 
   return {
     close: async () => {
+      await releaseLock();
       providerAbort.abort();
       broadcast("shutdown", {
         reason: "gateway stopping",
