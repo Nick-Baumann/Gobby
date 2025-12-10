@@ -812,41 +812,6 @@ export async function runCommandReply(
     let killedUsed = killed;
     let rpcAssistantText = extractRpcAssistantText(stdoutUsed);
     let rawStdout = stdoutUsed.trim();
-    const _rpcUserEmpty =
-      /"role":"user","content":\[\{"type":"text","text":""\}\]/.test(rawStdout);
-    const anthropicNoMessages = rawStdout.includes(
-      "messages: at least one message is required",
-    );
-    const shouldRetryJson =
-      preferRpc && body.trim().length > 0 && anthropicNoMessages;
-    if (shouldRetryJson) {
-      const jsonArgv = (() => {
-        const copy = [...finalArgv];
-        const idx = copy.indexOf("--mode");
-        if (idx >= 0 && copy[idx + 1]) copy[idx + 1] = "json";
-        else copy.push("--mode", "json");
-        return copy;
-      })();
-      logVerbose(
-        `pi rpc returned empty user text; retrying with json mode: ${jsonArgv.join(" ")}`,
-      );
-      try {
-        const fallback = await runJsonFallback({
-          argv: jsonArgv,
-          cwd: reply.cwd,
-          timeoutMs,
-        });
-        stdoutUsed = fallback.stdout;
-        stderrUsed = fallback.stderr;
-        codeUsed = fallback.code;
-        signalUsed = fallback.signal ?? null;
-        killedUsed = fallback.killed;
-        rpcAssistantText = extractRpcAssistantText(stdoutUsed);
-        rawStdout = stdoutUsed.trim();
-      } catch (err) {
-        logVerbose(`json fallback failed: ${String(err)}`);
-      }
-    }
     let mediaFromCommand: string[] | undefined;
     const trimmed = stripRpcNoise(rawStdout);
     if (stderrUsed?.trim()) {
