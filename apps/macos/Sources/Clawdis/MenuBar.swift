@@ -168,6 +168,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSXPCListenerDelegate 
             PresenceReporter.shared.start()
         }
         Task { await HealthStore.shared.refresh(onDemand: true) }
+        Task {
+            let mode = AppStateStore.shared.connectionMode
+            await PortGuardian.shared.sweep(mode: mode)
+        }
         self.startListener()
         self.scheduleFirstRunOnboardingIfNeeded()
 
