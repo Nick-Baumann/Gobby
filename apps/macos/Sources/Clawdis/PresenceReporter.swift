@@ -10,6 +10,7 @@ final class PresenceReporter {
     private let logger = Logger(subsystem: "com.steipete.clawdis", category: "presence")
     private var task: Task<Void, Never>?
     private let interval: TimeInterval = 180 // a few minutes
+    private let instanceId: String = Host.current().localizedName ?? UUID().uuidString
 
     func start() {
         guard self.task == nil else { return }
@@ -31,9 +32,22 @@ final class PresenceReporter {
     @Sendable
     private func push(reason: String) async {
         let mode = await MainActor.run { AppStateStore.shared.connectionMode.rawValue }
+        let host = Host.current().localizedName ?? "unknown-host"
+        let ip = Self.primaryIPv4Address() ?? "ip-unknown"
+        let version = Self.appVersionString()
+        let lastInput = Self.lastInputSeconds()
         let text = Self.composePresenceSummary(mode: mode, reason: reason)
+        var params: [String: AnyHashable] = [
+            "instanceId": AnyHashable(self.instanceId),
+            "host": AnyHashable(host),
+            "ip": AnyHashable(ip),
+            "mode": AnyHashable(mode),
+            "version": AnyHashable(version),
+            "reason": AnyHashable(reason),
+        ]
+        if let lastInput { params["lastInputSeconds"] = AnyHashable(lastInput) }
         do {
-            try await ControlChannel.shared.sendSystemEvent(text)
+            try await ControlChannel.shared.sendSystemEvent(text, params: params)
         } catch {
             self.logger.error("presence send failed: \(error.localizedDescription, privacy: .public)")
         }

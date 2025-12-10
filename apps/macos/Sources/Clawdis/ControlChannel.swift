@@ -184,8 +184,10 @@ final class ControlChannel: ObservableObject {
         return "Gateway error: \(detail)"
     }
 
-    func sendSystemEvent(_ text: String) async throws {
-        _ = try await self.request(method: "system-event", params: ["text": AnyHashable(text)])
+    func sendSystemEvent(_ text: String, params: [String: AnyHashable] = [:]) async throws {
+        var merged = params
+        merged["text"] = AnyHashable(text)
+        _ = try await self.request(method: "system-event", params: merged)
     }
 
     private func startEventStream() {
