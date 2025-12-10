@@ -541,14 +541,18 @@ final class WebChatTunnel {
     }
 
     deinit {
+        let pid = self.process.processIdentifier
         self.process.terminate()
+        Task { await PortGuardian.shared.removeRecord(pid: pid) }
     }
 
     func terminate() {
+        let pid = self.process.processIdentifier
         if self.process.isRunning {
             self.process.terminate()
             self.process.waitUntilExit()
         }
+        Task { await PortGuardian.shared.removeRecord(pid: pid) }
     }
 
     static func create(remotePort: Int, preferredLocalPort: UInt16? = nil) async throws -> WebChatTunnel {
@@ -588,6 +592,14 @@ final class WebChatTunnel {
             webChatLogger.error("webchat tunnel stderr: \(line, privacy: .public)")
         }
         try process.run()
+        // Track tunnel so we can clean up stale listeners on restart.
+        Task {
+            await PortGuardian.shared.record(
+                port: Int(localPort),
+                pid: process.processIdentifier,
+                command: process.executableURL?.path ?? "ssh",
+                mode: CommandResolver.connectionSettings().mode)
+        }
 
         return WebChatTunnel(process: process, localPort: localPort)
     }

@@ -46,6 +46,8 @@ final class GatewayProcessManager: ObservableObject {
     @Published private(set) var existingGatewayDetails: String?
 
     private var execution: Execution?
+    private var lastPid: Int32?
+    private var lastCommand: [String]?
     private var desiredActive = false
     private var stopping = false
     private var recentCrashes: [Date] = []
@@ -167,6 +169,7 @@ final class GatewayProcessManager: ObservableObject {
 
         let cwd = self.defaultProjectRoot().path
         self.appendLog("[gateway] starting: \(command.joined(separator: " ")) (cwd: \(cwd))\n")
+        self.lastCommand = command
 
         do {
             // Acquire the same UDS lock the CLI uses to guarantee a single instance.
@@ -214,7 +217,15 @@ final class GatewayProcessManager: ObservableObject {
         self.execution = execution
         self.stopping = false
         self.status = .running(pid: execution.processIdentifier.value)
+        self.lastPid = execution.processIdentifier.value
         self.logger.info("gateway started pid \(execution.processIdentifier.value)")
+        Task {
+            await PortGuardian.shared.record(
+                port: GatewayEnvironment.gatewayPort(),
+                pid: execution.processIdentifier.value,
+                command: (self.lastCommand ?? []).joined(separator: " "),
+                mode: AppStateStore.shared.connectionMode)
+        }
     }
 
     private func handleTermination(status: TerminationStatus) async {
@@ -224,9 +235,17 @@ final class GatewayProcessManager: ObservableObject {
         }
 
         self.execution = nil
+        if let pid = self.lastPid {
+            Task { await PortGuardian.shared.removeRecord(pid: pid) }
+        }
+        self.lastPid = nil
+        self.lastCommand = nil
         if self.stopping || !self.desiredActive {
             self.status = .stopped
             self.stopping = false
+            if let pid = self.lastPid {
+                Task { await PortGuardian.shared.removeRecord(pid: pid) }
+            }
             return
         }
 
