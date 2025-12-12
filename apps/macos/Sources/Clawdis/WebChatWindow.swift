@@ -29,6 +29,7 @@ final class WebChatWindowController: NSWindowController, WKNavigationDelegate, N
     private var tunnel: WebChatTunnel?
     private var baseEndpoint: URL?
     private let remotePort: Int
+    private var resolvedGatewayPort: Int?
     private var reachabilityTask: Task<Void, Never>?
     private var tunnelRestartEnabled = false
     private var bootWatchTask: Task<Void, Never>?
@@ -163,6 +164,7 @@ final class WebChatWindowController: NSWindowController, WKNavigationDelegate, N
                     code: 5,
                     userInfo: [NSLocalizedDescriptionKey: "Web chat disabled in settings"])
             }
+            self.resolvedGatewayPort = try await self.prepareGatewayPort()
             let endpoint = try await self.prepareEndpoint(remotePort: self.remotePort)
             self.baseEndpoint = endpoint
             self.reachabilityTask?.cancel()
@@ -182,6 +184,14 @@ final class WebChatWindowController: NSWindowController, WKNavigationDelegate, N
         }
     }
 
+    private func prepareGatewayPort() async throws -> Int {
+        if CommandResolver.connectionModeIsRemote() {
+            let forwarded = try await RemoteTunnelManager.shared.ensureControlTunnel()
+            return Int(forwarded)
+        }
+        return GatewayEnvironment.gatewayPort()
+    }
+
     private func prepareEndpoint(remotePort: Int) async throws -> URL {
         if CommandResolver.connectionModeIsRemote() {
             try await self.startOrRestartTunnel()
@@ -196,6 +206,9 @@ final class WebChatWindowController: NSWindowController, WKNavigationDelegate, N
             comps?.path = "/"
         }
         var items = [URLQueryItem(name: "session", value: self.sessionKey)]
+        let gatewayPort = self.resolvedGatewayPort ?? GatewayEnvironment.gatewayPort()
+        items.append(URLQueryItem(name: "gatewayPort", value: String(gatewayPort)))
+        items.append(URLQueryItem(name: "gatewayHost", value: baseEndpoint.host ?? "127.0.0.1"))
         if let hostName = Host.current().localizedName ?? Host.current().name {
             items.append(URLQueryItem(name: "host", value: hostName))
         }
@@ -621,12 +634,15 @@ final class WebChatManager {
     func openInBrowser(sessionKey: String) async {
         let port = AppStateStore.webChatPort
         let base: URL
+        let gatewayPort: Int
         if CommandResolver.connectionModeIsRemote() {
             do {
                 // Prefer the configured port; fall back if busy.
                 let tunnel = try await WebChatTunnel.create(
                     remotePort: port,
                     preferredLocalPort: UInt16(port))
+                let forwarded = try await RemoteTunnelManager.shared.ensureControlTunnel()
+                gatewayPort = Int(forwarded)
                 self.browserTunnel?.terminate()
                 self.browserTunnel = tunnel
                 guard let local = tunnel.localPort else {
@@ -641,12 +657,17 @@ final class WebChatManager {
                 return
             }
         } else {
+            gatewayPort = GatewayEnvironment.gatewayPort()
             base = URL(string: "http://127.0.0.1:\(port)/")!
         }
 
         var comps = URLComponents(url: base, resolvingAgainstBaseURL: false)
         comps?.path = "/webchat/"
-        comps?.queryItems = [URLQueryItem(name: "session", value: sessionKey)]
+        comps?.queryItems = [
+            URLQueryItem(name: "session", value: sessionKey),
+            URLQueryItem(name: "gatewayPort", value: String(gatewayPort)),
+            URLQueryItem(name: "gatewayHost", value: base.host ?? "127.0.0.1"),
+        ]
         guard let url = comps?.url else { return }
         NSWorkspace.shared.open(url)
     }
