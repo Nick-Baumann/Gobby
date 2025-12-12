@@ -62,6 +62,7 @@ describe("directive parsing", () => {
       {},
       {
         inbound: {
+          allowFrom: ["*"],
           reply: {
             mode: "command",
             command: ["pi", "{{Body}}"],

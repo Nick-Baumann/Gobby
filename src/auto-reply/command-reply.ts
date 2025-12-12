@@ -611,7 +611,9 @@ export async function runCommandReply(
       streamedAny = true;
     };
 
-    const preferRpc = process.env.CLAWDIS_USE_PI_RPC === "1";
+    // Default to RPC (it is testable/offline and avoids spawning long-lived CLI processes).
+    // Set `CLAWDIS_USE_PI_RPC=0` to force the JSON fallback path.
+    const preferRpc = process.env.CLAWDIS_USE_PI_RPC !== "0";
 
     const run = async () => {
       const runId = params.runId ?? crypto.randomUUID();

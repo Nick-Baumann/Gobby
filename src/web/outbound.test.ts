@@ -1,22 +1,7 @@
-import type { AnyMessageContent } from "@whiskeysockets/baileys";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resetLogger, setLoggerOverride } from "../logging.js";
-
-vi.mock("./session.js", () => {
-  const { EventEmitter } = require("node:events");
-  const ev = new EventEmitter();
-  const sock = {
-    ev,
-    ws: { close: vi.fn() },
-    sendPresenceUpdate: vi.fn().mockResolvedValue(undefined),
-    sendMessage: vi.fn().mockResolvedValue({ key: { id: "msg123" } }),
-  };
-  return {
-    createWaSocket: vi.fn().mockResolvedValue(sock),
-    waitForWaConnection: vi.fn().mockResolvedValue(undefined),
-  };
-});
+import { setActiveWebListener } from "./active-listener.js";
 
 const loadWebMediaMock = vi.fn();
 vi.mock("./media.js", () => ({
@@ -25,23 +10,34 @@ vi.mock("./media.js", () => ({
 
 import { sendMessageWhatsApp } from "./outbound.js";
 
-const { createWaSocket } = await import("./session.js");
-
 describe("web outbound", () => {
+  const sendComposingTo = vi.fn(async () => {});
+  const sendMessage = vi.fn(async () => ({ messageId: "msg123" }));
+
   beforeEach(() => {
     vi.clearAllMocks();
+    setActiveWebListener({ sendComposingTo, sendMessage });
   });
 
   afterEach(() => {
     resetLogger();
     setLoggerOverride(null);
+    setActiveWebListener(null);
   });
 
-  it("sends message via web and closes socket", async () => {
-    await sendMessageWhatsApp("+1555", "hi", { verbose: false });
-    const sock = await createWaSocket();
-    expect(sock.sendMessage).toHaveBeenCalled();
-    expect(sock.ws.close).toHaveBeenCalled();
+  it("sends message via active listener", async () => {
+    const result = await sendMessageWhatsApp("+1555", "hi", { verbose: false });
+    expect(result).toEqual({
+      messageId: "msg123",
+      toJid: "1555@s.whatsapp.net",
+    });
+    expect(sendComposingTo).toHaveBeenCalledWith("+1555");
+    expect(sendMessage).toHaveBeenCalledWith(
+      "+1555",
+      "hi",
+      undefined,
+      undefined,
+    );
   });
 
   it("maps audio to PTT with opus mime when ogg", async () => {
@@ -55,16 +51,12 @@ describe("web outbound", () => {
       verbose: false,
       mediaUrl: "/tmp/voice.ogg",
     });
-    const sock = await createWaSocket();
-    const [, payload] = sock.sendMessage.mock.calls.at(-1) as [
-      string,
-      AnyMessageContent,
-    ];
-    expect(payload).toMatchObject({
-      audio: buf,
-      ptt: true,
-      mimetype: "audio/ogg; codecs=opus",
-    });
+    expect(sendMessage).toHaveBeenLastCalledWith(
+      "+1555",
+      "voice note",
+      buf,
+      "audio/ogg; codecs=opus",
+    );
   });
 
   it("maps video with caption", async () => {
@@ -78,16 +70,12 @@ describe("web outbound", () => {
       verbose: false,
       mediaUrl: "/tmp/video.mp4",
     });
-    const sock = await createWaSocket();
-    const [, payload] = sock.sendMessage.mock.calls.at(-1) as [
-      string,
-      AnyMessageContent,
-    ];
-    expect(payload).toMatchObject({
-      video: buf,
-      caption: "clip",
-      mimetype: "video/mp4",
-    });
+    expect(sendMessage).toHaveBeenLastCalledWith(
+      "+1555",
+      "clip",
+      buf,
+      "video/mp4",
+    );
   });
 
   it("maps image with caption", async () => {
@@ -101,16 +89,12 @@ describe("web outbound", () => {
       verbose: false,
       mediaUrl: "/tmp/pic.jpg",
     });
-    const sock = await createWaSocket();
-    const [, payload] = sock.sendMessage.mock.calls.at(-1) as [
-      string,
-      AnyMessageContent,
-    ];
-    expect(payload).toMatchObject({
-      image: buf,
-      caption: "pic",
-      mimetype: "image/jpeg",
-    });
+    expect(sendMessage).toHaveBeenLastCalledWith(
+      "+1555",
+      "pic",
+      buf,
+      "image/jpeg",
+    );
   });
 
   it("maps other kinds to document with filename", async () => {
@@ -125,16 +109,11 @@ describe("web outbound", () => {
       verbose: false,
       mediaUrl: "/tmp/file.pdf",
     });
-    const sock = await createWaSocket();
-    const [, payload] = sock.sendMessage.mock.calls.at(-1) as [
-      string,
-      AnyMessageContent,
-    ];
-    expect(payload).toMatchObject({
-      document: buf,
-      fileName: "file.pdf",
-      caption: "doc",
-      mimetype: "application/pdf",
-    });
+    expect(sendMessage).toHaveBeenLastCalledWith(
+      "+1555",
+      "doc",
+      buf,
+      "application/pdf",
+    );
   });
 });
