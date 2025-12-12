@@ -212,19 +212,13 @@ final class ControlChannel: ObservableObject {
                   let frame = note.object as? GatewayFrame else { return }
             switch frame {
             case let .event(evt) where evt.event == "agent":
-                if let data = evt.payload?.value,
-                   JSONSerialization.isValidJSONObject(data),
-                   let blob = try? JSONSerialization.data(withJSONObject: data),
-                   let agent = try? JSONDecoder().decode(AgentEvent.self, from: blob)
+                if let payload = evt.payload,
+                   let payloadData = try? JSONEncoder().encode(payload),
+                   let agent = try? JSONDecoder().decode(ControlAgentEvent.self, from: payloadData)
                 {
                     Task { @MainActor in
-                        AgentEventStore.shared.append(ControlAgentEvent(
-                            runId: agent.runid,
-                            seq: agent.seq,
-                            stream: agent.stream,
-                            ts: Double(agent.ts),
-                            data: agent.data.mapValues { Clawdis.AnyCodable($0.value) },
-                            summary: nil))
+                        AgentEventStore.shared.append(agent)
+                        self.routeWorkActivity(from: agent)
                     }
                 }
             case let .event(evt) where evt.event == "shutdown":
@@ -241,6 +235,32 @@ final class ControlChannel: ObservableObject {
             Task { @MainActor [weak self] in self?.state = .connected }
         }
         self.eventTokens = [ev, tick]
+    }
+
+    private func routeWorkActivity(from event: ControlAgentEvent) {
+        // We currently treat VoiceWake as the "main" session for UI purposes.
+        // In the future, the gateway can include a sessionKey to distinguish runs.
+        let sessionKey = (event.data["sessionKey"]?.value as? String) ?? "main"
+
+        switch event.stream.lowercased() {
+        case "job":
+            if let state = event.data["state"]?.value as? String {
+                WorkActivityStore.shared.handleJob(sessionKey: sessionKey, state: state)
+            }
+        case "tool":
+            let phase = event.data["phase"]?.value as? String ?? ""
+            let name = event.data["name"]?.value as? String
+            let meta = event.data["meta"]?.value as? String
+            let args = event.data["args"]?.value as? [String: AnyCodable]
+            WorkActivityStore.shared.handleTool(
+                sessionKey: sessionKey,
+                phase: phase,
+                name: name,
+                meta: meta,
+                args: args)
+        default:
+            break
+        }
     }
 }
 
