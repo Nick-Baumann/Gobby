@@ -406,8 +406,11 @@ enum CritterIconRenderer {
         case .overridden: 0.85
         }
 
-        let diameter = canvas.snapX(canvas.w * 0.44) // ~8pt on an 18pt canvas
-        let margin = canvas.snapX(max(0.6, canvas.w * 0.04))
+        // Bigger, higher-contrast badge:
+        // - Increase diameter so tool activity is noticeable.
+        // - Use a filled "puck" background and knock the symbol out (clear) so it reads on both light/dark menu bars.
+        let diameter = canvas.snapX(canvas.w * 0.52 * (0.92 + 0.08 * strength)) // ~9–10pt on an 18pt canvas
+        let margin = canvas.snapX(max(0.45, canvas.w * 0.03))
         let rect = CGRect(
             x: canvas.snapX(canvas.w - diameter - margin),
             y: canvas.snapY(margin),
@@ -420,36 +423,39 @@ enum CritterIconRenderer {
         // Clear the underlying pixels so the badge stays readable over the critter.
         canvas.context.saveGState()
         canvas.context.setBlendMode(.clear)
-        canvas.context.addEllipse(in: rect.insetBy(dx: -0.7, dy: -0.7))
+        canvas.context.addEllipse(in: rect.insetBy(dx: -1.0, dy: -1.0))
         canvas.context.fillPath()
         canvas.context.restoreGState()
 
-        let fillAlpha: CGFloat = 0.33 * strength
-        let strokeAlpha: CGFloat = 0.92 * strength
-        let symbolAlpha: CGFloat = 0.98 * strength
+        let fillAlpha: CGFloat = min(1.0, 0.62 + 0.30 * strength)
+        let strokeAlpha: CGFloat = min(1.0, 0.78 + 0.22 * strength)
 
         canvas.context.setFillColor(NSColor.labelColor.withAlphaComponent(fillAlpha).cgColor)
         canvas.context.addEllipse(in: rect)
         canvas.context.fillPath()
 
         canvas.context.setStrokeColor(NSColor.labelColor.withAlphaComponent(strokeAlpha).cgColor)
-        canvas.context.setLineWidth(max(1.0, canvas.snapX(canvas.w * 0.065)))
-        canvas.context.strokeEllipse(in: rect.insetBy(dx: 0.35, dy: 0.35))
+        canvas.context.setLineWidth(max(1.25, canvas.snapX(canvas.w * 0.075)))
+        canvas.context.strokeEllipse(in: rect.insetBy(dx: 0.45, dy: 0.45))
 
         if let base = NSImage(systemSymbolName: badge.symbolName, accessibilityDescription: nil) {
-            let pointSize = max(5.0, diameter * 0.62)
+            let pointSize = max(6.0, diameter * 0.80)
             let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .bold)
             let symbol = base.withSymbolConfiguration(config) ?? base
             symbol.isTemplate = true
 
-            let symbolRect = rect.insetBy(dx: diameter * 0.20, dy: diameter * 0.20)
+            // Punch the symbol out of the badge background for contrast.
+            let symbolRect = rect.insetBy(dx: diameter * 0.14, dy: diameter * 0.14)
+            canvas.context.saveGState()
+            canvas.context.setBlendMode(.clear)
             symbol.draw(
                 in: symbolRect,
                 from: .zero,
                 operation: .sourceOver,
-                fraction: symbolAlpha,
+                fraction: 1.0,
                 respectFlipped: true,
                 hints: nil)
+            canvas.context.restoreGState()
         }
 
         canvas.context.restoreGState()
