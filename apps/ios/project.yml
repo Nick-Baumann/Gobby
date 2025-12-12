@@ -1,0 +1,56 @@
+name: ClawdisNode
+options:
+  bundleIdPrefix: com.steipete.clawdis
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "16.0"
+
+packages:
+  ClawdisNodeKit:
+    path: ../shared/ClawdisNodeKit
+
+targets:
+  ClawdisNode:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+    dependencies:
+      - package: ClawdisNodeKit
+    preBuildScripts:
+      - name: SwiftFormat (lint)
+        script: |
+          set -euo pipefail
+          if ! command -v swiftformat >/dev/null 2>&1; then
+            echo "error: swiftformat not found (brew install swiftformat)" >&2
+            exit 1
+          fi
+          swiftformat --lint --config "$SRCROOT/../../.swiftformat" \
+            "$SRCROOT/Sources" \
+            "$SRCROOT/../shared/ClawdisNodeKit/Sources"
+      - name: SwiftLint
+        script: |
+          set -euo pipefail
+          if ! command -v swiftlint >/dev/null 2>&1; then
+            echo "error: swiftlint not found (brew install swiftlint)" >&2
+            exit 1
+          fi
+          swiftlint lint --config "$SRCROOT/.swiftlint.yml"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.steipete.clawdis.node
+        SWIFT_VERSION: "6.0"
+    info:
+      path: Sources/Info.plist
+      properties:
+        CFBundleDisplayName: Clawdis Node
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UIBackgroundModes:
+          - audio
+        NSLocalNetworkUsageDescription: Clawdis Node discovers and connects to your Clawdis bridge on the local network.
+        NSBonjourServices:
+          - _clawdis-bridge._tcp
+        NSMicrophoneUsageDescription: Clawdis Node needs microphone access for voice wake.
+        NSSpeechRecognitionUsageDescription: Clawdis Node uses on-device speech recognition for voice wake.
