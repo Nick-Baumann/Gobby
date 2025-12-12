@@ -9,7 +9,11 @@ pub struct Skill {
 }
 
 impl Skill {
-    pub fn new(name: impl Into<String>, summary: impl Into<String>, dir: impl Into<String>) -> Self {
+    pub fn new(
+        name: impl Into<String>,
+        summary: impl Into<String>,
+        dir: impl Into<String>,
+    ) -> Self {
         Self {
             name: name.into(),
             summary: summary.into(),

@@ -38,7 +38,7 @@ describe("withWhatsAppPrefix", () => {
 describe("ensureDir", () => {
   it("creates nested directory", async () => {
     const tmp = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), "clawdis-test-"),
+      path.join(os.tmpdir(), "gobbo-test-"),
     );
     const target = path.join(tmp, "nested", "dir");
     await ensureDir(target);

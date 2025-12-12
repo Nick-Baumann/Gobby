@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build and bundle Clawdis into a minimal .app we can open.
-# Outputs to dist/Clawdis.app
+# Build and bundle Gobbo into a minimal .app we can open.
+# Outputs to dist/Gobbo.app
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-APP_ROOT="$ROOT_DIR/dist/Clawdis.app"
+APP_ROOT="$ROOT_DIR/dist/Gobbo.app"
 BUILD_PATH="$ROOT_DIR/apps/macos/.build"
-PRODUCT="Clawdis"
-BUNDLE_ID="${BUNDLE_ID:-com.steipete.clawdis.debug}"
+PRODUCT="Gobbo"
+BUNDLE_ID="${BUNDLE_ID:-com.nickbaumann.gobbo.debug}"
 PKG_VERSION="$(cd "$ROOT_DIR" && node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0")"
 BUILD_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 GIT_COMMIT=$(cd "$ROOT_DIR" && git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -17,7 +17,7 @@ APP_VERSION="${APP_VERSION:-$PKG_VERSION}"
 APP_BUILD="${APP_BUILD:-$GIT_BUILD_NUMBER}"
 BUILD_CONFIG="${BUILD_CONFIG:-debug}"
 SPARKLE_PUBLIC_ED_KEY="${SPARKLE_PUBLIC_ED_KEY:-AGCY8w5vHirVfGGDGc8Szc5iuOqupZSh9pMj/Qs67XI=}"
-SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://raw.githubusercontent.com/steipete/clawdis/main/appcast.xml}"
+SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://raw.githubusercontent.com/nickbaumann/gobbo/main/appcast.xml}"
 AUTO_CHECKS=true
 if [[ "$BUNDLE_ID" == *.debug ]]; then
   SPARKLE_FEED_URL=""
@@ -60,11 +60,11 @@ cat > "$APP_ROOT/Contents/Info.plist" <<PLIST
     <key>CFBundleVersion</key>
     <string>${APP_BUILD}</string>
     <key>CFBundleName</key>
-    <string>Clawdis</string>
+    <string>Gobbo</string>
     <key>CFBundleExecutable</key>
-    <string>Clawdis</string>
+    <string>Gobbo</string>
     <key>CFBundleIconFile</key>
-    <string>Clawdis</string>
+    <string>Gobbo</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>LSMinimumSystemVersion</key>
@@ -75,16 +75,16 @@ cat > "$APP_ROOT/Contents/Info.plist" <<PLIST
     <array>
         <dict>
             <key>CFBundleURLName</key>
-            <string>com.steipete.clawdis.deeplink</string>
+            <string>com.nickbaumann.gobbo.deeplink</string>
             <key>CFBundleURLSchemes</key>
             <array>
-                <string>clawdis</string>
+                <string>gobbo</string>
             </array>
         </dict>
     </array>
-    <key>ClawdisBuildTimestamp</key>
+    <key>GobboBuildTimestamp</key>
     <string>${BUILD_TS}</string>
-    <key>ClawdisGitCommit</key>
+    <key>GobboGitCommit</key>
     <string>${GIT_COMMIT}</string>
     <key>SUFeedURL</key>
     <string>${SPARKLE_FEED_URL}</string>
@@ -93,17 +93,17 @@ cat > "$APP_ROOT/Contents/Info.plist" <<PLIST
     <key>SUEnableAutomaticChecks</key>
     <${AUTO_CHECKS}/>
     <key>NSUserNotificationUsageDescription</key>
-    <string>Clawdis needs notification permission to show alerts for agent actions.</string>
+    <string>Gobbo needs notification permission to show alerts for agent actions.</string>
     <key>NSScreenCaptureDescription</key>
-    <string>Clawdis captures the screen when the agent needs screenshots for context.</string>
+    <string>Gobbo captures the screen when the agent needs screenshots for context.</string>
     <key>NSCameraUsageDescription</key>
-    <string>Clawdis can capture photos or short video clips when requested by the agent.</string>
+    <string>Gobbo can capture photos or short video clips when requested by the agent.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Clawdis needs the mic for Voice Wake tests and agent audio capture.</string>
+    <string>Gobbo needs the mic for Voice Wake tests and agent audio capture.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
-    <string>Clawdis uses speech recognition to detect your Voice Wake trigger phrase.</string>
+    <string>Gobbo uses speech recognition to detect your Voice Wake trigger phrase.</string>
     <key>NSAppleEventsUsageDescription</key>
-    <string>Clawdis needs Automation (AppleScript) permission to drive Terminal and other apps for agent actions.</string>
+    <string>Gobbo needs Automation (AppleScript) permission to drive Terminal and other apps for agent actions.</string>
     <key>NSAppTransportSecurity</key>
     <dict>
         <key>NSAllowsArbitraryLoadsInWebContent</key>
@@ -124,21 +124,21 @@ cat > "$APP_ROOT/Contents/Info.plist" <<PLIST
 PLIST
 
 echo "🚚 Copying binary"
-cp "$BIN" "$APP_ROOT/Contents/MacOS/Clawdis"
-chmod +x "$APP_ROOT/Contents/MacOS/Clawdis"
+cp "$BIN" "$APP_ROOT/Contents/MacOS/Gobbo"
+chmod +x "$APP_ROOT/Contents/MacOS/Gobbo"
 # SwiftPM outputs ad-hoc signed binaries; strip the signature before install_name_tool to avoid warnings.
-/usr/bin/codesign --remove-signature "$APP_ROOT/Contents/MacOS/Clawdis" 2>/dev/null || true
+/usr/bin/codesign --remove-signature "$APP_ROOT/Contents/MacOS/Gobbo" 2>/dev/null || true
 
 SPARKLE_FRAMEWORK="$BUILD_PATH/$BUILD_CONFIG/Sparkle.framework"
 if [ -d "$SPARKLE_FRAMEWORK" ]; then
   echo "✨ Embedding Sparkle.framework"
   cp -R "$SPARKLE_FRAMEWORK" "$APP_ROOT/Contents/Frameworks/"
   chmod -R a+rX "$APP_ROOT/Contents/Frameworks/Sparkle.framework"
-  install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_ROOT/Contents/MacOS/Clawdis"
+  install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_ROOT/Contents/MacOS/Gobbo"
 fi
 
 echo "🖼  Copying app icon"
-cp "$ROOT_DIR/apps/macos/Sources/Clawdis/Resources/Clawdis.icns" "$APP_ROOT/Contents/Resources/Clawdis.icns"
+cp "$ROOT_DIR/apps/macos/Sources/Gobbo/Resources/Gobbo.icns" "$APP_ROOT/Contents/Resources/Gobbo.icns"
 
 RELAY_DIR="$APP_ROOT/Contents/Resources/Relay"
 
@@ -150,13 +150,13 @@ if [[ "${SKIP_GATEWAY_PACKAGE:-0}" != "1" ]]; then
 
   echo "🧰 Building bundled relay (bun --compile)"
   mkdir -p "$RELAY_DIR"
-	  RELAY_OUT="$RELAY_DIR/clawdis"
+	  RELAY_OUT="$RELAY_DIR/gobbo"
 	  bun build "$ROOT_DIR/dist/macos/relay.js" \
 	    --compile \
 	    --bytecode \
 	    --outfile "$RELAY_OUT" \
 	    -e electron \
-	    --define "__CLAWDIS_VERSION__=\\\"$PKG_VERSION\\\""
+	    --define "__GOBBO_VERSION__=\\\"$PKG_VERSION\\\""
 	  chmod +x "$RELAY_OUT"
 
   echo "🎨 Copying gateway A2UI host assets"
@@ -170,7 +170,7 @@ if [[ "${SKIP_GATEWAY_PACKAGE:-0}" != "1" ]]; then
   echo "📄 Writing embedded runtime package.json (Pi compatibility)"
   cat > "$RELAY_DIR/package.json" <<JSON
 {
-  "name": "clawdis-embedded",
+  "name": "gobbo-embedded",
   "version": "$PKG_VERSION",
   "piConfig": {
     "name": "pi",
@@ -194,8 +194,8 @@ else
   echo "🧰 Skipping gateway payload packaging (SKIP_GATEWAY_PACKAGE=1)"
 fi
 
-echo "⏹  Stopping any running Clawdis"
-killall -q Clawdis 2>/dev/null || true
+echo "⏹  Stopping any running Gobbo"
+killall -q Gobbo 2>/dev/null || true
 
 echo "🔏 Signing bundle (auto-selects signing identity if SIGN_IDENTITY is unset)"
 "$ROOT_DIR/scripts/codesign-mac-app.sh" "$APP_ROOT"

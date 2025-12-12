@@ -7,7 +7,7 @@ read_when:
 
 # Camera capture (agent)
 
-Clawdis supports **camera capture** for agent workflows:
+Gobbo supports **camera capture** for agent workflows:
 
 - **iOS node** (paired via Gateway): capture a **photo** (`jpg`) or **short video clip** (`mp4`, with optional audio) via `node.invoke`.
 - **Android node** (paired via Gateway): capture a **photo** (`jpg`) or **short video clip** (`mp4`, with optional audio) via `node.invoke`.
@@ -60,10 +60,10 @@ The easiest way to get attachments is via the CLI helper, which writes decoded m
 Examples:
 
 ```bash
-clawdis nodes camera snap --node <id>               # default: both front + back (2 MEDIA lines)
-clawdis nodes camera snap --node <id> --facing front
-clawdis nodes camera clip --node <id> --duration 3000
-clawdis nodes camera clip --node <id> --no-audio
+gobbo nodes camera snap --node <id>               # default: both front + back (2 MEDIA lines)
+gobbo nodes camera snap --node <id> --facing front
+gobbo nodes camera clip --node <id> --duration 3000
+gobbo nodes camera clip --node <id> --no-audio
 ```
 
 Notes:
@@ -101,26 +101,26 @@ Photos are recompressed to keep the base64 payload under 5 MB.
 
 The macOS companion app exposes a checkbox:
 
-- **Settings → General → Allow Camera** (`clawdis.cameraEnabled`)
+- **Settings → General → Allow Camera** (`gobbo.cameraEnabled`)
   - Default: **off**
   - When off: camera requests return “Camera disabled by user”.
 
 ### CLI helper (node invoke)
 
-Use the main `clawdis` CLI to invoke camera commands on the macOS node.
+Use the main `gobbo` CLI to invoke camera commands on the macOS node.
 
 Examples:
 
 ```bash
-clawdis nodes camera snap --node <id>            # prints MEDIA:<path>
-clawdis nodes camera snap --node <id> --max-width 1280
-clawdis nodes camera clip --node <id> --duration 10s          # prints MEDIA:<path>
-clawdis nodes camera clip --node <id> --duration-ms 3000      # prints MEDIA:<path> (legacy flag)
-clawdis nodes camera clip --node <id> --no-audio
+gobbo nodes camera snap --node <id>            # prints MEDIA:<path>
+gobbo nodes camera snap --node <id> --max-width 1280
+gobbo nodes camera clip --node <id> --duration 10s          # prints MEDIA:<path>
+gobbo nodes camera clip --node <id> --duration-ms 3000      # prints MEDIA:<path> (legacy flag)
+gobbo nodes camera clip --node <id> --no-audio
 ```
 
 Notes:
-- `clawdis nodes camera snap` defaults to `maxWidth=1600` unless overridden.
+- `gobbo nodes camera snap` defaults to `maxWidth=1600` unless overridden.
 - Photo payloads are recompressed to keep base64 under 5 MB.
 
 ## Safety + practical limits
@@ -133,7 +133,7 @@ Notes:
 For *screen* video (not camera), use the macOS companion:
 
 ```bash
-clawdis nodes screen record --node <id> --duration 10s --fps 15   # prints MEDIA:<path>
+gobbo nodes screen record --node <id> --duration 10s --fps 15   # prints MEDIA:<path>
 ```
 
 Notes:

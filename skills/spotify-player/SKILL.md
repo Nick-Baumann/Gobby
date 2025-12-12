@@ -2,7 +2,7 @@
 name: spotify-player
 description: Terminal Spotify client (TUI + CLI commands) for playback and search.
 homepage: https://www.spotify.com
-metadata: {"clawdis":{"emoji":"🎵","requires":{"bins":["spotify_player"]},"install":[{"id":"brew","kind":"brew","formula":"spotify_player","bins":["spotify_player"],"label":"Install spotify-player (brew)"}]}}
+metadata: {"gobbo":{"emoji":"🎵","requires":{"bins":["spotify_player"]},"install":[{"id":"brew","kind":"brew","formula":"spotify_player","bins":["spotify_player"],"label":"Install spotify-player (brew)"}]}}
 ---
 
 # spotify_player

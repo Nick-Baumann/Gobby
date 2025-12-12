@@ -17,7 +17,7 @@ export function registerBrowserCli(program: Command) {
     .description("Manage clawd's dedicated browser (Chrome/Chromium)")
     .option(
       "--url <url>",
-      "Override browser control URL (default from ~/.clawdis/clawdis.json)",
+      "Override browser control URL (default from ~/.gobbo/gobbo.json)",
     )
     .option("--json", "Output machine-readable JSON", false)
     .addHelpText(
@@ -27,7 +27,7 @@ export function registerBrowserCli(program: Command) {
     .action(() => {
       browser.outputHelp();
       defaultRuntime.error(
-        danger('Missing subcommand. Try: "clawdis browser status"'),
+        danger('Missing subcommand. Try: "gobbo browser status"'),
       );
       defaultRuntime.exit(1);
     });

@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { ClawdisApp } from "./app";
+import { GobboApp } from "./app";
 
-const originalConnect = ClawdisApp.prototype.connect;
+const originalConnect = GobboApp.prototype.connect;
 
 function mountApp(pathname: string) {
   window.history.replaceState({}, "", pathname);
-  const app = document.createElement("clawdis-app") as ClawdisApp;
+  const app = document.createElement("gobbo-app") as GobboApp;
   document.body.append(app);
   return app;
 }
@@ -18,14 +18,14 @@ function nextFrame() {
 }
 
 beforeEach(() => {
-  ClawdisApp.prototype.connect = () => {
+  GobboApp.prototype.connect = () => {
     // no-op: avoid real gateway WS connections in browser tests
   };
   document.body.innerHTML = "";
 });
 
 afterEach(() => {
-  ClawdisApp.prototype.connect = originalConnect;
+  GobboApp.prototype.connect = originalConnect;
   document.body.innerHTML = "";
 });
 

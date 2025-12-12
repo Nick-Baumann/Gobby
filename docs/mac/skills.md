@@ -6,19 +6,19 @@ read_when:
 ---
 # Skills (macOS)
 
-The macOS app surfaces Clawdis skills via the gateway; it does not parse skills locally.
+The macOS app surfaces Gobbo skills via the gateway; it does not parse skills locally.
 
 ## Data source
 - `skills.status` (gateway) returns all skills plus eligibility and missing requirements.
-- Requirements are derived from `metadata.clawdis.requires` in each `SKILL.md`.
+- Requirements are derived from `metadata.gobbo.requires` in each `SKILL.md`.
 
 ## Install actions
-- `metadata.clawdis.install` defines install options (brew/node/go/uv).
+- `metadata.gobbo.install` defines install options (brew/node/go/uv).
 - The app calls `skills.install` to run installers on the gateway host.
 - The gateway surfaces only one preferred installer when multiple are provided (brew when available, otherwise node manager from `skillsInstall`, default npm).
 
 ## Env/API keys
-- The app stores keys in `~/.clawdis/clawdis.json` under `skills.<skillKey>`.
+- The app stores keys in `~/.gobbo/gobbo.json` under `skills.<skillKey>`.
 - `skills.update` patches `enabled`, `apiKey`, and `env`.
 
 ## Remote mode

@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 async function withTempHome<T>(fn: (home: string) => Promise<T>): Promise<T> {
-  const base = await fs.mkdtemp(path.join(os.tmpdir(), "clawdis-config-"));
+  const base = await fs.mkdtemp(path.join(os.tmpdir(), "gobbo-config-"));
   const previousHome = process.env.HOME;
   process.env.HOME = base;
   try {
@@ -29,10 +29,10 @@ describe("config identity defaults", () => {
 
   it("derives mentionPatterns when identity is set", async () => {
     await withTempHome(async (home) => {
-      const configDir = path.join(home, ".clawdis");
+      const configDir = path.join(home, ".gobbo");
       await fs.mkdir(configDir, { recursive: true });
       await fs.writeFile(
-        path.join(configDir, "clawdis.json"),
+        path.join(configDir, "gobbo.json"),
         JSON.stringify(
           {
             identity: { name: "Samantha", theme: "helpful sloth", emoji: "🦥" },
@@ -58,10 +58,10 @@ describe("config identity defaults", () => {
 
   it("does not override explicit values", async () => {
     await withTempHome(async (home) => {
-      const configDir = path.join(home, ".clawdis");
+      const configDir = path.join(home, ".gobbo");
       await fs.mkdir(configDir, { recursive: true });
       await fs.writeFile(
-        path.join(configDir, "clawdis.json"),
+        path.join(configDir, "gobbo.json"),
         JSON.stringify(
           {
             identity: {
@@ -93,10 +93,10 @@ describe("config identity defaults", () => {
 
   it("respects empty responsePrefix to disable identity defaults", async () => {
     await withTempHome(async (home) => {
-      const configDir = path.join(home, ".clawdis");
+      const configDir = path.join(home, ".gobbo");
       await fs.mkdir(configDir, { recursive: true });
       await fs.writeFile(
-        path.join(configDir, "clawdis.json"),
+        path.join(configDir, "gobbo.json"),
         JSON.stringify(
           {
             identity: { name: "Samantha", theme: "helpful sloth", emoji: "🦥" },
@@ -119,10 +119,10 @@ describe("config identity defaults", () => {
 
   it("does not synthesize agent/session when absent", async () => {
     await withTempHome(async (home) => {
-      const configDir = path.join(home, ".clawdis");
+      const configDir = path.join(home, ".gobbo");
       await fs.mkdir(configDir, { recursive: true });
       await fs.writeFile(
-        path.join(configDir, "clawdis.json"),
+        path.join(configDir, "gobbo.json"),
         JSON.stringify(
           {
             identity: { name: "Samantha", theme: "helpful sloth", emoji: "🦥" },
@@ -150,10 +150,10 @@ describe("config identity defaults", () => {
 
   it("does not derive responsePrefix from identity emoji", async () => {
     await withTempHome(async (home) => {
-      const configDir = path.join(home, ".clawdis");
+      const configDir = path.join(home, ".gobbo");
       await fs.mkdir(configDir, { recursive: true });
       await fs.writeFile(
-        path.join(configDir, "clawdis.json"),
+        path.join(configDir, "gobbo.json"),
         JSON.stringify(
           {
             identity: { name: "Clawd", theme: "space lobster", emoji: "🦞" },

@@ -24,7 +24,7 @@ import {
 } from "@mariozechner/pi-coding-agent";
 import type { ThinkLevel, VerboseLevel } from "../auto-reply/thinking.js";
 import { formatToolAggregate } from "../auto-reply/tool-meta.js";
-import type { ClawdisConfig } from "../config/config.js";
+import type { GobboConfig } from "../config/config.js";
 import { getMachineDisplayName } from "../infra/machine-name.js";
 import { splitMediaFromOutput } from "../media/parse.js";
 import {
@@ -32,9 +32,9 @@ import {
   enqueueCommandInLane,
 } from "../process/command-queue.js";
 import { CONFIG_DIR, resolveUserPath } from "../utils.js";
-import { resolveClawdisAgentDir } from "./agent-paths.js";
+import { resolveGobboAgentDir } from "./agent-paths.js";
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "./defaults.js";
-import { ensureClawdisModelsJson } from "./models-config.js";
+import { ensureGobboModelsJson } from "./models-config.js";
 import {
   buildBootstrapContextFiles,
   ensureSessionHeader,
@@ -43,7 +43,7 @@ import {
 } from "./pi-embedded-helpers.js";
 import { subscribeEmbeddedPiSession } from "./pi-embedded-subscribe.js";
 import { extractAssistantText } from "./pi-embedded-utils.js";
-import { createClawdisCodingTools } from "./pi-tools.js";
+import { createGobboCodingTools } from "./pi-tools.js";
 import {
   applySkillEnvOverrides,
   applySkillEnvOverridesFromSnapshot,
@@ -107,9 +107,9 @@ function resolveGlobalLane(lane?: string) {
   return cleaned ? cleaned : "main";
 }
 
-function resolveClawdisOAuthPath(): string {
+function resolveGobboOAuthPath(): string {
   const overrideDir =
-    process.env.CLAWDIS_OAUTH_DIR?.trim() || DEFAULT_OAUTH_DIR;
+    process.env.GOBBO_OAUTH_DIR?.trim() || DEFAULT_OAUTH_DIR;
   return path.join(resolveUserPath(overrideDir), OAUTH_FILENAME);
 }
 
@@ -180,7 +180,7 @@ function importLegacyOAuthIfNeeded(destPath: string): void {
 function ensureOAuthStorage(): void {
   if (oauthStorageConfigured) return;
   oauthStorageConfigured = true;
-  const oauthPath = resolveClawdisOAuthPath();
+  const oauthPath = resolveGobboOAuthPath();
   importLegacyOAuthIfNeeded(oauthPath);
 }
 
@@ -226,7 +226,7 @@ export function resolveEmbeddedSessionLane(key: string) {
 }
 
 function mapThinkingLevel(level?: ThinkLevel): ThinkingLevel {
-  // pi-agent-core supports "xhigh" too; Clawdis doesn't surface it for now.
+  // pi-agent-core supports "xhigh" too; Gobbo doesn't surface it for now.
   if (!level) return "off";
   return level;
 }
@@ -241,7 +241,7 @@ function resolveModel(
   authStorage: ReturnType<typeof discoverAuthStorage>;
   modelRegistry: ReturnType<typeof discoverModels>;
 } {
-  const resolvedAgentDir = agentDir ?? resolveClawdisAgentDir();
+  const resolvedAgentDir = agentDir ?? resolveGobboAgentDir();
   const authStorage = discoverAuthStorage(resolvedAgentDir);
   const modelRegistry = discoverModels(authStorage, resolvedAgentDir);
   const model = modelRegistry.find(provider, modelId) as Model<Api> | null;
@@ -269,7 +269,7 @@ async function getApiKeyForModel(
   const envKey = getEnvApiKey(model.provider);
   if (envKey) return envKey;
   if (isOAuthProvider(model.provider)) {
-    const oauthPath = resolveClawdisOAuthPath();
+    const oauthPath = resolveGobboOAuthPath();
     const storage = loadOAuthStorageAt(oauthPath);
     if (storage) {
       try {
@@ -311,7 +311,7 @@ export async function runEmbeddedPiAgent(params: {
   sessionKey?: string;
   sessionFile: string;
   workspaceDir: string;
-  config?: ClawdisConfig;
+  config?: GobboConfig;
   skillsSnapshot?: SkillSnapshot;
   prompt: string;
   provider?: string;
@@ -356,8 +356,8 @@ export async function runEmbeddedPiAgent(params: {
       const provider =
         (params.provider ?? DEFAULT_PROVIDER).trim() || DEFAULT_PROVIDER;
       const modelId = (params.model ?? DEFAULT_MODEL).trim() || DEFAULT_MODEL;
-      await ensureClawdisModelsJson(params.config);
-      const agentDir = resolveClawdisAgentDir();
+      await ensureGobboModelsJson(params.config);
+      const agentDir = resolveGobboAgentDir();
       const { model, error, authStorage, modelRegistry } = resolveModel(
         provider,
         modelId,
@@ -406,7 +406,7 @@ export async function runEmbeddedPiAgent(params: {
           await loadWorkspaceBootstrapFiles(resolvedWorkspace);
         const contextFiles = buildBootstrapContextFiles(bootstrapFiles);
         const promptSkills = resolvePromptSkills(skillsSnapshot, skillEntries);
-        const tools = createClawdisCodingTools({
+        const tools = createGobboCodingTools({
           bash: params.config?.agent?.bash,
         });
         const machineName = await getMachineDisplayName();
@@ -450,8 +450,8 @@ export async function runEmbeddedPiAgent(params: {
           model,
           thinkingLevel,
           systemPrompt,
-          // TODO(steipete): Once pi-mono publishes file-magic MIME detection in `read` image payloads,
-          // remove `createClawdisCodingTools()` and use upstream `codingTools` again.
+          // TODO(nickbaumann): Once pi-mono publishes file-magic MIME detection in `read` image payloads,
+          // remove `createGobboCodingTools()` and use upstream `codingTools` again.
           tools,
           sessionManager,
           settingsManager,

@@ -2,7 +2,7 @@
 name: camsnap
 description: Capture frames or clips from RTSP/ONVIF cameras.
 homepage: https://camsnap.ai
-metadata: {"clawdis":{"emoji":"📸","requires":{"bins":["camsnap"]},"install":[{"id":"brew","kind":"brew","formula":"steipete/tap/camsnap","bins":["camsnap"],"label":"Install camsnap (brew)"}]}}
+metadata: {"gobbo":{"emoji":"📸","requires":{"bins":["camsnap"]},"install":[{"id":"brew","kind":"brew","formula":"nickbaumann/tap/camsnap","bins":["camsnap"],"label":"Install camsnap (brew)"}]}}
 ---
 
 # camsnap

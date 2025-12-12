@@ -8,7 +8,7 @@ import {
   type Skill,
 } from "@mariozechner/pi-coding-agent";
 
-import type { ClawdisConfig, SkillConfig } from "../config/config.js";
+import type { GobboConfig, SkillConfig } from "../config/config.js";
 import { CONFIG_DIR, resolveUserPath } from "../utils.js";
 
 export type SkillInstallSpec = {
@@ -21,7 +21,7 @@ export type SkillInstallSpec = {
   module?: string;
 };
 
-export type ClawdisSkillMetadata = {
+export type GobboSkillMetadata = {
   always?: boolean;
   skillKey?: string;
   primaryEnv?: string;
@@ -45,7 +45,7 @@ type ParsedSkillFrontmatter = Record<string, string>;
 export type SkillEntry = {
   skill: Skill;
   frontmatter: ParsedSkillFrontmatter;
-  clawdis?: ClawdisSkillMetadata;
+  gobbo?: GobboSkillMetadata;
 };
 
 export type SkillSnapshot = {
@@ -55,7 +55,7 @@ export type SkillSnapshot = {
 };
 
 function resolveBundledSkillsDir(): string | undefined {
-  const override = process.env.CLAWDIS_BUNDLED_SKILLS_DIR?.trim();
+  const override = process.env.GOBBO_BUNDLED_SKILLS_DIR?.trim();
   if (override) return override;
 
   // bun --compile: ship a sibling `skills/` next to the executable.
@@ -171,7 +171,7 @@ const DEFAULT_CONFIG_VALUES: Record<string, boolean> = {
 };
 
 export function resolveSkillsInstallPreferences(
-  config?: ClawdisConfig,
+  config?: GobboConfig,
 ): SkillsInstallPreferences {
   const raw = config?.skillsInstall;
   const preferBrew = raw?.preferBrew ?? true;
@@ -186,7 +186,7 @@ export function resolveSkillsInstallPreferences(
 }
 
 export function resolveConfigPath(
-  config: ClawdisConfig | undefined,
+  config: GobboConfig | undefined,
   pathStr: string,
 ) {
   const parts = pathStr.split(".").filter(Boolean);
@@ -199,7 +199,7 @@ export function resolveConfigPath(
 }
 
 export function isConfigPathTruthy(
-  config: ClawdisConfig | undefined,
+  config: GobboConfig | undefined,
   pathStr: string,
 ): boolean {
   const value = resolveConfigPath(config, pathStr);
@@ -210,7 +210,7 @@ export function isConfigPathTruthy(
 }
 
 export function resolveSkillConfig(
-  config: ClawdisConfig | undefined,
+  config: GobboConfig | undefined,
   skillKey: string,
 ): SkillConfig | undefined {
   const skills = config?.skills;
@@ -235,43 +235,43 @@ export function hasBinary(bin: string): boolean {
   return false;
 }
 
-function resolveClawdisMetadata(
+function resolveGobboMetadata(
   frontmatter: ParsedSkillFrontmatter,
-): ClawdisSkillMetadata | undefined {
+): GobboSkillMetadata | undefined {
   const raw = getFrontmatterValue(frontmatter, "metadata");
   if (!raw) return undefined;
   try {
-    const parsed = JSON.parse(raw) as { clawdis?: unknown };
+    const parsed = JSON.parse(raw) as { gobbo?: unknown };
     if (!parsed || typeof parsed !== "object") return undefined;
-    const clawdis = (parsed as { clawdis?: unknown }).clawdis;
-    if (!clawdis || typeof clawdis !== "object") return undefined;
-    const clawdisObj = clawdis as Record<string, unknown>;
+    const gobbo = (parsed as { gobbo?: unknown }).gobbo;
+    if (!gobbo || typeof gobbo !== "object") return undefined;
+    const gobboObj = gobbo as Record<string, unknown>;
     const requiresRaw =
-      typeof clawdisObj.requires === "object" && clawdisObj.requires !== null
-        ? (clawdisObj.requires as Record<string, unknown>)
+      typeof gobboObj.requires === "object" && gobboObj.requires !== null
+        ? (gobboObj.requires as Record<string, unknown>)
         : undefined;
-    const installRaw = Array.isArray(clawdisObj.install)
-      ? (clawdisObj.install as unknown[])
+    const installRaw = Array.isArray(gobboObj.install)
+      ? (gobboObj.install as unknown[])
       : [];
     const install = installRaw
       .map((entry) => parseInstallSpec(entry))
       .filter((entry): entry is SkillInstallSpec => Boolean(entry));
     return {
       always:
-        typeof clawdisObj.always === "boolean" ? clawdisObj.always : undefined,
+        typeof gobboObj.always === "boolean" ? gobboObj.always : undefined,
       emoji:
-        typeof clawdisObj.emoji === "string" ? clawdisObj.emoji : undefined,
+        typeof gobboObj.emoji === "string" ? gobboObj.emoji : undefined,
       homepage:
-        typeof clawdisObj.homepage === "string"
-          ? clawdisObj.homepage
+        typeof gobboObj.homepage === "string"
+          ? gobboObj.homepage
           : undefined,
       skillKey:
-        typeof clawdisObj.skillKey === "string"
-          ? clawdisObj.skillKey
+        typeof gobboObj.skillKey === "string"
+          ? gobboObj.skillKey
           : undefined,
       primaryEnv:
-        typeof clawdisObj.primaryEnv === "string"
-          ? clawdisObj.primaryEnv
+        typeof gobboObj.primaryEnv === "string"
+          ? gobboObj.primaryEnv
           : undefined,
       requires: requiresRaw
         ? {
@@ -288,42 +288,42 @@ function resolveClawdisMetadata(
 }
 
 function resolveSkillKey(skill: Skill, entry?: SkillEntry): string {
-  return entry?.clawdis?.skillKey ?? skill.name;
+  return entry?.gobbo?.skillKey ?? skill.name;
 }
 
 function shouldIncludeSkill(params: {
   entry: SkillEntry;
-  config?: ClawdisConfig;
+  config?: GobboConfig;
 }): boolean {
   const { entry, config } = params;
   const skillKey = resolveSkillKey(entry.skill, entry);
   const skillConfig = resolveSkillConfig(config, skillKey);
 
   if (skillConfig?.enabled === false) return false;
-  if (entry.clawdis?.always === true) {
+  if (entry.gobbo?.always === true) {
     return true;
   }
 
-  const requiredBins = entry.clawdis?.requires?.bins ?? [];
+  const requiredBins = entry.gobbo?.requires?.bins ?? [];
   if (requiredBins.length > 0) {
     for (const bin of requiredBins) {
       if (!hasBinary(bin)) return false;
     }
   }
 
-  const requiredEnv = entry.clawdis?.requires?.env ?? [];
+  const requiredEnv = entry.gobbo?.requires?.env ?? [];
   if (requiredEnv.length > 0) {
     for (const envName of requiredEnv) {
       if (process.env[envName]) continue;
       if (skillConfig?.env?.[envName]) continue;
-      if (skillConfig?.apiKey && entry.clawdis?.primaryEnv === envName) {
+      if (skillConfig?.apiKey && entry.gobbo?.primaryEnv === envName) {
         continue;
       }
       return false;
     }
   }
 
-  const requiredConfig = entry.clawdis?.requires?.config ?? [];
+  const requiredConfig = entry.gobbo?.requires?.config ?? [];
   if (requiredConfig.length > 0) {
     for (const configPath of requiredConfig) {
       if (!isConfigPathTruthy(config, configPath)) return false;
@@ -335,14 +335,14 @@ function shouldIncludeSkill(params: {
 
 function filterSkillEntries(
   entries: SkillEntry[],
-  config?: ClawdisConfig,
+  config?: GobboConfig,
 ): SkillEntry[] {
   return entries.filter((entry) => shouldIncludeSkill({ entry, config }));
 }
 
 export function applySkillEnvOverrides(params: {
   skills: SkillEntry[];
-  config?: ClawdisConfig;
+  config?: GobboConfig;
 }) {
   const { skills, config } = params;
   const updates: Array<{ key: string; prev: string | undefined }> = [];
@@ -360,7 +360,7 @@ export function applySkillEnvOverrides(params: {
       }
     }
 
-    const primaryEnv = entry.clawdis?.primaryEnv;
+    const primaryEnv = entry.gobbo?.primaryEnv;
     if (primaryEnv && skillConfig.apiKey && !process.env[primaryEnv]) {
       updates.push({ key: primaryEnv, prev: process.env[primaryEnv] });
       process.env[primaryEnv] = skillConfig.apiKey;
@@ -377,7 +377,7 @@ export function applySkillEnvOverrides(params: {
 
 export function applySkillEnvOverridesFromSnapshot(params: {
   snapshot?: SkillSnapshot;
-  config?: ClawdisConfig;
+  config?: GobboConfig;
 }) {
   const { snapshot, config } = params;
   if (!snapshot) return () => {};
@@ -419,7 +419,7 @@ export function applySkillEnvOverridesFromSnapshot(params: {
 function loadSkillEntries(
   workspaceDir: string,
   opts?: {
-    config?: ClawdisConfig;
+    config?: GobboConfig;
     managedSkillsDir?: string;
     bundledSkillsDir?: string;
   },
@@ -450,23 +450,23 @@ function loadSkillEntries(
   const bundledSkills = bundledSkillsDir
     ? loadSkills({
         dir: bundledSkillsDir,
-        source: "clawdis-bundled",
+        source: "gobbo-bundled",
       })
     : [];
   const extraSkills = extraDirs.flatMap((dir) => {
     const resolved = resolveUserPath(dir);
     return loadSkills({
       dir: resolved,
-      source: "clawdis-extra",
+      source: "gobbo-extra",
     });
   });
   const managedSkills = loadSkills({
     dir: managedSkillsDir,
-    source: "clawdis-managed",
+    source: "gobbo-managed",
   });
   const workspaceSkills = loadSkills({
     dir: workspaceSkillsDir,
-    source: "clawdis-workspace",
+    source: "gobbo-workspace",
   });
 
   const merged = new Map<string, Skill>();
@@ -488,7 +488,7 @@ function loadSkillEntries(
       return {
         skill,
         frontmatter,
-        clawdis: resolveClawdisMetadata(frontmatter),
+        gobbo: resolveGobboMetadata(frontmatter),
       };
     },
   );
@@ -498,7 +498,7 @@ function loadSkillEntries(
 export function buildWorkspaceSkillSnapshot(
   workspaceDir: string,
   opts?: {
-    config?: ClawdisConfig;
+    config?: GobboConfig;
     managedSkillsDir?: string;
     bundledSkillsDir?: string;
     entries?: SkillEntry[];
@@ -511,7 +511,7 @@ export function buildWorkspaceSkillSnapshot(
     prompt: formatSkillsForPrompt(resolvedSkills),
     skills: eligible.map((entry) => ({
       name: entry.skill.name,
-      primaryEnv: entry.clawdis?.primaryEnv,
+      primaryEnv: entry.gobbo?.primaryEnv,
     })),
     resolvedSkills,
   };
@@ -520,7 +520,7 @@ export function buildWorkspaceSkillSnapshot(
 export function buildWorkspaceSkillsPrompt(
   workspaceDir: string,
   opts?: {
-    config?: ClawdisConfig;
+    config?: GobboConfig;
     managedSkillsDir?: string;
     bundledSkillsDir?: string;
     entries?: SkillEntry[];
@@ -534,7 +534,7 @@ export function buildWorkspaceSkillsPrompt(
 export function loadWorkspaceSkillEntries(
   workspaceDir: string,
   opts?: {
-    config?: ClawdisConfig;
+    config?: GobboConfig;
     managedSkillsDir?: string;
     bundledSkillsDir?: string;
   },
@@ -544,7 +544,7 @@ export function loadWorkspaceSkillEntries(
 
 export function filterWorkspaceSkillEntries(
   entries: SkillEntry[],
-  config?: ClawdisConfig,
+  config?: GobboConfig,
 ): SkillEntry[] {
   return filterSkillEntries(entries, config);
 }

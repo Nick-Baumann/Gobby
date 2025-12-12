@@ -104,5 +104,5 @@ export function resolveUserPath(input: string): string {
   return path.resolve(trimmed);
 }
 
-// Fixed configuration root; legacy ~/.clawdis is no longer used.
-export const CONFIG_DIR = path.join(os.homedir(), ".clawdis");
+// Fixed configuration root; legacy ~/.gobbo is no longer used.
+export const CONFIG_DIR = path.join(os.homedir(), ".gobbo");

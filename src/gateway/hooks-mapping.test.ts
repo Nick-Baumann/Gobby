@@ -39,7 +39,7 @@ describe("hooks mapping", () => {
   });
 
   it("runs transform module", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "clawdis-hooks-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gobbo-hooks-"));
     const modPath = path.join(dir, "transform.mjs");
     const placeholder = "${" + "payload.name}";
     fs.writeFileSync(

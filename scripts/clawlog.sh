@@ -6,7 +6,7 @@
 set -euo pipefail
 
 # Configuration
-SUBSYSTEM="com.steipete.clawdis"
+SUBSYSTEM="com.nickbaumann.gobbo"
 DEFAULT_LEVEL="info"
 
 # Colors for output
@@ -48,17 +48,17 @@ SHOW_HELP=false
 # Function to show usage
 show_usage() {
     cat << EOF
-clawlog - Clawdis Logging Utility
+clawlog - Gobbo Logging Utility
 
 USAGE:
     vtlog [OPTIONS]
 
 DESCRIPTION:
-    View Clawdis logs with full details (bypasses Apple's privacy redaction).
+    View Gobbo logs with full details (bypasses Apple's privacy redaction).
     Requires sudo access configured for /usr/bin/log command.
 
 LOG FLOW ARCHITECTURE:
-    Clawdis logs flow through the macOS unified log (subsystem: com.steipete.clawdis).
+    Gobbo logs flow through the macOS unified log (subsystem: com.nickbaumann.gobbo).
 
 LOG CATEGORIES (examples):
     • voicewake           - Voice wake detection/test harness

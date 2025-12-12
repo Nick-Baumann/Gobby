@@ -1,5 +1,5 @@
 import AVFoundation
-import ClawdisKit
+import GobboKit
 import Foundation
 
 actor CameraController {
@@ -29,7 +29,7 @@ actor CameraController {
         }
     }
 
-    func snap(params: ClawdisCameraSnapParams) async throws -> (
+    func snap(params: GobboCameraSnapParams) async throws -> (
         format: String,
         base64: String,
         width: Int,
@@ -100,7 +100,7 @@ actor CameraController {
             height: res.heightPx)
     }
 
-    func clip(params: ClawdisCameraClipParams) async throws -> (
+    func clip(params: GobboCameraClipParams) async throws -> (
         format: String,
         base64: String,
         durationMs: Int,
@@ -152,9 +152,9 @@ actor CameraController {
         await Self.warmUpCaptureSession()
 
         let movURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("clawdis-camera-\(UUID().uuidString).mov")
+            .appendingPathComponent("gobbo-camera-\(UUID().uuidString).mov")
         let mp4URL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("clawdis-camera-\(UUID().uuidString).mp4")
+            .appendingPathComponent("gobbo-camera-\(UUID().uuidString).mp4")
 
         defer {
             try? FileManager.default.removeItem(at: movURL)
@@ -201,7 +201,7 @@ actor CameraController {
         }
     }
 
-    private nonisolated static func pickCamera(facing: ClawdisCameraFacing) -> AVCaptureDevice? {
+    private nonisolated static func pickCamera(facing: GobboCameraFacing) -> AVCaptureDevice? {
         let position: AVCaptureDevice.Position = (facing == .front) ? .front : .back
         if let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position) {
             return device

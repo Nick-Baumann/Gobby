@@ -25,7 +25,7 @@ The dashboard settings panel lets you store a token; passwords are not persisted
 - Cron jobs: list/add/run/enable/disable + run history (`cron.*`)
 - Skills: status, enable/disable, install, API key updates (`skills.*`)
 - Nodes: list + caps (`node.list`)
-- Config: view/edit `~/.clawdis/clawdis.json` (`config.get`, `config.set`)
+- Config: view/edit `~/.gobbo/gobbo.json` (`config.get`, `config.set`)
 - Debug: status/health/models snapshots + event log + manual RPC calls (`status`, `health`, `models.list`)
 
 ## Tailnet access (recommended)
@@ -35,19 +35,19 @@ The dashboard settings panel lets you store a token; passwords are not persisted
 Keep the Gateway on loopback and let Tailscale Serve proxy it with HTTPS:
 
 ```bash
-clawdis gateway --tailscale serve
+gobbo gateway --tailscale serve
 ```
 
 Open:
 - `https://<magicdns>/ui/`
 
 By default, the gateway trusts Tailscale identity headers in serve mode. You can still set
-`CLAWDIS_GATEWAY_TOKEN` or `gateway.auth` if you want a shared secret instead.
+`GOBBO_GATEWAY_TOKEN` or `gateway.auth` if you want a shared secret instead.
 
 ### Bind to tailnet + token (legacy)
 
 ```bash
-clawdis gateway --bind tailnet --token "$(openssl rand -hex 32)"
+gobbo gateway --bind tailnet --token "$(openssl rand -hex 32)"
 ```
 
 Then open:

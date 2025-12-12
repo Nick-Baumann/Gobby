@@ -55,13 +55,13 @@ markdown_to_html() {
 
 version_content=$(extract_version_section "$VERSION" "$CHANGELOG_FILE")
 if [[ -z "$version_content" ]]; then
-  echo "<h2>Clawdis $VERSION</h2>"
-  echo "<p>Latest Clawdis update.</p>"
-  echo "<p><a href=\"https://github.com/steipete/clawdis/blob/main/CHANGELOG.md\">View full changelog</a></p>"
+  echo "<h2>Gobbo $VERSION</h2>"
+  echo "<p>Latest Gobbo update.</p>"
+  echo "<p><a href=\"https://github.com/nickbaumann/gobbo/blob/main/CHANGELOG.md\">View full changelog</a></p>"
   exit 0
 fi
 
-echo "<h2>Clawdis $VERSION</h2>"
+echo "<h2>Gobbo $VERSION</h2>"
 
 in_list=false
 while IFS= read -r line; do
@@ -86,4 +86,4 @@ if [[ "$in_list" == true ]]; then
   echo "</ul>"
 fi
 
-echo "<p><a href=\"https://github.com/steipete/clawdis/blob/main/CHANGELOG.md\">View full changelog</a></p>"
+echo "<p><a href=\"https://github.com/nickbaumann/gobbo/blob/main/CHANGELOG.md\">View full changelog</a></p>"

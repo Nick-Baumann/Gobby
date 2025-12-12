@@ -2,7 +2,7 @@
 name: oracle
 description: Best practices for using the oracle CLI (prompt + file bundling, engines, sessions, and file attachment patterns).
 homepage: https://askoracle.dev
-metadata: {"clawdis":{"emoji":"🧿","requires":{"bins":["oracle"]},"install":[{"id":"node","kind":"node","package":"@steipete/oracle","bins":["oracle"],"label":"Install oracle (node)"}]}}
+metadata: {"gobbo":{"emoji":"🧿","requires":{"bins":["oracle"]},"install":[{"id":"node","kind":"node","package":"@nickbaumann/oracle","bins":["oracle"],"label":"Install oracle (node)"}]}}
 ---
 
 # oracle — best use
@@ -28,7 +28,7 @@ Recommended defaults:
 
 - Help:
   - `oracle --help`
-  - If the binary isn’t installed: `npx -y @steipete/oracle --help` (avoid `pnpx` here; sqlite bindings).
+  - If the binary isn’t installed: `npx -y @nickbaumann/oracle --help` (avoid `pnpx` here; sqlite bindings).
 
 - Preview (no tokens):
   - `oracle --dry-run summary -p "<task>" --file "src/**" --file "!**/*.test.*"`

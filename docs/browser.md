@@ -26,11 +26,11 @@ Add a dedicated settings section (preferably under **Skills** or its own "Browse
   - When off: no browser is launched, and browser tools return "disabled".
 - **Browser control URL** (`default: http://127.0.0.1:18791`)
   - Interpreted as the base URL of the local/remote browser-control server.
-  - If the URL host is not loopback, Clawdis must **not** attempt to launch a local
+  - If the URL host is not loopback, Gobbo must **not** attempt to launch a local
     browser; it only connects.
 - **Accent color** (`default: #FF4500`, "lobster-orange")
   - Used to theme the clawd browser profile (best-effort) and to tint UI indicators
-    in Clawdis.
+    in Gobbo.
 
 Optional (advanced, can be hidden behind Debug initially):
 - **Use headless browser** (`default: off`)
@@ -39,14 +39,14 @@ Optional (advanced, can be hidden behind Debug initially):
 
 ### Port convention
 
-Clawdis already uses:
+Gobbo already uses:
 - Gateway WebSocket: `18789`
 - Bridge (voice/node): `18790`
 
 For the clawd browser-control server, use "family" ports:
 - Browser control HTTP API: `18791` (bridge + 1)
 - Browser CDP/debugging port: `18792` (control + 1)
-- Canvas host HTTP: `18793` by default, mounted at `/__clawdis__/canvas/`
+- Canvas host HTTP: `18793` by default, mounted at `/__gobbo__/canvas/`
 
 The user usually only configures the **control URL** (port `18791`). CDP is an
 internal detail.
@@ -56,8 +56,8 @@ internal detail.
 1) **Dedicated user data dir**
    - Never attach to or reuse the user's default Chrome profile.
    - Store clawd browser state under an app-owned directory, e.g.:
-     - `~/Library/Application Support/Clawdis/browser/clawd/` (mac app)
-     - or `~/.clawdis/browser/clawd/` (gateway/CLI)
+     - `~/Library/Application Support/Gobbo/browser/clawd/` (mac app)
+     - or `~/.gobbo/browser/clawd/` (gateway/CLI)
 
 2) **Dedicated ports**
    - Never use `9222` (reserved for ad-hoc dev workflows; avoids colliding with
@@ -70,7 +70,7 @@ internal detail.
 
 ## Browser selection (macOS)
 
-On startup (when enabled + local URL), Clawdis chooses the browser executable
+On startup (when enabled + local URL), Gobbo chooses the browser executable
 in this order:
 1) **Google Chrome Canary** (if installed)
 2) **Chromium** (if installed)
@@ -136,7 +136,7 @@ Hooks (arming):
 "Closed" means:
 - control server not reachable, or server reports no browser.
 
-Clawdis should treat "open/closed" as a health check (fast path), not by scanning
+Gobbo should treat "open/closed" as a health check (fast path), not by scanning
 global Chrome processes (avoid false positives).
 
 ## Interaction with the agent (clawd)
@@ -155,38 +155,38 @@ The agent should not assume tabs are ephemeral. It should:
 ## CLI quick reference (one example each)
 
 Basics:
-- `clawdis browser status`
-- `clawdis browser start`
-- `clawdis browser stop`
-- `clawdis browser tabs`
-- `clawdis browser open https://example.com`
-- `clawdis browser focus abcd1234`
-- `clawdis browser close abcd1234`
+- `gobbo browser status`
+- `gobbo browser start`
+- `gobbo browser stop`
+- `gobbo browser tabs`
+- `gobbo browser open https://example.com`
+- `gobbo browser focus abcd1234`
+- `gobbo browser close abcd1234`
 
 Inspection:
-- `clawdis browser screenshot`
-- `clawdis browser screenshot --full-page`
-- `clawdis browser screenshot --ref 12`
-- `clawdis browser snapshot`
-- `clawdis browser snapshot --format aria --limit 200`
+- `gobbo browser screenshot`
+- `gobbo browser screenshot --full-page`
+- `gobbo browser screenshot --ref 12`
+- `gobbo browser snapshot`
+- `gobbo browser snapshot --format aria --limit 200`
 
 Actions:
-- `clawdis browser navigate https://example.com`
-- `clawdis browser resize 1280 720`
-- `clawdis browser click 12 --double`
-- `clawdis browser type 23 "hello" --submit`
-- `clawdis browser press Enter`
-- `clawdis browser hover 44`
-- `clawdis browser drag 10 11`
-- `clawdis browser select 9 OptionA OptionB`
-- `clawdis browser upload /tmp/file.pdf`
-- `clawdis browser fill --fields '[{\"ref\":\"1\",\"value\":\"Ada\"}]'`
-- `clawdis browser dialog --accept`
-- `clawdis browser wait --text "Done"`
-- `clawdis browser evaluate --fn '(el) => el.textContent' --ref 7`
-- `clawdis browser evaluate --fn "document.querySelector('.my-class').click()"`
-- `clawdis browser console --level error`
-- `clawdis browser pdf`
+- `gobbo browser navigate https://example.com`
+- `gobbo browser resize 1280 720`
+- `gobbo browser click 12 --double`
+- `gobbo browser type 23 "hello" --submit`
+- `gobbo browser press Enter`
+- `gobbo browser hover 44`
+- `gobbo browser drag 10 11`
+- `gobbo browser select 9 OptionA OptionB`
+- `gobbo browser upload /tmp/file.pdf`
+- `gobbo browser fill --fields '[{\"ref\":\"1\",\"value\":\"Ada\"}]'`
+- `gobbo browser dialog --accept`
+- `gobbo browser wait --text "Done"`
+- `gobbo browser evaluate --fn '(el) => el.textContent' --ref 7`
+- `gobbo browser evaluate --fn "document.querySelector('.my-class').click()"`
+- `gobbo browser console --level error`
+- `gobbo browser pdf`
 
 Notes:
 - `upload` and `dialog` are **arming** calls; run them before the click/press that triggers the chooser/dialog.

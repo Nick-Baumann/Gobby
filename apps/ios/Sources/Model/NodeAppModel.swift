@@ -1,4 +1,4 @@
-import ClawdisKit
+import GobboKit
 import Network
 import Observation
 import SwiftUI
@@ -88,7 +88,7 @@ final class NodeAppModel {
         }()
         guard !userAction.isEmpty else { return }
 
-        guard let name = ClawdisCanvasA2UIAction.extractActionName(userAction) else { return }
+        guard let name = GobboCanvasA2UIAction.extractActionName(userAction) else { return }
         let actionId: String = {
             let id = (userAction["id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             return id.isEmpty ? UUID().uuidString : id
@@ -107,15 +107,15 @@ final class NodeAppModel {
 
         let host = UserDefaults.standard.string(forKey: "node.displayName") ?? UIDevice.current.name
         let instanceId = (UserDefaults.standard.string(forKey: "node.instanceId") ?? "ios-node").lowercased()
-        let contextJSON = ClawdisCanvasA2UIAction.compactJSON(userAction["context"])
+        let contextJSON = GobboCanvasA2UIAction.compactJSON(userAction["context"])
         let sessionKey = "main"
 
-        let messageContext = ClawdisCanvasA2UIAction.AgentMessageContext(
+        let messageContext = GobboCanvasA2UIAction.AgentMessageContext(
             actionName: name,
             session: .init(key: sessionKey, surfaceId: surfaceId),
             component: .init(id: sourceComponentId, host: host, instanceId: instanceId),
             contextJSON: contextJSON)
-        let message = ClawdisCanvasA2UIAction.formatAgentMessage(messageContext)
+        let message = GobboCanvasA2UIAction.formatAgentMessage(messageContext)
 
         let ok: Bool
         var errorText: String?
@@ -140,7 +140,7 @@ final class NodeAppModel {
             }
         }
 
-        let js = ClawdisCanvasA2UIAction.jsDispatchA2UIActionStatus(actionId: actionId, ok: ok, error: errorText)
+        let js = GobboCanvasA2UIAction.jsDispatchA2UIActionStatus(actionId: actionId, ok: ok, error: errorText)
         do {
             _ = try await self.screen.eval(javaScript: js)
         } catch {
@@ -152,7 +152,7 @@ final class NodeAppModel {
         guard let raw = await self.bridge.currentCanvasHostUrl() else { return nil }
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let base = URL(string: trimmed) else { return nil }
-        return base.appendingPathComponent("__clawdis__/a2ui/").absoluteString + "?platform=ios"
+        return base.appendingPathComponent("__gobbo__/a2ui/").absoluteString + "?platform=ios"
     }
 
     private func showA2UIOnConnectIfNeeded() async {
@@ -236,7 +236,7 @@ final class NodeAppModel {
                                 return BridgeInvokeResponse(
                                     id: req.id,
                                     ok: false,
-                                    error: ClawdisNodeError(code: .unavailable, message: "UNAVAILABLE: node not ready"))
+                                    error: GobboNodeError(code: .unavailable, message: "UNAVAILABLE: node not ready"))
                             }
                             return await self.handleInvoke(req)
                         })
@@ -425,7 +425,7 @@ final class NodeAppModel {
         }
 
         // iOS bridge forwards to the gateway; no local auth prompts here.
-        // (Key-based unattended auth is handled on macOS for clawdis:// links.)
+        // (Key-based unattended auth is handled on macOS for gobbo:// links.)
         let data = try JSONEncoder().encode(link)
         guard let json = String(bytes: data, encoding: .utf8) else {
             throw NSError(domain: "NodeAppModel", code: 2, userInfo: [
@@ -450,7 +450,7 @@ final class NodeAppModel {
             return BridgeInvokeResponse(
                 id: req.id,
                 ok: false,
-                error: ClawdisNodeError(
+                error: GobboNodeError(
                     code: .backgroundUnavailable,
                     message: "NODE_BACKGROUND_UNAVAILABLE: canvas/camera/screen commands require foreground"))
         }
@@ -459,16 +459,16 @@ final class NodeAppModel {
             return BridgeInvokeResponse(
                 id: req.id,
                 ok: false,
-                error: ClawdisNodeError(
+                error: GobboNodeError(
                     code: .unavailable,
                     message: "CAMERA_DISABLED: enable Camera in iOS Settings → Camera → Allow Camera"))
         }
 
         do {
             switch command {
-            case ClawdisCanvasCommand.present.rawValue:
-                let params = (try? Self.decodeParams(ClawdisCanvasPresentParams.self, from: req.paramsJSON)) ??
-                    ClawdisCanvasPresentParams()
+            case GobboCanvasCommand.present.rawValue:
+                let params = (try? Self.decodeParams(GobboCanvasPresentParams.self, from: req.paramsJSON)) ??
+                    GobboCanvasPresentParams()
                 let url = params.url?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 if url.isEmpty {
                     self.screen.showDefaultCanvas()
@@ -477,22 +477,22 @@ final class NodeAppModel {
                 }
                 return BridgeInvokeResponse(id: req.id, ok: true)
 
-            case ClawdisCanvasCommand.hide.rawValue:
+            case GobboCanvasCommand.hide.rawValue:
                 return BridgeInvokeResponse(id: req.id, ok: true)
 
-            case ClawdisCanvasCommand.navigate.rawValue:
-                let params = try Self.decodeParams(ClawdisCanvasNavigateParams.self, from: req.paramsJSON)
+            case GobboCanvasCommand.navigate.rawValue:
+                let params = try Self.decodeParams(GobboCanvasNavigateParams.self, from: req.paramsJSON)
                 self.screen.navigate(to: params.url)
                 return BridgeInvokeResponse(id: req.id, ok: true)
 
-            case ClawdisCanvasCommand.evalJS.rawValue:
-                let params = try Self.decodeParams(ClawdisCanvasEvalParams.self, from: req.paramsJSON)
+            case GobboCanvasCommand.evalJS.rawValue:
+                let params = try Self.decodeParams(GobboCanvasEvalParams.self, from: req.paramsJSON)
                 let result = try await self.screen.eval(javaScript: params.javaScript)
                 let payload = try Self.encodePayload(["result": result])
                 return BridgeInvokeResponse(id: req.id, ok: true, payloadJSON: payload)
 
-            case ClawdisCanvasCommand.snapshot.rawValue:
-                let params = try? Self.decodeParams(ClawdisCanvasSnapshotParams.self, from: req.paramsJSON)
+            case GobboCanvasCommand.snapshot.rawValue:
+                let params = try? Self.decodeParams(GobboCanvasSnapshotParams.self, from: req.paramsJSON)
                 let format = params?.format ?? .jpeg
                 let maxWidth: CGFloat? = {
                     if let raw = params?.maxWidth, raw > 0 { return CGFloat(raw) }
@@ -513,12 +513,12 @@ final class NodeAppModel {
                 ])
                 return BridgeInvokeResponse(id: req.id, ok: true, payloadJSON: payload)
 
-            case ClawdisCanvasA2UICommand.reset.rawValue:
+            case GobboCanvasA2UICommand.reset.rawValue:
                 guard let a2uiUrl = await self.resolveA2UIHostURL() else {
                     return BridgeInvokeResponse(
                         id: req.id,
                         ok: false,
-                        error: ClawdisNodeError(
+                        error: GobboNodeError(
                             code: .unavailable,
                             message: "A2UI_HOST_NOT_CONFIGURED: gateway did not advertise canvas host"))
                 }
@@ -527,32 +527,32 @@ final class NodeAppModel {
                     return BridgeInvokeResponse(
                         id: req.id,
                         ok: false,
-                        error: ClawdisNodeError(
+                        error: GobboNodeError(
                             code: .unavailable,
                             message: "A2UI_HOST_UNAVAILABLE: A2UI host not reachable"))
                 }
 
                 let json = try await self.screen.eval(javaScript: """
                 (() => {
-                  if (!globalThis.clawdisA2UI) return JSON.stringify({ ok: false, error: "missing clawdisA2UI" });
-                  return JSON.stringify(globalThis.clawdisA2UI.reset());
+                  if (!globalThis.gobboA2UI) return JSON.stringify({ ok: false, error: "missing gobboA2UI" });
+                  return JSON.stringify(globalThis.gobboA2UI.reset());
                 })()
                 """)
                 return BridgeInvokeResponse(id: req.id, ok: true, payloadJSON: json)
 
-            case ClawdisCanvasA2UICommand.push.rawValue, ClawdisCanvasA2UICommand.pushJSONL.rawValue:
+            case GobboCanvasA2UICommand.push.rawValue, GobboCanvasA2UICommand.pushJSONL.rawValue:
                 let messages: [AnyCodable]
-                if command == ClawdisCanvasA2UICommand.pushJSONL.rawValue {
-                    let params = try Self.decodeParams(ClawdisCanvasA2UIPushJSONLParams.self, from: req.paramsJSON)
-                    messages = try ClawdisCanvasA2UIJSONL.decodeMessagesFromJSONL(params.jsonl)
+                if command == GobboCanvasA2UICommand.pushJSONL.rawValue {
+                    let params = try Self.decodeParams(GobboCanvasA2UIPushJSONLParams.self, from: req.paramsJSON)
+                    messages = try GobboCanvasA2UIJSONL.decodeMessagesFromJSONL(params.jsonl)
                 } else {
                     do {
-                        let params = try Self.decodeParams(ClawdisCanvasA2UIPushParams.self, from: req.paramsJSON)
+                        let params = try Self.decodeParams(GobboCanvasA2UIPushParams.self, from: req.paramsJSON)
                         messages = params.messages
                     } catch {
                         // Be forgiving: some clients still send JSONL payloads to `canvas.a2ui.push`.
-                        let params = try Self.decodeParams(ClawdisCanvasA2UIPushJSONLParams.self, from: req.paramsJSON)
-                        messages = try ClawdisCanvasA2UIJSONL.decodeMessagesFromJSONL(params.jsonl)
+                        let params = try Self.decodeParams(GobboCanvasA2UIPushJSONLParams.self, from: req.paramsJSON)
+                        messages = try GobboCanvasA2UIJSONL.decodeMessagesFromJSONL(params.jsonl)
                     }
                 }
 
@@ -560,7 +560,7 @@ final class NodeAppModel {
                     return BridgeInvokeResponse(
                         id: req.id,
                         ok: false,
-                        error: ClawdisNodeError(
+                        error: GobboNodeError(
                             code: .unavailable,
                             message: "A2UI_HOST_NOT_CONFIGURED: gateway did not advertise canvas host"))
                 }
@@ -569,18 +569,18 @@ final class NodeAppModel {
                     return BridgeInvokeResponse(
                         id: req.id,
                         ok: false,
-                        error: ClawdisNodeError(
+                        error: GobboNodeError(
                             code: .unavailable,
                             message: "A2UI_HOST_UNAVAILABLE: A2UI host not reachable"))
                 }
 
-                let messagesJSON = try ClawdisCanvasA2UIJSONL.encodeMessagesJSONArray(messages)
+                let messagesJSON = try GobboCanvasA2UIJSONL.encodeMessagesJSONArray(messages)
                 let js = """
                 (() => {
                   try {
-                    if (!globalThis.clawdisA2UI) return JSON.stringify({ ok: false, error: "missing clawdisA2UI" });
+                    if (!globalThis.gobboA2UI) return JSON.stringify({ ok: false, error: "missing gobboA2UI" });
                     const messages = \(messagesJSON);
-                    return JSON.stringify(globalThis.clawdisA2UI.applyMessages(messages));
+                    return JSON.stringify(globalThis.gobboA2UI.applyMessages(messages));
                   } catch (e) {
                     return JSON.stringify({ ok: false, error: String(e?.message ?? e) });
                   }
@@ -589,11 +589,11 @@ final class NodeAppModel {
                 let resultJSON = try await self.screen.eval(javaScript: js)
                 return BridgeInvokeResponse(id: req.id, ok: true, payloadJSON: resultJSON)
 
-            case ClawdisCameraCommand.snap.rawValue:
+            case GobboCameraCommand.snap.rawValue:
                 self.showCameraHUD(text: "Taking photo…", kind: .photo)
                 self.triggerCameraFlash()
-                let params = (try? Self.decodeParams(ClawdisCameraSnapParams.self, from: req.paramsJSON)) ??
-                    ClawdisCameraSnapParams()
+                let params = (try? Self.decodeParams(GobboCameraSnapParams.self, from: req.paramsJSON)) ??
+                    GobboCameraSnapParams()
                 let res = try await self.camera.snap(params: params)
 
                 struct Payload: Codable {
@@ -610,9 +610,9 @@ final class NodeAppModel {
                 self.showCameraHUD(text: "Photo captured", kind: .success, autoHideSeconds: 1.6)
                 return BridgeInvokeResponse(id: req.id, ok: true, payloadJSON: payload)
 
-            case ClawdisCameraCommand.clip.rawValue:
-                let params = (try? Self.decodeParams(ClawdisCameraClipParams.self, from: req.paramsJSON)) ??
-                    ClawdisCameraClipParams()
+            case GobboCameraCommand.clip.rawValue:
+                let params = (try? Self.decodeParams(GobboCameraClipParams.self, from: req.paramsJSON)) ??
+                    GobboCameraClipParams()
 
                 let suspended = (params.includeAudio ?? true) ? self.voiceWake.suspendForExternalAudioCapture() : false
                 defer { self.voiceWake.resumeAfterExternalAudioCapture(wasSuspended: suspended) }
@@ -634,9 +634,9 @@ final class NodeAppModel {
                 self.showCameraHUD(text: "Clip captured", kind: .success, autoHideSeconds: 1.8)
                 return BridgeInvokeResponse(id: req.id, ok: true, payloadJSON: payload)
 
-            case ClawdisScreenCommand.record.rawValue:
-                let params = (try? Self.decodeParams(ClawdisScreenRecordParams.self, from: req.paramsJSON)) ??
-                    ClawdisScreenRecordParams()
+            case GobboScreenCommand.record.rawValue:
+                let params = (try? Self.decodeParams(GobboScreenRecordParams.self, from: req.paramsJSON)) ??
+                    GobboScreenRecordParams()
                 if let format = params.format, format.lowercased() != "mp4" {
                     throw NSError(domain: "Screen", code: 30, userInfo: [
                         NSLocalizedDescriptionKey: "INVALID_REQUEST: screen format must be mp4",
@@ -674,7 +674,7 @@ final class NodeAppModel {
                 return BridgeInvokeResponse(
                     id: req.id,
                     ok: false,
-                    error: ClawdisNodeError(code: .invalidRequest, message: "INVALID_REQUEST: unknown command"))
+                    error: GobboNodeError(code: .invalidRequest, message: "INVALID_REQUEST: unknown command"))
             }
         } catch {
             if command.hasPrefix("camera.") {
@@ -684,7 +684,7 @@ final class NodeAppModel {
             return BridgeInvokeResponse(
                 id: req.id,
                 ok: false,
-                error: ClawdisNodeError(code: .unavailable, message: error.localizedDescription))
+                error: GobboNodeError(code: .unavailable, message: error.localizedDescription))
         }
     }
 

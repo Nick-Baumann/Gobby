@@ -1,4 +1,4 @@
-const THEME_STORAGE_KEY = "clawdis:theme";
+const THEME_STORAGE_KEY = "gobbo:theme";
 
 function safeGet(key) {
   try {

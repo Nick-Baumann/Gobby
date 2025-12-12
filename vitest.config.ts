@@ -9,7 +9,7 @@ export default defineConfig({
       "apps/macos/**",
       "apps/macos/.build/**",
       "**/vendor/**",
-      "dist/Clawdis.app/**",
+      "dist/Gobbo.app/**",
     ],
     coverage: {
       provider: "v8",

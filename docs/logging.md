@@ -7,17 +7,17 @@ read_when:
 
 # Logging
 
-Clawdis has two log “surfaces”:
+Gobbo has two log “surfaces”:
 
 - **Console output** (what you see in the terminal / Debug UI).
 - **File logs** (JSON lines) written by the internal logger.
 
 ## File-based logger
 
-Clawdis uses a file logger backed by `tslog` (`src/logging.ts`).
+Gobbo uses a file logger backed by `tslog` (`src/logging.ts`).
 
-- Default rolling log file is under `/tmp/clawdis/` (one file per day): `clawdis-YYYY-MM-DD.log`
-- The log file path and level can be configured via `~/.clawdis/clawdis.json`:
+- Default rolling log file is under `/tmp/gobbo/` (one file per day): `gobbo-YYYY-MM-DD.log`
+- The log file path and level can be configured via `~/.gobbo/gobbo.json`:
   - `logging.file`
   - `logging.level`
 
@@ -41,7 +41,7 @@ The gateway prints WebSocket protocol logs in two modes:
 
 ### WS log style
 
-`clawdis gateway` supports a per-gateway style switch:
+`gobbo gateway` supports a per-gateway style switch:
 
 - `--ws-log auto` (default): normal mode is optimized; verbose mode uses compact output
 - `--ws-log compact`: compact output (paired request/response) when verbose
@@ -52,18 +52,18 @@ Examples:
 
 ```bash
 # optimized (only errors/slow)
-clawdis gateway
+gobbo gateway
 
 # show all WS traffic (paired)
-clawdis gateway --verbose --ws-log compact
+gobbo gateway --verbose --ws-log compact
 
 # show all WS traffic (full meta)
-clawdis gateway --verbose --ws-log full
+gobbo gateway --verbose --ws-log full
 ```
 
 ## Console formatting (subsystem logging)
 
-Clawdis formats console logs via a small wrapper on top of the existing stack:
+Gobbo formats console logs via a small wrapper on top of the existing stack:
 
 - **tslog** for structured file logs (`src/logging.ts`)
 - **chalk** for colors (`src/globals.ts`)

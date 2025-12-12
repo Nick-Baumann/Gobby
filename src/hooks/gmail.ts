@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 
 import type {
-  ClawdisConfig,
+  GobboConfig,
   HooksGmailTailscaleMode,
 } from "../config/config.js";
 
@@ -93,7 +93,7 @@ export function buildDefaultHookUrl(hooksPath?: string): string {
 }
 
 export function resolveGmailHookRuntimeConfig(
-  cfg: ClawdisConfig,
+  cfg: GobboConfig,
   overrides: GmailHookOverrides,
 ): { ok: true; value: GmailHookRuntimeConfig } | { ok: false; error: string } {
   const hooks = cfg.hooks;

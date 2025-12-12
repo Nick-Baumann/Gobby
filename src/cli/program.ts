@@ -28,12 +28,12 @@ export function buildProgram() {
   const TAGLINE =
     "Send, receive, and auto-reply on WhatsApp (web) and Telegram (bot).";
 
-  program.name("clawdis").description("").version(PROGRAM_VERSION);
+  program.name("gobbo").description("").version(PROGRAM_VERSION);
 
   const formatIntroLine = (version: string, rich = true) => {
-    const base = `📡 clawdis ${version} — ${TAGLINE}`;
+    const base = `📡 gobbo ${version} — ${TAGLINE}`;
     return rich && chalk.level > 0
-      ? `${chalk.bold.cyan("📡 clawdis")} ${chalk.white(version)} ${chalk.gray("—")} ${chalk.green(TAGLINE)}`
+      ? `${chalk.bold.cyan("📡 gobbo")} ${chalk.white(version)} ${chalk.gray("—")} ${chalk.green(TAGLINE)}`
       : base;
   };
 
@@ -66,25 +66,25 @@ export function buildProgram() {
   program.addHelpText("beforeAll", `\n${formatIntroLine(PROGRAM_VERSION)}\n`);
   const examples = [
     [
-      "clawdis login --verbose",
+      "gobbo login --verbose",
       "Link personal WhatsApp Web and show QR + connection logs.",
     ],
     [
-      'clawdis send --to +15555550123 --message "Hi" --json',
+      'gobbo send --to +15555550123 --message "Hi" --json',
       "Send via your web session and print JSON result.",
     ],
-    ["clawdis gateway --port 18789", "Run the WebSocket Gateway locally."],
+    ["gobbo gateway --port 18789", "Run the WebSocket Gateway locally."],
     [
-      "clawdis gateway --force",
+      "gobbo gateway --force",
       "Kill anything bound to the default gateway port, then start it.",
     ],
-    ["clawdis gateway ...", "Gateway control via WebSocket."],
+    ["gobbo gateway ...", "Gateway control via WebSocket."],
     [
-      'clawdis agent --to +15555550123 --message "Run summary" --deliver',
+      'gobbo agent --to +15555550123 --message "Run summary" --deliver',
       "Talk directly to the agent using the Gateway; optionally send the WhatsApp reply.",
     ],
     [
-      'clawdis send --provider telegram --to @mychat --message "Hi"',
+      'gobbo send --provider telegram --to @mychat --message "Hi"',
       "Send via your Telegram bot.",
     ],
   ] as const;
@@ -100,7 +100,7 @@ export function buildProgram() {
 
   program
     .command("setup")
-    .description("Initialize ~/.clawdis/clawdis.json and the agent workspace")
+    .description("Initialize ~/.gobbo/gobbo.json and the agent workspace")
     .option(
       "--workspace <dir>",
       "Agent workspace directory (default: ~/clawd; stored as agent.workspace)",
@@ -170,10 +170,10 @@ export function buildProgram() {
       "after",
       `
 Examples:
-  clawdis send --to +15555550123 --message "Hi"
-  clawdis send --to +15555550123 --message "Hi" --media photo.jpg
-  clawdis send --to +15555550123 --message "Hi" --dry-run      # print payload only
-  clawdis send --to +15555550123 --message "Hi" --json         # machine-readable result`,
+  gobbo send --to +15555550123 --message "Hi"
+  gobbo send --to +15555550123 --message "Hi" --media photo.jpg
+  gobbo send --to +15555550123 --message "Hi" --dry-run      # print payload only
+  gobbo send --to +15555550123 --message "Hi" --json         # machine-readable result`,
     )
     .action(async (opts) => {
       setVerbose(Boolean(opts.verbose));
@@ -220,10 +220,10 @@ Examples:
       "after",
       `
 Examples:
-  clawdis agent --to +15555550123 --message "status update"
-  clawdis agent --session-id 1234 --message "Summarize inbox" --thinking medium
-  clawdis agent --to +15555550123 --message "Trace logs" --verbose on --json
-  clawdis agent --to +15555550123 --message "Summon reply" --deliver
+  gobbo agent --to +15555550123 --message "status update"
+  gobbo agent --session-id 1234 --message "Summarize inbox" --thinking medium
+  gobbo agent --to +15555550123 --message "Trace logs" --verbose on --json
+  gobbo agent --to +15555550123 --message "Summon reply" --deliver
 `,
     )
     .action(async (opts) => {
@@ -262,10 +262,10 @@ Examples:
       "after",
       `
 Examples:
-  clawdis status                   # show linked account + session store summary
-  clawdis status --json            # machine-readable output
-  clawdis status --deep            # run provider probes (WA + Telegram + Discord)
-  clawdis status --deep --timeout 5000 # tighten probe timeout`,
+  gobbo status                   # show linked account + session store summary
+  gobbo status --json            # machine-readable output
+  gobbo status --deep            # run provider probes (WA + Telegram + Discord)
+  gobbo status --deep --timeout 5000 # tighten probe timeout`,
     )
     .action(async (opts) => {
       setVerbose(Boolean(opts.verbose));
@@ -343,10 +343,10 @@ Examples:
       "after",
       `
 Examples:
-  clawdis sessions                 # list all sessions
-  clawdis sessions --active 120    # only last 2 hours
-  clawdis sessions --json          # machine-readable output
-  clawdis sessions --store ./tmp/sessions.json
+  gobbo sessions                 # list all sessions
+  gobbo sessions --active 120    # only last 2 hours
+  gobbo sessions --json          # machine-readable output
+  gobbo sessions --store ./tmp/sessions.json
 
 Shows token usage per session when the agent reports it; set agent.contextTokens to see % of your model window.`,
     )

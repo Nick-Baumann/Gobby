@@ -1,14 +1,14 @@
 ---
-summary: "Agent tool surface for Clawdis (browser, canvas, nodes, cron) replacing clawdis-* skills"
+summary: "Agent tool surface for Gobbo (browser, canvas, nodes, cron) replacing gobbo-* skills"
 read_when:
   - Adding or modifying agent tools
-  - Retiring or changing clawdis-* skills
+  - Retiring or changing gobbo-* skills
 ---
 
-# Tools (Clawdis)
+# Tools (Gobbo)
 
-Clawdis exposes **first-class agent tools** for browser, canvas, nodes, and cron.
-These replace the old `clawdis-*` skills: the tools are typed, no shelling,
+Gobbo exposes **first-class agent tools** for browser, canvas, nodes, and cron.
+These replace the old `gobbo-*` skills: the tools are typed, no shelling,
 and the agent should rely on them directly.
 
 ## Tool inventory
@@ -36,7 +36,7 @@ Notes:
 - `poll` returns new output and exit status when complete.
 - `log` supports line-based `offset`/`limit` (omit `offset` to grab the last N lines).
 
-### `clawdis_browser`
+### `gobbo_browser`
 Control the dedicated clawd browser.
 
 Core actions:
@@ -47,13 +47,13 @@ Core actions:
 - `navigate`, `console`, `pdf`, `upload`, `dialog`
 
 Notes:
-- Requires `browser.enabled=true` in `~/.clawdis/clawdis.json`.
+- Requires `browser.enabled=true` in `~/.gobbo/gobbo.json`.
 - Uses `browser.controlUrl` unless `controlUrl` is passed explicitly.
 - `snapshot` defaults to `ai`; use `aria` for the accessibility tree.
 - `act` requires `ref` from `snapshot --format ai`; use `evaluate` for rare CSS selector needs.
 - Avoid `act` → `wait` by default; use it only in exceptional cases (no reliable UI state to wait on).
 
-### `clawdis_canvas`
+### `gobbo_canvas`
 Drive the node Canvas (present, eval, snapshot, A2UI).
 
 Core actions:
@@ -65,9 +65,9 @@ Notes:
 - Uses gateway `node.invoke` under the hood.
 - If no `node` is provided, the tool picks a default (single connected node or local mac node).
 - A2UI is v0.8 only (no `createSurface`); the CLI rejects v0.9 JSONL with line errors.
-- Quick smoke: `clawdis canvas a2ui push --text "Hello from A2UI"`.
+- Quick smoke: `gobbo canvas a2ui push --text "Hello from A2UI"`.
 
-### `clawdis_nodes`
+### `gobbo_nodes`
 Discover and target paired nodes; send notifications; capture camera/screen.
 
 Core actions:
@@ -81,7 +81,7 @@ Notes:
 - Images return image blocks + `MEDIA:<path>`.
 - Videos return `FILE:<path>` (mp4).
 
-### `clawdis_cron`
+### `gobbo_cron`
 Manage Gateway cron jobs and wakeups.
 
 Core actions:
@@ -93,18 +93,18 @@ Notes:
 - `add` expects a full cron job object (same schema as `cron.add` RPC).
 - `update` uses `{ jobId, patch }`.
 
-### `clawdis_gateway`
+### `gobbo_gateway`
 Restart the running Gateway process (in-place).
 
 Core actions:
-- `restart` (sends `SIGUSR1` to the current process; `clawdis gateway`/`gateway-daemon` restart in-place)
+- `restart` (sends `SIGUSR1` to the current process; `gobbo gateway`/`gateway-daemon` restart in-place)
 
 Notes:
 - Use `delayMs` (defaults to 2000) to avoid interrupting an in-flight reply.
 
 ## Parameters (common)
 
-Gateway-backed tools (`clawdis_canvas`, `clawdis_nodes`, `clawdis_cron`):
+Gateway-backed tools (`gobbo_canvas`, `gobbo_nodes`, `gobbo_cron`):
 - `gatewayUrl` (default `ws://127.0.0.1:18789`)
 - `gatewayToken` (if auth enabled)
 - `timeoutMs`
@@ -115,18 +115,18 @@ Browser tool:
 ## Recommended agent flows
 
 Browser automation:
-1) `clawdis_browser` → `status` / `start`
+1) `gobbo_browser` → `status` / `start`
 2) `snapshot` (ai or aria)
 3) `act` (click/type/press)
 4) `screenshot` if you need visual confirmation
 
 Canvas render:
-1) `clawdis_canvas` → `present`
+1) `gobbo_canvas` → `present`
 2) `a2ui_push` (optional)
 3) `snapshot`
 
 Node targeting:
-1) `clawdis_nodes` → `status`
+1) `gobbo_nodes` → `status`
 2) `describe` on the chosen node
 3) `notify` / `camera_snap` / `screen_record`
 
@@ -155,6 +155,6 @@ In pi-mono:
   - Agent loop: `packages/ai/src/agent/agent-loop.ts`
   - Validates tool arguments and executes tools, then appends `toolResult` messages.
 
-In Clawdis:
+In Gobbo:
 - System prompt append: `src/agents/system-prompt.ts`
-- Tool list injected via `createClawdisCodingTools()` in `src/agents/pi-tools.ts`
+- Tool list injected via `createGobboCodingTools()` in `src/agents/pi-tools.ts`

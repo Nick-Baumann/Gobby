@@ -2,13 +2,13 @@
 name: wacli
 description: WhatsApp CLI for sync, search, and sending messages.
 homepage: https://wacli.sh
-metadata: {"clawdis":{"emoji":"📱","requires":{"bins":["wacli"]},"install":[{"id":"go","kind":"go","module":"github.com/steipete/wacli/cmd/wacli@latest","bins":["wacli"],"label":"Install wacli (go)"}]}}
+metadata: {"gobbo":{"emoji":"📱","requires":{"bins":["wacli"]},"install":[{"id":"go","kind":"go","module":"github.com/nickbaumann/wacli/cmd/wacli@latest","bins":["wacli"],"label":"Install wacli (go)"}]}}
 ---
 
 # wacli
 
 Use `wacli` for WhatsApp sync/search/send via WhatsApp Web protocol.
-Normal operation: the user chats with you via Telegram or WhatsApp and Clawdis handles it automatically.
+Normal operation: the user chats with you via Telegram or WhatsApp and Gobbo handles it automatically.
 Use `wacli` only when you need to talk to other people on WhatsApp (or to debug sync/search).
 
 Auth + sync

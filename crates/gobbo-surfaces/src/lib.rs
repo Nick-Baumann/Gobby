@@ -40,9 +40,11 @@ impl Recipient {
     /// Whether this recipient looks like a group (Telegram, Discord channel).
     pub fn is_group(&self) -> bool {
         match self.surface {
-            Surface::Telegram | Surface::Discord => self.address.starts_with('-')
-                || self.address.starts_with('#')
-                || self.address.starts_with("group:"),
+            Surface::Telegram | Surface::Discord => {
+                self.address.starts_with('-')
+                    || self.address.starts_with('#')
+                    || self.address.starts_with("group:")
+            }
             _ => false,
         }
     }

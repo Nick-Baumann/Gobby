@@ -15,7 +15,7 @@ function enhanceBrowserFetchError(
   const code = extractErrorCode(cause) ?? extractErrorCode(err) ?? "";
 
   const hint =
-    "Start (or restart) the Clawdis gateway (Clawdis.app menubar, or `clawdis gateway`) and try again.";
+    "Start (or restart) the Gobbo gateway (Gobbo.app menubar, or `gobbo gateway`) and try again.";
 
   if (code === "ECONNREFUSED") {
     return new Error(

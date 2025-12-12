@@ -2,8 +2,8 @@
 // the agent reports a model id. This includes custom models.json entries.
 
 import { loadConfig } from "../config/config.js";
-import { resolveClawdisAgentDir } from "./agent-paths.js";
-import { ensureClawdisModelsJson } from "./models-config.js";
+import { resolveGobboAgentDir } from "./agent-paths.js";
+import { ensureGobboModelsJson } from "./models-config.js";
 
 type ModelEntry = { id: string; contextWindow?: number };
 
@@ -14,8 +14,8 @@ const loadPromise = (async () => {
       "@mariozechner/pi-coding-agent"
     );
     const cfg = loadConfig();
-    await ensureClawdisModelsJson(cfg);
-    const agentDir = resolveClawdisAgentDir();
+    await ensureGobboModelsJson(cfg);
+    const agentDir = resolveGobboAgentDir();
     const authStorage = discoverAuthStorage(agentDir);
     const modelRegistry = discoverModels(authStorage, agentDir);
     const models = modelRegistry.getAll() as ModelEntry[];
