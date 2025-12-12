@@ -289,9 +289,10 @@ actor PortGuardian {
         let expectedCommands = ["node", "clawdis", "tsx", "pnpm", "bun"]
         switch mode {
         case .remote:
-            if port == 18788 {
-                return cmd.contains("ssh") && cmd.contains("18788")
-            }
+            // Remote mode expects an SSH tunnel for the gateway WebSocket port.
+            if port == 18789 { return cmd.contains("ssh") }
+            // WebChat assets may be served locally (Clawdis) or forwarded via an older SSH tunnel.
+            if port == 18788 { return cmd.contains("clawdis") || cmd.contains("ssh") }
             return false
         case .local:
             return expectedCommands.contains { cmd.contains($0) }
