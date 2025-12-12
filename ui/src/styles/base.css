@@ -129,7 +129,7 @@ html.theme-transition::view-transition-new(theme) {
   }
 }
 
-clawdis-app {
+gobbo-app {
   display: block;
   position: relative;
   z-index: 1;

@@ -25,7 +25,7 @@ import {
   DEFAULT_AGENT_WORKSPACE_DIR,
   ensureAgentWorkspace,
 } from "../agents/workspace.js";
-import { type ClawdisConfig, loadConfig } from "../config/config.js";
+import { type GobboConfig, loadConfig } from "../config/config.js";
 import {
   DEFAULT_IDLE_MINUTES,
   DEFAULT_RESET_TRIGGERS,
@@ -38,7 +38,7 @@ import {
 } from "../config/sessions.js";
 import { logVerbose } from "../globals.js";
 import { buildProviderSummary } from "../infra/provider-summary.js";
-import { triggerClawdisRestart } from "../infra/restart.js";
+import { triggerGobboRestart } from "../infra/restart.js";
 import {
   drainSystemEvents,
   enqueueSystemEvent,
@@ -183,7 +183,7 @@ function stripStructuralPrefixes(text: string): string {
 function stripMentions(
   text: string,
   ctx: MsgContext,
-  cfg: ClawdisConfig | undefined,
+  cfg: GobboConfig | undefined,
 ): string {
   let result = text;
   const patterns = cfg?.routing?.groupChat?.mentionPatterns ?? [];
@@ -217,7 +217,7 @@ function defaultQueueModeForSurface(surface?: string): QueueMode {
 }
 
 function resolveQueueMode(params: {
-  cfg: ClawdisConfig;
+  cfg: GobboConfig;
   surface?: string;
   sessionEntry?: SessionEntry;
   inlineMode?: QueueMode;
@@ -242,7 +242,7 @@ function resolveQueueMode(params: {
 export async function getReplyFromConfig(
   ctx: MsgContext,
   opts?: GetReplyOptions,
-  configOverride?: ClawdisConfig,
+  configOverride?: GobboConfig,
 ): Promise<ReplyPayload | ReplyPayload[] | undefined> {
   const cfg = configOverride ?? loadConfig();
   const workspaceDirRaw = cfg.agent?.workspace ?? DEFAULT_AGENT_WORKSPACE_DIR;
@@ -886,10 +886,10 @@ export async function getReplyFromConfig(
       cleanupTyping();
       return undefined;
     }
-    triggerClawdisRestart();
+    triggerGobboRestart();
     cleanupTyping();
     return {
-      text: "⚙️ Restarting clawdis via launchctl; give me a few seconds to come back online.",
+      text: "⚙️ Restarting gobbo via launchctl; give me a few seconds to come back online.",
     };
   }
 
@@ -978,7 +978,7 @@ export async function getReplyFromConfig(
             : "Activation: trigger-only (you are invoked only when explicitly mentioned; recent context may be included).";
         const silenceLine =
           activation === "always"
-            ? `If no response is needed, reply with exactly "${SILENT_REPLY_TOKEN}" (no other text) so Clawdis stays silent.`
+            ? `If no response is needed, reply with exactly "${SILENT_REPLY_TOKEN}" (no other text) so Gobbo stays silent.`
             : undefined;
         const cautionLine =
           activation === "always"

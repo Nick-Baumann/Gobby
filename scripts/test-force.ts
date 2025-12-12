@@ -27,13 +27,13 @@ function killGatewayListeners(port: number): PortProcess[] {
 
 function runTests() {
   const isolatedLock =
-    process.env.CLAWDIS_GATEWAY_LOCK ??
-    path.join(os.tmpdir(), `clawdis-gateway.lock.test.${Date.now()}`);
+    process.env.GOBBO_GATEWAY_LOCK ??
+    path.join(os.tmpdir(), `gobbo-gateway.lock.test.${Date.now()}`);
   const result = spawnSync("pnpm", ["vitest", "run"], {
     stdio: "inherit",
     env: {
       ...process.env,
-      CLAWDIS_GATEWAY_LOCK: isolatedLock,
+      GOBBO_GATEWAY_LOCK: isolatedLock,
     },
   });
   if (result.error) {
@@ -45,7 +45,7 @@ function runTests() {
 
 function main() {
   const port = Number.parseInt(
-    process.env.CLAWDIS_GATEWAY_PORT ?? `${DEFAULT_PORT}`,
+    process.env.GOBBO_GATEWAY_PORT ?? `${DEFAULT_PORT}`,
     10,
   );
 

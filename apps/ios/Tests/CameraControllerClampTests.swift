@@ -1,5 +1,5 @@
 import Testing
-@testable import Clawdis
+@testable import Gobbo
 
 @Suite struct CameraControllerClampTests {
     @Test func clampQualityDefaultsAndBounds() {

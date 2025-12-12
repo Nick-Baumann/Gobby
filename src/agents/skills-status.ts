@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import type { ClawdisConfig } from "../config/config.js";
+import type { GobboConfig } from "../config/config.js";
 import { CONFIG_DIR } from "../utils.js";
 import {
   hasBinary,
@@ -61,7 +61,7 @@ export type SkillStatusReport = {
 };
 
 function resolveSkillKey(entry: SkillEntry): string {
-  return entry.clawdis?.skillKey ?? entry.skill.name;
+  return entry.gobbo?.skillKey ?? entry.skill.name;
 }
 
 function selectPreferredInstallSpec(
@@ -90,7 +90,7 @@ function normalizeInstallOptions(
   entry: SkillEntry,
   prefs: SkillsInstallPreferences,
 ): SkillInstallOption[] {
-  const install = entry.clawdis?.install ?? [];
+  const install = entry.gobbo?.install ?? [];
   if (install.length === 0) return [];
   const preferred = selectPreferredInstallSpec(install, prefs);
   if (!preferred) return [];
@@ -126,24 +126,24 @@ function normalizeInstallOptions(
 
 function buildSkillStatus(
   entry: SkillEntry,
-  config?: ClawdisConfig,
+  config?: GobboConfig,
   prefs?: SkillsInstallPreferences,
 ): SkillStatusEntry {
   const skillKey = resolveSkillKey(entry);
   const skillConfig = resolveSkillConfig(config, skillKey);
   const disabled = skillConfig?.enabled === false;
-  const always = entry.clawdis?.always === true;
-  const emoji = entry.clawdis?.emoji ?? entry.frontmatter.emoji;
+  const always = entry.gobbo?.always === true;
+  const emoji = entry.gobbo?.emoji ?? entry.frontmatter.emoji;
   const homepageRaw =
-    entry.clawdis?.homepage ??
+    entry.gobbo?.homepage ??
     entry.frontmatter.homepage ??
     entry.frontmatter.website ??
     entry.frontmatter.url;
   const homepage = homepageRaw?.trim() ? homepageRaw.trim() : undefined;
 
-  const requiredBins = entry.clawdis?.requires?.bins ?? [];
-  const requiredEnv = entry.clawdis?.requires?.env ?? [];
-  const requiredConfig = entry.clawdis?.requires?.config ?? [];
+  const requiredBins = entry.gobbo?.requires?.bins ?? [];
+  const requiredEnv = entry.gobbo?.requires?.env ?? [];
+  const requiredConfig = entry.gobbo?.requires?.config ?? [];
 
   const missingBins = requiredBins.filter((bin) => !hasBinary(bin));
 
@@ -151,7 +151,7 @@ function buildSkillStatus(
   for (const envName of requiredEnv) {
     if (process.env[envName]) continue;
     if (skillConfig?.env?.[envName]) continue;
-    if (skillConfig?.apiKey && entry.clawdis?.primaryEnv === envName) {
+    if (skillConfig?.apiKey && entry.gobbo?.primaryEnv === envName) {
       continue;
     }
     missingEnv.push(envName);
@@ -185,7 +185,7 @@ function buildSkillStatus(
     filePath: entry.skill.filePath,
     baseDir: entry.skill.baseDir,
     skillKey,
-    primaryEnv: entry.clawdis?.primaryEnv,
+    primaryEnv: entry.gobbo?.primaryEnv,
     emoji,
     homepage,
     always,
@@ -208,7 +208,7 @@ function buildSkillStatus(
 export function buildWorkspaceSkillStatus(
   workspaceDir: string,
   opts?: {
-    config?: ClawdisConfig;
+    config?: GobboConfig;
     managedSkillsDir?: string;
     entries?: SkillEntry[];
   },

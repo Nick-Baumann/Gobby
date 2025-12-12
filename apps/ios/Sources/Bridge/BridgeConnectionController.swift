@@ -1,4 +1,4 @@
-import ClawdisKit
+import GobboKit
 import Darwin
 import Foundation
 import Network
@@ -99,7 +99,7 @@ final class BridgeConnectionController {
         guard !instanceId.isEmpty else { return }
 
         let token = KeychainStore.loadString(
-            service: "com.steipete.clawdis.bridge",
+            service: "com.nickbaumann.gobbo.bridge",
             account: self.keychainAccount(instanceId: instanceId))?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !token.isEmpty else { return }
@@ -189,7 +189,7 @@ final class BridgeConnectionController {
                 if !refreshed.isEmpty, refreshed != token {
                     _ = KeychainStore.saveString(
                         refreshed,
-                        service: "com.steipete.clawdis.bridge",
+                        service: "com.nickbaumann.gobbo.bridge",
                         account: self.keychainAccount(instanceId: instanceId))
                 }
                 appModel.connectToBridge(endpoint: endpoint, hello: self.makeHello(token: resolvedToken))
@@ -217,38 +217,38 @@ final class BridgeConnectionController {
     }
 
     private func currentCaps() -> [String] {
-        var caps = [ClawdisCapability.canvas.rawValue, ClawdisCapability.screen.rawValue]
+        var caps = [GobboCapability.canvas.rawValue, GobboCapability.screen.rawValue]
 
         // Default-on: if the key doesn't exist yet, treat it as enabled.
         let cameraEnabled =
             UserDefaults.standard.object(forKey: "camera.enabled") == nil
                 ? true
                 : UserDefaults.standard.bool(forKey: "camera.enabled")
-        if cameraEnabled { caps.append(ClawdisCapability.camera.rawValue) }
+        if cameraEnabled { caps.append(GobboCapability.camera.rawValue) }
 
         let voiceWakeEnabled = UserDefaults.standard.bool(forKey: VoiceWakePreferences.enabledKey)
-        if voiceWakeEnabled { caps.append(ClawdisCapability.voiceWake.rawValue) }
+        if voiceWakeEnabled { caps.append(GobboCapability.voiceWake.rawValue) }
 
         return caps
     }
 
     private func currentCommands() -> [String] {
         var commands: [String] = [
-            ClawdisCanvasCommand.present.rawValue,
-            ClawdisCanvasCommand.hide.rawValue,
-            ClawdisCanvasCommand.navigate.rawValue,
-            ClawdisCanvasCommand.evalJS.rawValue,
-            ClawdisCanvasCommand.snapshot.rawValue,
-            ClawdisCanvasA2UICommand.push.rawValue,
-            ClawdisCanvasA2UICommand.pushJSONL.rawValue,
-            ClawdisCanvasA2UICommand.reset.rawValue,
-            ClawdisScreenCommand.record.rawValue,
+            GobboCanvasCommand.present.rawValue,
+            GobboCanvasCommand.hide.rawValue,
+            GobboCanvasCommand.navigate.rawValue,
+            GobboCanvasCommand.evalJS.rawValue,
+            GobboCanvasCommand.snapshot.rawValue,
+            GobboCanvasA2UICommand.push.rawValue,
+            GobboCanvasA2UICommand.pushJSONL.rawValue,
+            GobboCanvasA2UICommand.reset.rawValue,
+            GobboScreenCommand.record.rawValue,
         ]
 
         let caps = Set(self.currentCaps())
-        if caps.contains(ClawdisCapability.camera.rawValue) {
-            commands.append(ClawdisCameraCommand.snap.rawValue)
-            commands.append(ClawdisCameraCommand.clip.rawValue)
+        if caps.contains(GobboCapability.camera.rawValue) {
+            commands.append(GobboCameraCommand.snap.rawValue)
+            commands.append(GobboCameraCommand.clip.rawValue)
         }
 
         return commands

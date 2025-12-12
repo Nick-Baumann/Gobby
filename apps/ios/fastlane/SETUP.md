@@ -1,4 +1,4 @@
-# fastlane setup (Clawdis iOS)
+# fastlane setup (Gobbo iOS)
 
 Install:
 

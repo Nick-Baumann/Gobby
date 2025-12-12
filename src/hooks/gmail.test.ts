@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ClawdisConfig } from "../config/config.js";
+import type { GobboConfig } from "../config/config.js";
 import {
   buildDefaultHookUrl,
   buildTopicPath,
@@ -16,7 +16,7 @@ const baseConfig = {
       pushToken: "push-token",
     },
   },
-} satisfies ClawdisConfig;
+} satisfies GobboConfig;
 
 describe("gmail hook config", () => {
   it("builds default hook url", () => {

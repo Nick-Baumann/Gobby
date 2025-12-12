@@ -1,4 +1,4 @@
-import type { ClawdisConfig } from "../config/config.js";
+import type { GobboConfig } from "../config/config.js";
 import type { ModelCatalogEntry } from "./model-catalog.js";
 
 export type ModelRef = {
@@ -36,7 +36,7 @@ export function parseModelRef(
 }
 
 export function buildModelAliasIndex(params: {
-  cfg: ClawdisConfig;
+  cfg: GobboConfig;
   defaultProvider: string;
 }): ModelAliasIndex {
   const rawAliases = params.cfg.agent?.modelAliases ?? {};
@@ -82,7 +82,7 @@ export function resolveModelRefFromString(params: {
 }
 
 export function resolveConfiguredModelRef(params: {
-  cfg: ClawdisConfig;
+  cfg: GobboConfig;
   defaultProvider: string;
   defaultModel: string;
 }): ModelRef {
@@ -99,14 +99,14 @@ export function resolveConfiguredModelRef(params: {
       aliasIndex,
     });
     if (resolved) return resolved.ref;
-    // TODO(steipete): drop this fallback once provider-less agent.model is fully deprecated.
+    // TODO(nickbaumann): drop this fallback once provider-less agent.model is fully deprecated.
     return { provider: "anthropic", model: trimmed };
   }
   return { provider: params.defaultProvider, model: params.defaultModel };
 }
 
 export function buildAllowedModelSet(params: {
-  cfg: ClawdisConfig;
+  cfg: GobboConfig;
   catalog: ModelCatalogEntry[];
   defaultProvider: string;
 }): {

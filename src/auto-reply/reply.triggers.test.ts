@@ -23,7 +23,7 @@ const webMocks = vi.hoisted(() => ({
 vi.mock("../web/session.js", () => webMocks);
 
 async function withTempHome<T>(fn: (home: string) => Promise<T>): Promise<T> {
-  const base = await fs.mkdtemp(join(tmpdir(), "clawdis-triggers-"));
+  const base = await fs.mkdtemp(join(tmpdir(), "gobbo-triggers-"));
   const previousHome = process.env.HOME;
   process.env.HOME = base;
   try {
@@ -274,7 +274,7 @@ describe("trigger handling", () => {
             allowFrom: ["*"],
           },
           session: {
-            store: join(tmpdir(), `clawdis-session-test-${Date.now()}.json`),
+            store: join(tmpdir(), `gobbo-session-test-${Date.now()}.json`),
           },
         },
       );
@@ -313,7 +313,7 @@ describe("trigger handling", () => {
             allowFrom: ["*"],
           },
           session: {
-            store: join(tmpdir(), `clawdis-session-test-${Date.now()}.json`),
+            store: join(tmpdir(), `gobbo-session-test-${Date.now()}.json`),
           },
         },
       );

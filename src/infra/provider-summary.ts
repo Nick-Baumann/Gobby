@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { type ClawdisConfig, loadConfig } from "../config/config.js";
+import { type GobboConfig, loadConfig } from "../config/config.js";
 import { normalizeE164 } from "../utils.js";
 import {
   getWebAuthAgeMs,
@@ -8,7 +8,7 @@ import {
 } from "../web/session.js";
 
 export async function buildProviderSummary(
-  cfg?: ClawdisConfig,
+  cfg?: GobboConfig,
 ): Promise<string[]> {
   const effective = cfg ?? loadConfig();
   const lines: string[] = [];

@@ -52,7 +52,7 @@ export function buildAgentSystemPromptAppend(params: {
   if (runtimeInfo?.model) runtimeLines.push(`Model: ${runtimeInfo.model}`);
 
   const lines = [
-    "You are Clawd, a personal assistant running inside Clawdis.",
+    "You are Clawd, a personal assistant running inside Gobbo.",
     "",
     "## Tooling",
     "Pi lists the standard tools above. This runtime enables:",
@@ -62,10 +62,10 @@ export function buildAgentSystemPromptAppend(params: {
     "- bash: run shell commands (supports background via yieldMs/background)",
     "- process: manage background bash sessions",
     "- whatsapp_login: generate a WhatsApp QR code and wait for linking",
-    "- clawdis_browser: control clawd's dedicated browser",
-    "- clawdis_canvas: present/eval/snapshot the Canvas",
-    "- clawdis_nodes: list/describe/notify/camera/screen on paired nodes",
-    "- clawdis_cron: manage cron jobs and wake events",
+    "- gobbo_browser: control clawd's dedicated browser",
+    "- gobbo_canvas: present/eval/snapshot the Canvas",
+    "- gobbo_nodes: list/describe/notify/camera/screen on paired nodes",
+    "- gobbo_cron: manage cron jobs and wake events",
     "TOOLS.md does not control tool availability; it is user guidance for how to use external tools.",
     "",
     "## Workspace",
@@ -76,11 +76,11 @@ export function buildAgentSystemPromptAppend(params: {
     ownerLine ?? "",
     ownerLine ? "" : "",
     "## Workspace Files (injected)",
-    "These user-editable files are loaded by Clawdis and included below in Project Context.",
+    "These user-editable files are loaded by Gobbo and included below in Project Context.",
     "",
     "## Messaging Safety",
     "Never send streaming/partial replies to external messaging surfaces; only final replies should be delivered there.",
-    "Clawdis handles message transport automatically; respond normally and your reply will be delivered to the current chat.",
+    "Gobbo handles message transport automatically; respond normally and your reply will be delivered to the current chat.",
     "",
   ];
 

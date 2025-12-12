@@ -26,7 +26,7 @@ import {
   type VerboseLevel,
 } from "../auto-reply/thinking.js";
 import { type CliDeps, createDefaultDeps } from "../cli/deps.js";
-import { type ClawdisConfig, loadConfig } from "../config/config.js";
+import { type GobboConfig, loadConfig } from "../config/config.js";
 import {
   DEFAULT_IDLE_MINUTES,
   loadSessionStore,
@@ -68,7 +68,7 @@ type SessionResolution = {
 };
 
 function resolveSession(opts: {
-  cfg: ClawdisConfig;
+  cfg: GobboConfig;
   to?: string;
   sessionId?: string;
 }): SessionResolution {
@@ -452,7 +452,7 @@ export async function agentCommand(
     }
     if (deliveryProvider === "webchat") {
       const err = new Error(
-        "Delivering to WebChat is not supported via `clawdis agent`; use WhatsApp/Telegram or run with --deliver=false.",
+        "Delivering to WebChat is not supported via `gobbo agent`; use WhatsApp/Telegram or run with --deliver=false.",
       );
       if (!bestEffortDeliver) throw err;
       logDeliveryError(err);

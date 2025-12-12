@@ -16,7 +16,7 @@ vi.mock("../agents/pi-embedded.js", () => ({
 
 import { runEmbeddedPiAgent } from "../agents/pi-embedded.js";
 import { getReplyFromConfig } from "../auto-reply/reply.js";
-import type { ClawdisConfig } from "../config/config.js";
+import type { GobboConfig } from "../config/config.js";
 import { resetLogger, setLoggerOverride } from "../logging.js";
 import {
   HEARTBEAT_TOKEN,
@@ -56,7 +56,7 @@ const rmDirWithRetries = async (dir: string): Promise<void> => {
 
 beforeEach(async () => {
   previousHome = process.env.HOME;
-  tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "clawdis-web-home-"));
+  tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "gobbo-web-home-"));
   process.env.HOME = tempHome;
 });
 
@@ -71,7 +71,7 @@ afterEach(async () => {
 const makeSessionStore = async (
   entries: Record<string, unknown> = {},
 ): Promise<{ storePath: string; cleanup: () => Promise<void> }> => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "clawdis-session-"));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "gobbo-session-"));
   const storePath = path.join(dir, "sessions.json");
   await fs.writeFile(storePath, JSON.stringify(entries));
   const cleanup = async () => {
@@ -110,7 +110,7 @@ describe("partial reply gating", () => {
 
     const replyResolver = vi.fn().mockResolvedValue({ text: "final reply" });
 
-    const mockConfig: ClawdisConfig = {
+    const mockConfig: GobboConfig = {
       routing: {
         allowFrom: ["*"],
       },
@@ -157,7 +157,7 @@ describe("partial reply gating", () => {
 
     const replyResolver = vi.fn().mockResolvedValue(undefined);
 
-    const mockConfig: ClawdisConfig = {
+    const mockConfig: GobboConfig = {
       routing: {
         allowFrom: ["*"],
       },
@@ -506,11 +506,11 @@ describe("web auto-reply", () => {
       const firstArgs = resolver.mock.calls[0][0];
       const secondArgs = resolver.mock.calls[1][0];
       expect(firstArgs.Body).toContain(
-        "[WhatsApp +1 2025-01-01T01:00+01:00{Europe/Vienna}] [clawdis] first",
+        "[WhatsApp +1 2025-01-01T01:00+01:00{Europe/Vienna}] [gobbo] first",
       );
       expect(firstArgs.Body).not.toContain("second");
       expect(secondArgs.Body).toContain(
-        "[WhatsApp +1 2025-01-01T02:00+01:00{Europe/Vienna}] [clawdis] second",
+        "[WhatsApp +1 2025-01-01T02:00+01:00{Europe/Vienna}] [gobbo] second",
       );
       expect(secondArgs.Body).not.toContain("first");
 
@@ -1168,7 +1168,7 @@ describe("web auto-reply", () => {
 
   it("emits heartbeat logs with connection metadata", async () => {
     vi.useFakeTimers();
-    const logPath = `/tmp/clawdis-heartbeat-${crypto.randomUUID()}.log`;
+    const logPath = `/tmp/gobbo-heartbeat-${crypto.randomUUID()}.log`;
     setLoggerOverride({ level: "trace", file: logPath });
 
     const runtime = {
@@ -1210,7 +1210,7 @@ describe("web auto-reply", () => {
   });
 
   it("logs outbound replies to file", async () => {
-    const logPath = `/tmp/clawdis-log-test-${crypto.randomUUID()}.log`;
+    const logPath = `/tmp/gobbo-log-test-${crypto.randomUUID()}.log`;
     setLoggerOverride({ level: "trace", file: logPath });
 
     let capturedOnMessage:
@@ -1456,7 +1456,7 @@ describe("web auto-reply", () => {
       sendMedia: vi.fn(),
     });
 
-    // HEARTBEAT_OK should NOT have prefix - clawdis needs exact match
+    // HEARTBEAT_OK should NOT have prefix - gobbo needs exact match
     expect(reply).toHaveBeenCalledWith(HEARTBEAT_TOKEN);
     resetLoadConfigMock();
   });

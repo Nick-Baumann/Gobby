@@ -2,7 +2,7 @@
 name: peekaboo
 description: Capture and automate macOS UI with the Peekaboo CLI.
 homepage: https://peekaboo.boo
-metadata: {"clawdis":{"emoji":"👀","requires":{"bins":["peekaboo"]},"install":[{"id":"brew","kind":"brew","formula":"steipete/tap/peekaboo","bins":["peekaboo"],"label":"Install Peekaboo (brew)"}]}}
+metadata: {"gobbo":{"emoji":"👀","requires":{"bins":["peekaboo"]},"install":[{"id":"brew","kind":"brew","formula":"nickbaumann/tap/peekaboo","bins":["peekaboo"],"label":"Install Peekaboo (brew)"}]}}
 ---
 
 # Peekaboo

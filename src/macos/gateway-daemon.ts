@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import process from "node:process";
 
-declare const __CLAWDIS_VERSION__: string;
+declare const __GOBBO_VERSION__: string;
 
 const BUNDLED_VERSION =
-  typeof __CLAWDIS_VERSION__ === "string" ? __CLAWDIS_VERSION__ : "0.0.0";
+  typeof __GOBBO_VERSION__ === "string" ? __GOBBO_VERSION__ : "0.0.0";
 
 function argValue(args: string[], flag: string): string | undefined {
   const idx = args.indexOf(flag);
@@ -23,7 +23,7 @@ type GatewayWsLogStyle = "auto" | "full" | "compact";
 
 async function main() {
   if (hasFlag(args, "--version") || hasFlag(args, "-v")) {
-    // Match `clawdis --version` behavior for Swift env/version checks.
+    // Match `gobbo --version` behavior for Swift env/version checks.
     // Keep output a single line.
     console.log(BUNDLED_VERSION);
     process.exit(0);
@@ -62,7 +62,7 @@ async function main() {
   setGatewayWsLogStyle(wsLogStyle);
 
   const portRaw =
-    argValue(args, "--port") ?? process.env.CLAWDIS_GATEWAY_PORT ?? "18789";
+    argValue(args, "--port") ?? process.env.GOBBO_GATEWAY_PORT ?? "18789";
   const port = Number.parseInt(portRaw, 10);
   if (Number.isNaN(port) || port <= 0) {
     defaultRuntime.error(`Invalid --port (${portRaw})`);
@@ -72,7 +72,7 @@ async function main() {
   const cfg = loadConfig();
   const bindRaw =
     argValue(args, "--bind") ??
-    process.env.CLAWDIS_GATEWAY_BIND ??
+    process.env.GOBBO_GATEWAY_BIND ??
     cfg.gateway?.bind ??
     "loopback";
   const bind =
@@ -90,7 +90,7 @@ async function main() {
   }
 
   const token = argValue(args, "--token");
-  if (token) process.env.CLAWDIS_GATEWAY_TOKEN = token;
+  if (token) process.env.GOBBO_GATEWAY_TOKEN = token;
 
   let server: Awaited<ReturnType<typeof startGatewayServer>> | null = null;
   let shuttingDown = false;

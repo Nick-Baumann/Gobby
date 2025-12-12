@@ -1,5 +1,5 @@
 ---
-summary: "How Clawdis presence entries are produced, merged, and displayed"
+summary: "How Gobbo presence entries are produced, merged, and displayed"
 read_when:
   - Debugging the Instances tab
   - Investigating duplicate or stale instance rows
@@ -7,7 +7,7 @@ read_when:
 ---
 # Presence
 
-Clawdis “presence” is a lightweight, best-effort view of:
+Gobbo “presence” is a lightweight, best-effort view of:
 - The **Gateway** itself (one per host), and
 - The **clients connected to the Gateway** (mac app, WebChat, CLI, etc.).
 
@@ -59,7 +59,7 @@ Clients can publish richer periodic beacons via the `system-event` method. The m
 
 Implementation:
 - Gateway: `src/gateway/server.ts` handles method `system-event` by calling `updateSystemPresence(...)`.
-- mac app beaconing: `apps/macos/Sources/Clawdis/PresenceReporter.swift`.
+- mac app beaconing: `apps/macos/Sources/Gobbo/PresenceReporter.swift`.
 
 ## Merge + dedupe rules (why `instanceId` matters)
 
@@ -79,7 +79,7 @@ The mac app uses a persisted UUID as `instanceId` so:
 - renaming the Mac does not create a new “instance”
 - debug/release builds can share the same identity
 
-Implementation: `apps/macos/Sources/Clawdis/InstanceIdentity.swift`.
+Implementation: `apps/macos/Sources/Gobbo/InstanceIdentity.swift`.
 
 `displayName` (machine name) is used for UI, while `instanceId` is used for dedupe.
 
@@ -106,8 +106,8 @@ Implementation: `src/gateway/server.ts` (`isLoopbackAddress()`).
 The mac app’s Instances tab renders the result of `system-presence`.
 
 Implementation:
-- View: `apps/macos/Sources/Clawdis/InstancesSettings.swift`
-- Store: `apps/macos/Sources/Clawdis/InstancesStore.swift`
+- View: `apps/macos/Sources/Gobbo/InstancesSettings.swift`
+- Store: `apps/macos/Sources/Gobbo/InstancesStore.swift`
 
 The store refreshes periodically and also applies `presence` WS events.
 

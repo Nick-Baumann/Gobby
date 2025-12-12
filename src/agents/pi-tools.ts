@@ -10,10 +10,10 @@ import {
   createProcessTool,
   type ProcessToolDefaults,
 } from "./bash-tools.js";
-import { createClawdisTools } from "./clawdis-tools.js";
+import { createGobboTools } from "./gobbo-tools.js";
 import { sanitizeToolResultImages } from "./tool-images.js";
 
-// TODO(steipete): Remove this wrapper once pi-mono ships file-magic MIME detection
+// TODO(nickbaumann): Remove this wrapper once pi-mono ships file-magic MIME detection
 // for `read` image payloads in `@mariozechner/pi-coding-agent` (then switch back to `codingTools` directly).
 type ToolContentBlock = AgentToolResult<unknown>["content"][number];
 type ImageContentBlock = Extract<ToolContentBlock, { type: "image" }>;
@@ -272,7 +272,7 @@ function createWhatsAppLoginTool(): AnyAgentTool {
   };
 }
 
-function createClawdisReadTool(base: AnyAgentTool): AnyAgentTool {
+function createGobboReadTool(base: AnyAgentTool): AnyAgentTool {
   return {
     ...base,
     execute: async (toolCallId, params, signal) => {
@@ -293,12 +293,12 @@ function createClawdisReadTool(base: AnyAgentTool): AnyAgentTool {
   };
 }
 
-export function createClawdisCodingTools(options?: {
+export function createGobboCodingTools(options?: {
   bash?: BashToolDefaults & ProcessToolDefaults;
 }): AnyAgentTool[] {
   const bashToolName = "bash";
   const base = (codingTools as unknown as AnyAgentTool[]).flatMap((tool) => {
-    if (tool.name === readTool.name) return [createClawdisReadTool(tool)];
+    if (tool.name === readTool.name) return [createGobboReadTool(tool)];
     if (tool.name === bashToolName) return [];
     return [tool as AnyAgentTool];
   });
@@ -311,7 +311,7 @@ export function createClawdisCodingTools(options?: {
     bashTool as unknown as AnyAgentTool,
     processTool as unknown as AnyAgentTool,
     createWhatsAppLoginTool(),
-    ...createClawdisTools(),
+    ...createGobboTools(),
   ];
   return tools.map(normalizeToolParameters);
 }

@@ -1,15 +1,15 @@
 ---
-summary: "Top-level overview of Clawdis, features, and purpose"
+summary: "Top-level overview of Gobbo, features, and purpose"
 read_when:
-  - Introducing Clawdis to newcomers
+  - Introducing Gobbo to newcomers
 ---
 <!-- {% raw %} -->
-# CLAWDIS 🦞
+# GOBBO 🦞
 
 > *"EXFOLIATE! EXFOLIATE!"* — A space lobster, probably
 
 <p align="center">
-  <img src="whatsapp-clawd.jpg" alt="CLAWDIS" width="420">
+  <img src="whatsapp-clawd.jpg" alt="GOBBO" width="420">
 </p>
 
 <p align="center">
@@ -18,12 +18,12 @@ read_when:
 </p>
 
 <p align="center">
-  <a href="https://github.com/steipete/clawdis">GitHub</a> ·
-  <a href="https://github.com/steipete/clawdis/releases">Releases</a> ·
+  <a href="https://github.com/nickbaumann/gobbo">GitHub</a> ·
+  <a href="https://github.com/nickbaumann/gobbo/releases">Releases</a> ·
   <a href="./clawd">Clawd setup</a>
 </p>
 
-CLAWDIS bridges WhatsApp (via WhatsApp Web / Baileys), Telegram (Bot API / grammY), and Discord (Bot API / discord.js) to coding agents like [Pi](https://github.com/badlogic/pi-mono).
+GOBBO bridges WhatsApp (via WhatsApp Web / Baileys), Telegram (Bot API / grammY), and Discord (Bot API / discord.js) to coding agents like [Pi](https://github.com/badlogic/pi-mono).
 It’s built for [Clawd](https://clawd.me), a space lobster who needed a TARDIS.
 
 ## How it works
@@ -35,25 +35,25 @@ WhatsApp / Telegram / Discord
   ┌──────────────────────────┐
   │          Gateway          │  ws://127.0.0.1:18789 (loopback-only)
   │     (single source)       │  tcp://0.0.0.0:18790 (Bridge)
-  │                          │  http://<gateway-host>:18793/__clawdis__/canvas/ (Canvas host)
+  │                          │  http://<gateway-host>:18793/__gobbo__/canvas/ (Canvas host)
   └───────────┬───────────────┘
               │
               ├─ Pi agent (RPC)
-              ├─ CLI (clawdis …)
+              ├─ CLI (gobbo …)
               ├─ Chat UI (SwiftUI)
-              ├─ macOS app (Clawdis.app)
+              ├─ macOS app (Gobbo.app)
               └─ iOS node via Bridge + pairing
 ```
 
-Most operations flow through the **Gateway** (`clawdis gateway`), a single long-running process that owns provider connections and the WebSocket control plane.
+Most operations flow through the **Gateway** (`gobbo gateway`), a single long-running process that owns provider connections and the WebSocket control plane.
 
 ## Network model
 
 - **One Gateway per host**: it is the only process allowed to own the WhatsApp Web session.
 - **Loopback-first**: Gateway WS defaults to `ws://127.0.0.1:18789`.
-  - For Tailnet access, run `clawdis gateway --bind tailnet --token ...` (token is required for non-loopback binds).
+  - For Tailnet access, run `gobbo gateway --bind tailnet --token ...` (token is required for non-loopback binds).
 - **Bridge for nodes**: optional LAN/tailnet-facing bridge on `tcp://0.0.0.0:18790` for paired nodes (Bonjour-discoverable).
-- **Canvas host**: HTTP file server on `canvasHost.port` (default `18793`), serving `/__clawdis__/canvas/` for node WebViews; see `docs/configuration.md` (`canvasHost`).
+- **Canvas host**: HTTP file server on `canvasHost.port` (default `18793`), serving `/__gobbo__/canvas/` for node WebViews; see `docs/configuration.md` (`canvasHost`).
 - **Remote use**: SSH tunnel or tailnet/VPN; see `docs/remote.md` and `docs/discovery.md`.
 
 ## Features (high level)
@@ -82,23 +82,23 @@ pnpm build
 pnpm link --global
 
 # Pair WhatsApp Web (shows QR)
-clawdis login
+gobbo login
 
 # Run the Gateway (leave running)
-clawdis gateway --port 18789
+gobbo gateway --port 18789
 ```
 
 Send a test message (requires a running Gateway):
 
 ```bash
-clawdis send --to +15555550123 --message "Hello from CLAWDIS"
+gobbo send --to +15555550123 --message "Hello from GOBBO"
 ```
 
 ## Configuration (optional)
 
-Config lives at `~/.clawdis/clawdis.json`.
+Config lives at `~/.gobbo/gobbo.json`.
 
-- If you **do nothing**, CLAWDIS uses the bundled Pi binary in RPC mode with per-sender sessions.
+- If you **do nothing**, GOBBO uses the bundled Pi binary in RPC mode with per-sender sessions.
 - If you want to lock it down, start with `routing.allowFrom` and (for groups) mention rules.
 
 Example:
@@ -140,7 +140,7 @@ Example:
 
 ## The name
 
-**CLAWDIS = CLAW + TARDIS** — because every space lobster needs a time-and-space machine.
+**GOBBO = CLAW + TARDIS** — because every space lobster needs a time-and-space machine.
 
 ---
 
@@ -149,7 +149,7 @@ Example:
 
 ## Credits
 
-- **Peter Steinberger** ([@steipete](https://twitter.com/steipete)) — Creator, lobster whisperer
+- **Peter Steinberger** ([@nickbaumann](https://twitter.com/nickbaumann)) — Creator, lobster whisperer
 - **Mario Zechner** ([@badlogicc](https://twitter.com/badlogicgames)) — Pi creator, security pen-tester
 - **Clawd** — The space lobster who demanded a better name
 

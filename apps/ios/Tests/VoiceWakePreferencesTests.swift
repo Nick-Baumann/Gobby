@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Clawdis
+@testable import Gobbo
 
 @Suite struct VoiceWakePreferencesTests {
     @Test func sanitizeTriggerWordsTrimsAndDropsEmpty() {

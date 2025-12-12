@@ -10,14 +10,14 @@ Updated: 2025-12-07
 Status: ready for DM and guild text channels via the official Discord bot gateway.
 
 ## Goals
-- Talk to Clawdis via Discord DMs or guild channels.
+- Talk to Gobbo via Discord DMs or guild channels.
 - Share the same `main` session used by WhatsApp/Telegram/WebChat; guild channels stay isolated as `group:<channelId>`.
 - Keep routing deterministic: replies always go back to the surface they arrived on.
 
 ## How it works
 1. Create a Discord application → Bot, enable the intents you need (DMs + guild messages + message content), and grab the bot token.
 2. Invite the bot to your server with the permissions required to read/send messages where you want to use it.
-3. Configure Clawdis with `DISCORD_BOT_TOKEN` (or `discord.token` in `~/.clawdis/clawdis.json`).
+3. Configure Gobbo with `DISCORD_BOT_TOKEN` (or `discord.token` in `~/.gobbo/gobbo.json`).
 4. Run the gateway; it auto-starts the Discord provider when the token is set (unless `discord.enabled = false`).
 5. Direct chats: use `user:<id>` (or a `<@id>` mention) when delivering; all turns land in the shared `main` session.
 6. Guild channels: use `channel:<channelId>` for delivery. Mentions are required by default; disable with `discord.requireMention = false`.
@@ -58,4 +58,4 @@ Note: Discord does not provide a simple username → id lookup without extra gui
 ## Safety & ops
 - Treat the bot token like a password; prefer the `DISCORD_BOT_TOKEN` env var on supervised hosts or lock down the config file permissions.
 - Only grant the bot permissions it needs (typically Read/Send Messages).
-- If the bot is stuck or rate limited, restart the gateway (`clawdis gateway --force`) after confirming no other processes own the Discord session.
+- If the bot is stuck or rate limited, restart the gateway (`gobbo gateway --force`) after confirming no other processes own the Discord session.

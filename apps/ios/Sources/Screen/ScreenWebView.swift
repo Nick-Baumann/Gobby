@@ -1,4 +1,4 @@
-import ClawdisKit
+import GobboKit
 import SwiftUI
 import WebKit
 

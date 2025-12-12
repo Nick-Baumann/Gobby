@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createClawdisCodingTools } from "./pi-tools.js";
+import { createGobboCodingTools } from "./pi-tools.js";
 
-describe("createClawdisCodingTools", () => {
+describe("createGobboCodingTools", () => {
   it("merges properties for union tool schemas", () => {
-    const tools = createClawdisCodingTools();
-    const browser = tools.find((tool) => tool.name === "clawdis_browser");
+    const tools = createGobboCodingTools();
+    const browser = tools.find((tool) => tool.name === "gobbo_browser");
     expect(browser).toBeDefined();
     const parameters = browser?.parameters as {
       anyOf?: unknown[];
@@ -20,9 +20,9 @@ describe("createClawdisCodingTools", () => {
   });
 
   it("preserves union action values in merged schema", () => {
-    const tools = createClawdisCodingTools();
+    const tools = createGobboCodingTools();
     const toolNames = tools
-      .filter((tool) => tool.name.startsWith("clawdis_"))
+      .filter((tool) => tool.name.startsWith("gobbo_"))
       .map((tool) => tool.name);
 
     for (const name of toolNames) {
@@ -73,7 +73,7 @@ describe("createClawdisCodingTools", () => {
   });
 
   it("includes bash and process tools", () => {
-    const tools = createClawdisCodingTools();
+    const tools = createGobboCodingTools();
     expect(tools.some((tool) => tool.name === "bash")).toBe(true);
     expect(tools.some((tool) => tool.name === "process")).toBe(true);
   });

@@ -2,7 +2,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import {
-  CONFIG_PATH_CLAWDIS,
+  CONFIG_PATH_GOBBO,
   type HookMappingConfig,
   type HooksConfig,
 } from "../config/config.js";
@@ -108,7 +108,7 @@ export function resolveHookMappings(
   if (hooks?.mappings) mappings.push(...hooks.mappings);
   if (mappings.length === 0) return [];
 
-  const configDir = path.dirname(CONFIG_PATH_CLAWDIS);
+  const configDir = path.dirname(CONFIG_PATH_GOBBO);
   const transformsDir = hooks?.transformsDir
     ? resolvePath(configDir, hooks.transformsDir)
     : configDir;

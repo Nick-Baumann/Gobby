@@ -20,10 +20,10 @@ Status: WhatsApp Web via Baileys only. Gateway owns the single session.
 - **Active listener** is required for outbound sends; otherwise send fails fast.
 
 ## Login + credentials
-- Login command: `clawdis login` (QR via Linked Devices).
-- Credentials stored in `~/.clawdis/credentials/creds.json`.
+- Login command: `gobbo login` (QR via Linked Devices).
+- Credentials stored in `~/.gobbo/credentials/creds.json`.
 - Backup copy at `creds.json.bak` (restored on corruption).
-- Logout: `clawdis logout` deletes creds and session store.
+- Logout: `gobbo logout` deletes creds and session store.
 - Logged-out socket => error instructs re-link.
 
 ## Inbound flow (DM + group)
@@ -115,7 +115,7 @@ Status: WhatsApp Web via Baileys only. Gateway owns the single session.
 
 ## Logs + troubleshooting
 - Subsystems: `whatsapp/inbound`, `whatsapp/outbound`, `web-heartbeat`, `web-reconnect`.
-- Log file: `/tmp/clawdis/clawdis-YYYY-MM-DD.log` (configurable).
+- Log file: `/tmp/gobbo/gobbo-YYYY-MM-DD.log` (configurable).
 - Troubleshooting guide: `docs/refactor/web-gateway-troubleshooting.md`.
 
 ## Tests

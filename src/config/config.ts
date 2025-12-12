@@ -183,7 +183,7 @@ export type RoutingConfig = {
 };
 
 export type MessagesConfig = {
-  messagePrefix?: string; // Prefix added to all inbound messages (default: "[clawdis]" if no allowFrom, else "")
+  messagePrefix?: string; // Prefix added to all inbound messages (default: "[gobbo]" if no allowFrom, else "")
   responsePrefix?: string; // Prefix auto-added to all outbound replies (e.g., "🦞")
   timestampPrefix?: boolean | string; // true/false or IANA timezone string (default: true with UTC)
 };
@@ -340,7 +340,7 @@ export type ModelsConfig = {
   providers?: Record<string, ModelProviderConfig>;
 };
 
-export type ClawdisConfig = {
+export type GobboConfig = {
   identity?: {
     name?: string;
     theme?: string;
@@ -349,7 +349,7 @@ export type ClawdisConfig = {
   logging?: LoggingConfig;
   browser?: BrowserConfig;
   ui?: {
-    /** Accent color for Clawdis UI chrome (hex). */
+    /** Accent color for Gobbo UI chrome (hex). */
     seamColor?: string;
   };
   skillsLoad?: SkillsLoadConfig;
@@ -416,10 +416,10 @@ export type ClawdisConfig = {
 };
 
 // New branding path (preferred)
-export const CONFIG_PATH_CLAWDIS = path.join(
+export const CONFIG_PATH_GOBBO = path.join(
   os.homedir(),
-  ".clawdis",
-  "clawdis.json",
+  ".gobbo",
+  "gobbo.json",
 );
 
 const ModelApiSchema = z.union([
@@ -635,7 +635,7 @@ const HooksGmailSchema = z
   })
   .optional();
 
-const ClawdisSchema = z.object({
+const GobboSchema = z.object({
   identity: z
     .object({
       name: z.string().optional(),
@@ -895,7 +895,7 @@ export type ConfigFileSnapshot = {
   raw: string | null;
   parsed: unknown;
   valid: boolean;
-  config: ClawdisConfig;
+  config: GobboConfig;
   issues: ConfigValidationIssue[];
 };
 
@@ -903,7 +903,7 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function applyIdentityDefaults(cfg: ClawdisConfig): ClawdisConfig {
+function applyIdentityDefaults(cfg: GobboConfig): GobboConfig {
   const identity = cfg.identity;
   if (!identity) return cfg;
 
@@ -913,7 +913,7 @@ function applyIdentityDefaults(cfg: ClawdisConfig): ClawdisConfig {
   const groupChat = routing.groupChat ?? {};
 
   let mutated = false;
-  const next: ClawdisConfig = { ...cfg };
+  const next: GobboConfig = { ...cfg };
 
   if (name && !groupChat.mentionPatterns) {
     const parts = name.split(/\s+/).filter(Boolean).map(escapeRegExp);
@@ -929,15 +929,15 @@ function applyIdentityDefaults(cfg: ClawdisConfig): ClawdisConfig {
   return mutated ? next : cfg;
 }
 
-export function loadConfig(): ClawdisConfig {
+export function loadConfig(): GobboConfig {
   // Read config file (JSON5) if present.
-  const configPath = CONFIG_PATH_CLAWDIS;
+  const configPath = CONFIG_PATH_GOBBO;
   try {
     if (!fs.existsSync(configPath)) return {};
     const raw = fs.readFileSync(configPath, "utf-8");
     const parsed = JSON5.parse(raw);
     if (typeof parsed !== "object" || parsed === null) return {};
-    const validated = ClawdisSchema.safeParse(parsed);
+    const validated = GobboSchema.safeParse(parsed);
     if (!validated.success) {
       console.error("Invalid config:");
       for (const iss of validated.error.issues) {
@@ -945,7 +945,7 @@ export function loadConfig(): ClawdisConfig {
       }
       return {};
     }
-    return applyIdentityDefaults(validated.data as ClawdisConfig);
+    return applyIdentityDefaults(validated.data as GobboConfig);
   } catch (err) {
     console.error(`Failed to read config at ${configPath}`, err);
     return {};
@@ -955,9 +955,9 @@ export function loadConfig(): ClawdisConfig {
 export function validateConfigObject(
   raw: unknown,
 ):
-  | { ok: true; config: ClawdisConfig }
+  | { ok: true; config: GobboConfig }
   | { ok: false; issues: ConfigValidationIssue[] } {
-  const validated = ClawdisSchema.safeParse(raw);
+  const validated = GobboSchema.safeParse(raw);
   if (!validated.success) {
     return {
       ok: false,
@@ -969,7 +969,7 @@ export function validateConfigObject(
   }
   return {
     ok: true,
-    config: applyIdentityDefaults(validated.data as ClawdisConfig),
+    config: applyIdentityDefaults(validated.data as GobboConfig),
   };
 }
 
@@ -1010,7 +1010,7 @@ function resolveTalkApiKey(): string | null {
   return readTalkApiKeyFromProfile();
 }
 
-function applyTalkApiKey(config: ClawdisConfig): ClawdisConfig {
+function applyTalkApiKey(config: GobboConfig): GobboConfig {
   const resolved = resolveTalkApiKey();
   if (!resolved) return config;
   const existing = config.talk?.apiKey?.trim();
@@ -1025,7 +1025,7 @@ function applyTalkApiKey(config: ClawdisConfig): ClawdisConfig {
 }
 
 export async function readConfigFileSnapshot(): Promise<ConfigFileSnapshot> {
-  const configPath = CONFIG_PATH_CLAWDIS;
+  const configPath = CONFIG_PATH_GOBBO;
   const exists = fs.existsSync(configPath);
   if (!exists) {
     const config = applyTalkApiKey({});
@@ -1092,10 +1092,10 @@ export async function readConfigFileSnapshot(): Promise<ConfigFileSnapshot> {
   }
 }
 
-export async function writeConfigFile(cfg: ClawdisConfig) {
-  await fs.promises.mkdir(path.dirname(CONFIG_PATH_CLAWDIS), {
+export async function writeConfigFile(cfg: GobboConfig) {
+  await fs.promises.mkdir(path.dirname(CONFIG_PATH_GOBBO), {
     recursive: true,
   });
   const json = JSON.stringify(cfg, null, 2).trimEnd().concat("\n");
-  await fs.promises.writeFile(CONFIG_PATH_CLAWDIS, json, "utf-8");
+  await fs.promises.writeFile(CONFIG_PATH_GOBBO, json, "utf-8");
 }

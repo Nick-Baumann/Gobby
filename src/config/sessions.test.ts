@@ -62,7 +62,7 @@ describe("sessions", () => {
   });
 
   it("updateLastRoute persists channel and target", async () => {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "clawdis-sessions-"));
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "gobbo-sessions-"));
     const storePath = path.join(dir, "sessions.json");
     await fs.writeFile(
       storePath,

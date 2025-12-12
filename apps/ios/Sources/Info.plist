@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Clawdis</string>
+	<string>Gobbo</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIconName</key>
@@ -29,16 +29,16 @@
 	</dict>
 	<key>NSBonjourServices</key>
 	<array>
-		<string>_clawdis-bridge._tcp</string>
+		<string>_gobbo-bridge._tcp</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>Clawdis can capture photos or short video clips when requested via the bridge.</string>
+	<string>Gobbo can capture photos or short video clips when requested via the bridge.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Clawdis discovers and connects to your Clawdis bridge on the local network.</string>
+	<string>Gobbo discovers and connects to your Gobbo bridge on the local network.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Clawdis needs microphone access for voice wake.</string>
+	<string>Gobbo needs microphone access for voice wake.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Clawdis uses on-device speech recognition for voice wake.</string>
+	<string>Gobbo uses on-device speech recognition for voice wake.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

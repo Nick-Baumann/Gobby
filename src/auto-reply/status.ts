@@ -13,7 +13,7 @@ import {
   normalizeUsage,
   type UsageLike,
 } from "../agents/usage.js";
-import type { ClawdisConfig } from "../config/config.js";
+import type { GobboConfig } from "../config/config.js";
 import {
   resolveSessionTranscriptPath,
   type SessionEntry,
@@ -21,7 +21,7 @@ import {
 } from "../config/sessions.js";
 import type { ThinkLevel, VerboseLevel } from "./thinking.js";
 
-type AgentConfig = NonNullable<ClawdisConfig["agent"]>;
+type AgentConfig = NonNullable<GobboConfig["agent"]>;
 
 type StatusArgs = {
   agent: AgentConfig;
@@ -85,7 +85,7 @@ const readUsageFromSessionLog = (
       model?: string;
     }
   | undefined => {
-  // Transcripts always live at: ~/.clawdis/sessions/<SessionId>.jsonl
+  // Transcripts always live at: ~/.gobbo/sessions/<SessionId>.jsonl
   if (!sessionId) return undefined;
   const logPath = resolveSessionTranscriptPath(sessionId);
   if (!fs.existsSync(logPath)) return undefined;
@@ -170,7 +170,7 @@ export function buildStatusMessage(args: StatusArgs): string {
 
   const webLine = (() => {
     if (args.webLinked === false) {
-      return "Web: not linked — run `clawdis login` to scan the QR.";
+      return "Web: not linked — run `gobbo login` to scan the QR.";
     }
     const authAge = formatAge(args.webAuthAgeMs);
     const heartbeat =

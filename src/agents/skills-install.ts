@@ -1,4 +1,4 @@
-import type { ClawdisConfig } from "../config/config.js";
+import type { GobboConfig } from "../config/config.js";
 import { runCommandWithTimeout } from "../process/exec.js";
 import { resolveUserPath } from "../utils.js";
 import {
@@ -15,7 +15,7 @@ export type SkillInstallRequest = {
   skillName: string;
   installId: string;
   timeoutMs?: number;
-  config?: ClawdisConfig;
+  config?: GobboConfig;
 };
 
 export type SkillInstallResult = {
@@ -34,7 +34,7 @@ function findInstallSpec(
   entry: SkillEntry,
   installId: string,
 ): SkillInstallSpec | undefined {
-  const specs = entry.clawdis?.install ?? [];
+  const specs = entry.gobbo?.install ?? [];
   for (const [index, spec] of specs.entries()) {
     if (resolveInstallId(spec, index) === installId) return spec;
   }

@@ -12,11 +12,11 @@ The macOS menu bar app shows the WebChat UI as a native SwiftUI view and reuses 
 
 ## Launch & debugging
 - Manual: Lobster menu → “Open Chat”.
-- Auto-open for testing: run `dist/Clawdis.app/Contents/MacOS/Clawdis --webchat` (or pass `--webchat` to the binary launched by launchd). The window opens on startup.
-- Logs: see `./scripts/clawlog.sh` (subsystem `com.steipete.clawdis`, category `WebChatSwiftUI`).
+- Auto-open for testing: run `dist/Gobbo.app/Contents/MacOS/Gobbo --webchat` (or pass `--webchat` to the binary launched by launchd). The window opens on startup.
+- Logs: see `./scripts/clawlog.sh` (subsystem `com.nickbaumann.gobbo`, category `WebChatSwiftUI`).
 
 ## How it’s wired
-- Implementation: `apps/macos/Sources/Clawdis/WebChatSwiftUI.swift` hosts `ClawdisChatUI` and speaks to the Gateway over `GatewayConnection`.
+- Implementation: `apps/macos/Sources/Gobbo/WebChatSwiftUI.swift` hosts `GobboChatUI` and speaks to the Gateway over `GatewayConnection`.
 - Data plane: Gateway WebSocket methods `chat.history`, `chat.send`, `chat.abort`; events `chat`, `agent`, `presence`, `tick`, `health`.
 - Session: usually primary (`main`); multiple transports (WhatsApp/Telegram/Discord/Desktop) share the same key. The onboarding flow uses a dedicated `onboarding` session to keep first-run setup separate.
 

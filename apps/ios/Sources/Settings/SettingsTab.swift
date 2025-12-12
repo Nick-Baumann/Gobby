@@ -1,4 +1,4 @@
-import ClawdisKit
+import GobboKit
 import Network
 import Observation
 import SwiftUI
@@ -183,7 +183,7 @@ struct SettingsTab: View {
 
                 Section("Screen") {
                     Toggle("Prevent Sleep", isOn: self.$preventSleep)
-                    Text("Keeps the screen awake while Clawdis is open.")
+                    Text("Keeps the screen awake while Gobbo is open.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -304,37 +304,37 @@ struct SettingsTab: View {
     }
 
     private func currentCaps() -> [String] {
-        var caps = [ClawdisCapability.canvas.rawValue, ClawdisCapability.screen.rawValue]
+        var caps = [GobboCapability.canvas.rawValue, GobboCapability.screen.rawValue]
 
         let cameraEnabled =
             UserDefaults.standard.object(forKey: "camera.enabled") == nil
                 ? true
                 : UserDefaults.standard.bool(forKey: "camera.enabled")
-        if cameraEnabled { caps.append(ClawdisCapability.camera.rawValue) }
+        if cameraEnabled { caps.append(GobboCapability.camera.rawValue) }
 
         let voiceWakeEnabled = UserDefaults.standard.bool(forKey: VoiceWakePreferences.enabledKey)
-        if voiceWakeEnabled { caps.append(ClawdisCapability.voiceWake.rawValue) }
+        if voiceWakeEnabled { caps.append(GobboCapability.voiceWake.rawValue) }
 
         return caps
     }
 
     private func currentCommands() -> [String] {
         var commands: [String] = [
-            ClawdisCanvasCommand.present.rawValue,
-            ClawdisCanvasCommand.hide.rawValue,
-            ClawdisCanvasCommand.navigate.rawValue,
-            ClawdisCanvasCommand.evalJS.rawValue,
-            ClawdisCanvasCommand.snapshot.rawValue,
-            ClawdisCanvasA2UICommand.push.rawValue,
-            ClawdisCanvasA2UICommand.pushJSONL.rawValue,
-            ClawdisCanvasA2UICommand.reset.rawValue,
-            ClawdisScreenCommand.record.rawValue,
+            GobboCanvasCommand.present.rawValue,
+            GobboCanvasCommand.hide.rawValue,
+            GobboCanvasCommand.navigate.rawValue,
+            GobboCanvasCommand.evalJS.rawValue,
+            GobboCanvasCommand.snapshot.rawValue,
+            GobboCanvasA2UICommand.push.rawValue,
+            GobboCanvasA2UICommand.pushJSONL.rawValue,
+            GobboCanvasA2UICommand.reset.rawValue,
+            GobboScreenCommand.record.rawValue,
         ]
 
         let caps = Set(self.currentCaps())
-        if caps.contains(ClawdisCapability.camera.rawValue) {
-            commands.append(ClawdisCameraCommand.snap.rawValue)
-            commands.append(ClawdisCameraCommand.clip.rawValue)
+        if caps.contains(GobboCapability.camera.rawValue) {
+            commands.append(GobboCameraCommand.snap.rawValue)
+            commands.append(GobboCameraCommand.clip.rawValue)
         }
 
         return commands
@@ -352,7 +352,7 @@ struct SettingsTab: View {
         do {
             let statusStore = self.connectStatus
             let existing = KeychainStore.loadString(
-                service: "com.steipete.clawdis.bridge",
+                service: "com.nickbaumann.gobbo.bridge",
                 account: self.keychainAccount())
             let existingToken = (existing?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) ?
                 existing :
@@ -380,7 +380,7 @@ struct SettingsTab: View {
             if !token.isEmpty, token != existingToken {
                 _ = KeychainStore.saveString(
                     token,
-                    service: "com.steipete.clawdis.bridge",
+                    service: "com.nickbaumann.gobbo.bridge",
                     account: self.keychainAccount())
             }
 
@@ -426,7 +426,7 @@ struct SettingsTab: View {
         do {
             let statusStore = self.connectStatus
             let existing = KeychainStore.loadString(
-                service: "com.steipete.clawdis.bridge",
+                service: "com.nickbaumann.gobbo.bridge",
                 account: self.keychainAccount())
             let existingToken = (existing?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) ?
                 existing :
@@ -454,7 +454,7 @@ struct SettingsTab: View {
             if !token.isEmpty, token != existingToken {
                 _ = KeychainStore.saveString(
                     token,
-                    service: "com.steipete.clawdis.bridge",
+                    service: "com.nickbaumann.gobbo.bridge",
                     account: self.keychainAccount())
             }
 

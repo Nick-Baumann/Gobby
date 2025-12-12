@@ -39,7 +39,7 @@ export type SessionSkillSnapshot = {
 };
 
 export function resolveSessionTranscriptsDir(): string {
-  return path.join(os.homedir(), ".clawdis", "sessions");
+  return path.join(os.homedir(), ".gobbo", "sessions");
 }
 
 export function resolveDefaultSessionStorePath(): string {

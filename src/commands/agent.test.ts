@@ -19,7 +19,7 @@ vi.mock("../agents/pi-embedded.js", () => ({
 }));
 
 import { runEmbeddedPiAgent } from "../agents/pi-embedded.js";
-import type { ClawdisConfig } from "../config/config.js";
+import type { GobboConfig } from "../config/config.js";
 import * as configModule from "../config/config.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { agentCommand } from "./agent.js";
@@ -35,7 +35,7 @@ const runtime: RuntimeEnv = {
 const configSpy = vi.spyOn(configModule, "loadConfig");
 
 async function withTempHome<T>(fn: (home: string) => Promise<T>): Promise<T> {
-  const base = fs.mkdtempSync(path.join(os.tmpdir(), "clawdis-agent-"));
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), "gobbo-agent-"));
   const previousHome = process.env.HOME;
   process.env.HOME = base;
   try {
@@ -49,8 +49,8 @@ async function withTempHome<T>(fn: (home: string) => Promise<T>): Promise<T> {
 function mockConfig(
   home: string,
   storePath: string,
-  routingOverrides?: Partial<NonNullable<ClawdisConfig["routing"]>>,
-  agentOverrides?: Partial<NonNullable<ClawdisConfig["agent"]>>,
+  routingOverrides?: Partial<NonNullable<GobboConfig["routing"]>>,
+  agentOverrides?: Partial<NonNullable<GobboConfig["agent"]>>,
 ) {
   configSpy.mockReturnValue({
     agent: {

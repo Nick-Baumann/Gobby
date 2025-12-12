@@ -1,5 +1,5 @@
 import Testing
-@testable import Clawdis
+@testable import Gobbo
 
 @Suite struct SettingsNetworkingHelpersTests {
     @Test func parseHostPortParsesIPv4() {

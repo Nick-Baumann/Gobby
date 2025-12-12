@@ -15,7 +15,7 @@ import {
 import { chunkText } from "../auto-reply/chunk.js";
 import { normalizeThinkLevel } from "../auto-reply/thinking.js";
 import type { CliDeps } from "../cli/deps.js";
-import type { ClawdisConfig } from "../config/config.js";
+import type { GobboConfig } from "../config/config.js";
 import {
   DEFAULT_IDLE_MINUTES,
   loadSessionStore,
@@ -51,7 +51,7 @@ function pickSummaryFromPayloads(
 }
 
 function resolveDeliveryTarget(
-  cfg: ClawdisConfig,
+  cfg: GobboConfig,
   jobPayload: {
     channel?: "last" | "whatsapp" | "telegram" | "discord";
     to?: string;
@@ -112,7 +112,7 @@ function resolveDeliveryTarget(
 }
 
 function resolveCronSession(params: {
-  cfg: ClawdisConfig;
+  cfg: GobboConfig;
   sessionKey: string;
   nowMs: number;
 }) {
@@ -143,7 +143,7 @@ function resolveCronSession(params: {
 }
 
 export async function runCronIsolatedAgentTurn(params: {
-  cfg: ClawdisConfig;
+  cfg: GobboConfig;
   deps: CliDeps;
   job: CronJob;
   message: string;

@@ -2,7 +2,7 @@
 summary: "Webhook ingress for wake and isolated agent runs"
 read_when:
   - Adding or changing webhook endpoints
-  - Wiring external systems into Clawdis
+  - Wiring external systems into Gobbo
 ---
 
 # Webhooks
@@ -29,7 +29,7 @@ Notes:
 
 Every request must include the hook token:
 - `Authorization: Bearer <token>`
-- or `x-clawdis-token: <token>`
+- or `x-gobbo-token: <token>`
 - or `?token=<token>`
 
 ## Endpoints
@@ -92,7 +92,7 @@ Mapping options (summary):
 - `hooks.transformsDir` + `transform.module` loads a JS/TS module for custom logic.
 - Use `match.source` to keep a generic ingest endpoint (payload-driven routing).
 - TS transforms require a TS loader (e.g. `tsx`) or precompiled `.js` at runtime.
-- `clawdis hooks gmail setup` writes `hooks.gmail` config for `clawdis hooks gmail run`.
+- `gobbo hooks gmail setup` writes `hooks.gmail` config for `gobbo hooks gmail run`.
 
 ## Responses
 
@@ -113,7 +113,7 @@ curl -X POST http://127.0.0.1:18789/hooks/wake \
 
 ```bash
 curl -X POST http://127.0.0.1:18789/hooks/agent \
-  -H 'x-clawdis-token: SECRET' \
+  -H 'x-gobbo-token: SECRET' \
   -H 'Content-Type: application/json' \
   -d '{"message":"Summarize inbox","name":"Email","wakeMode":"next-heartbeat"}'
 ```

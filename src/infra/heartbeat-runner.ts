@@ -6,7 +6,7 @@ import {
 import { getReplyFromConfig } from "../auto-reply/reply.js";
 import type { ReplyPayload } from "../auto-reply/types.js";
 import { parseDurationMs } from "../cli/parse-duration.js";
-import type { ClawdisConfig } from "../config/config.js";
+import type { GobboConfig } from "../config/config.js";
 import { loadConfig } from "../config/config.js";
 import {
   loadSessionStore,
@@ -63,7 +63,7 @@ export function setHeartbeatsEnabled(enabled: boolean) {
 }
 
 export function resolveHeartbeatIntervalMs(
-  cfg: ClawdisConfig,
+  cfg: GobboConfig,
   overrideEvery?: string,
 ) {
   const raw = overrideEvery ?? cfg.agent?.heartbeat?.every;
@@ -80,13 +80,13 @@ export function resolveHeartbeatIntervalMs(
   return ms;
 }
 
-export function resolveHeartbeatPrompt(cfg: ClawdisConfig) {
+export function resolveHeartbeatPrompt(cfg: GobboConfig) {
   const raw = cfg.agent?.heartbeat?.prompt;
   const trimmed = typeof raw === "string" ? raw.trim() : "";
   return trimmed || HEARTBEAT_PROMPT;
 }
 
-function resolveHeartbeatSession(cfg: ClawdisConfig) {
+function resolveHeartbeatSession(cfg: GobboConfig) {
   const sessionCfg = cfg.session;
   const scope = sessionCfg?.scope ?? "per-sender";
   const mainKey = (sessionCfg?.mainKey ?? "main").trim() || "main";
@@ -148,7 +148,7 @@ function resolveHeartbeatSender(params: {
 }
 
 async function resolveWhatsAppReadiness(
-  cfg: ClawdisConfig,
+  cfg: GobboConfig,
   deps?: HeartbeatDeps,
 ): Promise<{ ok: boolean; reason: string }> {
   if (cfg.web?.enabled === false) {
@@ -168,7 +168,7 @@ async function resolveWhatsAppReadiness(
 }
 
 export function resolveHeartbeatDeliveryTarget(params: {
-  cfg: ClawdisConfig;
+  cfg: GobboConfig;
   entry?: SessionEntry;
 }): HeartbeatDeliveryTarget {
   const { cfg, entry } = params;
@@ -321,7 +321,7 @@ async function deliverHeartbeatReply(params: {
 }
 
 export async function runHeartbeatOnce(opts: {
-  cfg?: ClawdisConfig;
+  cfg?: GobboConfig;
   reason?: string;
   deps?: HeartbeatDeps;
 }): Promise<HeartbeatRunResult> {
@@ -467,7 +467,7 @@ export async function runHeartbeatOnce(opts: {
 }
 
 export function startHeartbeatRunner(opts: {
-  cfg?: ClawdisConfig;
+  cfg?: GobboConfig;
   runtime?: RuntimeEnv;
   abortSignal?: AbortSignal;
 }) {

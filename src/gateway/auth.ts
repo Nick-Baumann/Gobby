@@ -101,7 +101,7 @@ function isTailscaleProxyRequest(req?: IncomingMessage): boolean {
 export function assertGatewayAuthConfigured(auth: ResolvedGatewayAuth): void {
   if (auth.mode === "token" && !auth.token) {
     throw new Error(
-      "gateway auth mode is token, but CLAWDIS_GATEWAY_TOKEN is not set",
+      "gateway auth mode is token, but GOBBO_GATEWAY_TOKEN is not set",
     );
   }
   if (auth.mode === "password" && !auth.password) {

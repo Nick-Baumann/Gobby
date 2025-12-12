@@ -1,5 +1,5 @@
 ---
-summary: "Planned first-run onboarding flow for Clawdis (local vs remote, Anthropic OAuth, workspace bootstrap ritual)"
+summary: "Planned first-run onboarding flow for Gobbo (local vs remote, Anthropic OAuth, workspace bootstrap ritual)"
 read_when:
   - Designing the macOS onboarding assistant
   - Implementing Anthropic auth or identity setup
@@ -7,7 +7,7 @@ read_when:
 <!-- {% raw %} -->
 # Onboarding (macOS app)
 
-This doc describes the intended **first-run onboarding** for Clawdis. The goal is a good “day 0” experience: pick where the Gateway runs, bind Claude (Anthropic) auth for the embedded agent runtime, and then let the **agent bootstrap itself** via a first-run ritual in the workspace.
+This doc describes the intended **first-run onboarding** for Gobbo. The goal is a good “day 0” experience: pick where the Gateway runs, bind Claude (Anthropic) auth for the embedded agent runtime, and then let the **agent bootstrap itself** via a first-run ritual in the workspace.
 
 ## Page order (high level)
 
@@ -19,14 +19,14 @@ This doc describes the intended **first-run onboarding** for Clawdis. The goal i
 
 First question: where does the **Gateway** run?
 
-- **Local (this Mac):** onboarding can run the Anthropic OAuth flow and write the Clawdis token store locally.
+- **Local (this Mac):** onboarding can run the Anthropic OAuth flow and write the Gobbo token store locally.
 - **Remote (over SSH/tailnet):** onboarding must not run OAuth locally, because credentials must exist on the **gateway host**.
 
 Implementation note (2025-12-19): in local mode, the macOS app bundles the Gateway and enables it via a per-user launchd LaunchAgent (no global npm install/Node requirement for the user).
 
 ## 2) Local-only: Connect Claude (Anthropic OAuth)
 
-This is the “bind Clawdis to Anthropic” step. It is explicitly the **Anthropic (Claude Pro/Max) OAuth flow**, not a generic “login”.
+This is the “bind Gobbo to Anthropic” step. It is explicitly the **Anthropic (Claude Pro/Max) OAuth flow**, not a generic “login”.
 
 ### Recommended: OAuth
 
@@ -34,27 +34,27 @@ The macOS app should:
 - Start the Anthropic OAuth (PKCE) flow in the user’s browser.
 - Ask the user to paste the `code#state` value.
 - Exchange it for tokens and write credentials to:
-  - `~/.clawdis/credentials/oauth.json` (file mode `0600`, directory mode `0700`)
+  - `~/.gobbo/credentials/oauth.json` (file mode `0600`, directory mode `0700`)
 
-Why this location matters: it’s the Clawdis-owned OAuth store.
-On first run, Clawdis can import existing OAuth tokens from legacy p/Claude locations if present.
+Why this location matters: it’s the Gobbo-owned OAuth store.
+On first run, Gobbo can import existing OAuth tokens from legacy p/Claude locations if present.
 
 ### Alternative: API key (instructions only)
 
 Offer an “API key” option, but for now it is **instructions only**:
 - Get an Anthropic API key.
-- Provide it to Clawdis via your preferred mechanism (env/config).
+- Provide it to Gobbo via your preferred mechanism (env/config).
 
 Note: environment variables are often confusing when the Gateway is launched by a GUI app (launchd environment != your shell).
 
 ### Model safety rule
 
-Clawdis should **always pass** `--model` when invoking the embedded agent (don’t rely on defaults).
+Gobbo should **always pass** `--model` when invoking the embedded agent (don’t rely on defaults).
 
 Example (CLI):
 
 ```bash
-clawdis agent --mode rpc --model anthropic/claude-opus-4-5 "<message>"
+gobbo agent --mode rpc --model anthropic/claude-opus-4-5 "<message>"
 ```
 
 If the user skips auth, onboarding should be clear: the agent likely won’t respond until auth is configured.
@@ -78,7 +78,7 @@ Once setup is complete, the user can switch to the normal chat (`main`) via the 
 
 We no longer collect identity in the onboarding wizard. Instead, the **first agent run** performs a playful bootstrap ritual using files in the workspace:
 
-- Workspace is created implicitly (default `~/.clawdis/workspace`) when local is selected,
+- Workspace is created implicitly (default `~/.gobbo/workspace`) when local is selected,
   but only if the folder is empty or already contains `AGENTS.md`.
 - Files are seeded: `AGENTS.md`, `BOOTSTRAP.md`, `IDENTITY.md`, `USER.md`.
 - `BOOTSTRAP.md` tells the agent to keep it conversational:
@@ -90,7 +90,7 @@ We no longer collect identity in the onboarding wizard. Instead, the **first age
   - `IDENTITY.md` (agent name, vibe/creature, emoji)
   - `USER.md` (who the user is + how they want to be addressed)
   - `SOUL.md` (identity, tone, boundaries — crafted from the soul.md prompt)
-  - `~/.clawdis/clawdis.json` (structured identity defaults)
+  - `~/.gobbo/gobbo.json` (structured identity defaults)
 - After the ritual, the agent **deletes `BOOTSTRAP.md`** so it only runs once.
 
 Identity data still feeds the same defaults as before:
@@ -107,7 +107,7 @@ The workspace is created automatically as part of agent bootstrap (no dedicated 
 Recommendation: treat the workspace as the agent’s “memory” and make it a git repo (ideally private) so identity + memories are backed up:
 
 ```bash
-cd ~/.clawdis/workspace
+cd ~/.gobbo/workspace
 git init
 git add AGENTS.md
 git commit -m "Add agent workspace"
@@ -124,6 +124,6 @@ If the Gateway runs on another machine, the Anthropic OAuth credentials must be 
 
 For now, remote onboarding should:
 - explain why OAuth isn’t shown
-- point the user at the credential location (`~/.clawdis/credentials/oauth.json`) and the workspace location on the gateway host
+- point the user at the credential location (`~/.gobbo/credentials/oauth.json`) and the workspace location on the gateway host
 - mention that the **bootstrap ritual happens on the gateway host** (same BOOTSTRAP/IDENTITY/USER files)
 <!-- {% endraw %} -->
