@@ -10,6 +10,11 @@ final actor ControlSocketServer {
     private let maxRequestBytes = 512 * 1024
     private let allowedTeamIDs: Set<String> = ["Y5PE65HELJ"]
 
+    private func disableSigPipe(fd: Int32) {
+        var one: Int32 = 1
+        _ = setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, socklen_t(MemoryLayout.size(ofValue: one)))
+    }
+
     func start() {
         // Already running
         guard self.listenFD == -1 else { return }
@@ -75,6 +80,7 @@ final actor ControlSocketServer {
         var len: socklen_t = socklen_t(MemoryLayout<sockaddr>.size)
         let client = accept(listenFD, &addr, &len)
         guard client >= 0 else { return }
+        self.disableSigPipe(fd: client)
         Task.detached { [weak self] in
             defer { close(client) }
             guard let self else { return }

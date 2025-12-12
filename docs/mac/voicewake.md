@@ -32,6 +32,9 @@ Updated: 2025-12-08 · Owners: mac app
 - Language & mic pickers, live level meter, trigger-word table, tester, forward target/command all remain unchanged.
 - **Sounds**: chimes on trigger detect and on send; defaults to the macOS “Glass” system sound. You can pick any `NSSound`-loadable file (e.g. MP3/WAV/AIFF) for each event or choose **No Sound**.
 
+## Forwarding behavior
+- When Voice Wake is enabled, transcripts are forwarded to the active gateway/agent (the same local vs remote mode used by the rest of the mac app).
+
 ## Forwarding payload
 - `VoiceWakeForwarder.prefixedTranscript(_:)` prepends the machine hint before sending. Shared between wake-word and push-to-talk paths.
 

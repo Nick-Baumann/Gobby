@@ -14,7 +14,6 @@ final class VoiceSessionCoordinator: ObservableObject {
         var text: String
         var attributed: NSAttributedString?
         var isFinal: Bool
-        var forwardConfig: VoiceWakeForwardConfig?
         var sendChime: VoiceWakeChime
         var autoSendDelay: TimeInterval?
     }
@@ -45,7 +44,6 @@ final class VoiceSessionCoordinator: ObservableObject {
             text: text,
             attributed: attributedText,
             isFinal: false,
-            forwardConfig: forwardEnabled ? AppStateStore.shared.voiceWakeForwardConfig : nil,
             sendChime: .none,
             autoSendDelay: nil)
         self.session = session
@@ -69,7 +67,6 @@ final class VoiceSessionCoordinator: ObservableObject {
     func finalize(
         token: UUID,
         text: String,
-        forwardConfig: VoiceWakeForwardConfig,
         sendChime: VoiceWakeChime,
         autoSendAfter: TimeInterval?)
     {
@@ -79,7 +76,6 @@ final class VoiceSessionCoordinator: ObservableObject {
                 "coordinator finalize token=\(token.uuidString) len=\(text.count) autoSendAfter=\(autoSendAfter ?? -1)")
         self.session?.text = text
         self.session?.isFinal = true
-        self.session?.forwardConfig = forwardConfig
         self.session?.sendChime = sendChime
         self.session?.autoSendDelay = autoSendAfter
 
@@ -87,7 +83,6 @@ final class VoiceSessionCoordinator: ObservableObject {
         VoiceWakeOverlayController.shared.presentFinal(
             token: token,
             transcript: text,
-            forwardConfig: forwardConfig,
             autoSendAfter: autoSendAfter,
             sendChime: sendChime,
             attributed: attributed)
@@ -96,12 +91,6 @@ final class VoiceSessionCoordinator: ObservableObject {
     func sendNow(token: UUID, reason: String = "explicit") {
         guard let session, session.token == token else { return }
         let text = session.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let forward = session.forwardConfig, forward.enabled else {
-            self.logger.info("coordinator sendNow \(reason) no forward config -> dismiss")
-            VoiceWakeOverlayController.shared.dismiss(token: token, reason: .explicit, outcome: .empty)
-            self.clearSession()
-            return
-        }
         guard !text.isEmpty else {
             self.logger.info("coordinator sendNow \(reason) empty -> dismiss")
             VoiceWakeOverlayController.shared.dismiss(token: token, reason: .empty, outcome: .empty)
@@ -110,9 +99,7 @@ final class VoiceSessionCoordinator: ObservableObject {
         }
         VoiceWakeOverlayController.shared.beginSendUI(token: token, sendChime: session.sendChime)
         Task.detached {
-            _ = await VoiceWakeForwarder.forward(
-                transcript: VoiceWakeForwarder.prefixedTranscript(text),
-                config: forward)
+            _ = await VoiceWakeForwarder.forward(transcript: text)
         }
     }
 

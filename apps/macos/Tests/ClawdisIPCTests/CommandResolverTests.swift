@@ -20,6 +20,17 @@ import Testing
     }
 
     @Test func prefersClawdisBinary() async throws {
+        UserDefaults.standard.set(AppState.ConnectionMode.local.rawValue, forKey: connectionModeKey)
+        UserDefaults.standard.removeObject(forKey: remoteTargetKey)
+        UserDefaults.standard.removeObject(forKey: remoteIdentityKey)
+        UserDefaults.standard.removeObject(forKey: remoteProjectRootKey)
+        defer {
+            UserDefaults.standard.removeObject(forKey: connectionModeKey)
+            UserDefaults.standard.removeObject(forKey: remoteTargetKey)
+            UserDefaults.standard.removeObject(forKey: remoteIdentityKey)
+            UserDefaults.standard.removeObject(forKey: remoteProjectRootKey)
+        }
+
         let tmp = try makeTempDir()
         CommandResolver.setProjectRoot(tmp.path)
 
@@ -31,6 +42,17 @@ import Testing
     }
 
     @Test func fallsBackToNodeAndScript() async throws {
+        UserDefaults.standard.set(AppState.ConnectionMode.local.rawValue, forKey: connectionModeKey)
+        UserDefaults.standard.removeObject(forKey: remoteTargetKey)
+        UserDefaults.standard.removeObject(forKey: remoteIdentityKey)
+        UserDefaults.standard.removeObject(forKey: remoteProjectRootKey)
+        defer {
+            UserDefaults.standard.removeObject(forKey: connectionModeKey)
+            UserDefaults.standard.removeObject(forKey: remoteTargetKey)
+            UserDefaults.standard.removeObject(forKey: remoteIdentityKey)
+            UserDefaults.standard.removeObject(forKey: remoteProjectRootKey)
+        }
+
         let tmp = try makeTempDir()
         CommandResolver.setProjectRoot(tmp.path)
 
@@ -50,6 +72,17 @@ import Testing
     }
 
     @Test func fallsBackToPnpm() async throws {
+        UserDefaults.standard.set(AppState.ConnectionMode.local.rawValue, forKey: connectionModeKey)
+        UserDefaults.standard.removeObject(forKey: remoteTargetKey)
+        UserDefaults.standard.removeObject(forKey: remoteIdentityKey)
+        UserDefaults.standard.removeObject(forKey: remoteProjectRootKey)
+        defer {
+            UserDefaults.standard.removeObject(forKey: connectionModeKey)
+            UserDefaults.standard.removeObject(forKey: remoteTargetKey)
+            UserDefaults.standard.removeObject(forKey: remoteIdentityKey)
+            UserDefaults.standard.removeObject(forKey: remoteProjectRootKey)
+        }
+
         let tmp = try makeTempDir()
         CommandResolver.setProjectRoot(tmp.path)
 
@@ -62,6 +95,17 @@ import Testing
     }
 
     @Test func pnpmKeepsExtraArgsAfterSubcommand() async throws {
+        UserDefaults.standard.set(AppState.ConnectionMode.local.rawValue, forKey: connectionModeKey)
+        UserDefaults.standard.removeObject(forKey: remoteTargetKey)
+        UserDefaults.standard.removeObject(forKey: remoteIdentityKey)
+        UserDefaults.standard.removeObject(forKey: remoteProjectRootKey)
+        defer {
+            UserDefaults.standard.removeObject(forKey: connectionModeKey)
+            UserDefaults.standard.removeObject(forKey: remoteTargetKey)
+            UserDefaults.standard.removeObject(forKey: remoteIdentityKey)
+            UserDefaults.standard.removeObject(forKey: remoteProjectRootKey)
+        }
+
         let tmp = try makeTempDir()
         CommandResolver.setProjectRoot(tmp.path)
 
@@ -75,6 +119,17 @@ import Testing
     }
 
     @Test func preferredPathsStartWithProjectNodeBins() async throws {
+        UserDefaults.standard.set(AppState.ConnectionMode.local.rawValue, forKey: connectionModeKey)
+        UserDefaults.standard.removeObject(forKey: remoteTargetKey)
+        UserDefaults.standard.removeObject(forKey: remoteIdentityKey)
+        UserDefaults.standard.removeObject(forKey: remoteProjectRootKey)
+        defer {
+            UserDefaults.standard.removeObject(forKey: connectionModeKey)
+            UserDefaults.standard.removeObject(forKey: remoteTargetKey)
+            UserDefaults.standard.removeObject(forKey: remoteIdentityKey)
+            UserDefaults.standard.removeObject(forKey: remoteProjectRootKey)
+        }
+
         let tmp = try makeTempDir()
         CommandResolver.setProjectRoot(tmp.path)
 

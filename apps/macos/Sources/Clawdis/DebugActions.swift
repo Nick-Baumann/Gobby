@@ -63,45 +63,13 @@ enum DebugActions {
         This is a debug test from the Mac app. Reply with "Debug test works (and a funny pun)" \
         if you received that.
         """
-        let config = await MainActor.run { AppStateStore.shared.voiceWakeForwardConfig }
-        let shouldForward = config.enabled
-
-        if shouldForward {
-            let result = await VoiceWakeForwarder.forward(transcript: message, config: config)
-            switch result {
-            case .success:
-                return .success("Forwarded. Await reply.")
-            case let .failure(error):
-                let detail = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-                return .failure(.message("Forward failed: \(detail)"))
-            }
-        }
-
-        do {
-            let status = await AgentRPC.shared.status()
-            if !status.ok {
-                try await AgentRPC.shared.start()
-            }
-
-            let rpcResult = await AgentRPC.shared.send(
-                text: message,
-                thinking: "low",
-                session: "main",
-                deliver: true,
-                to: nil)
-
-            if rpcResult.ok {
-                return .success("Sent locally via voice wake path.")
-            } else {
-                let reason = rpcResult.error?.trimmingCharacters(in: .whitespacesAndNewlines)
-                let detail = (reason?.isEmpty == false)
-                    ? reason!
-                    : "No error returned. Check logs or rpc output."
-                return .failure(.message("Local send failed: \(detail)"))
-            }
-        } catch {
+        let result = await VoiceWakeForwarder.forward(transcript: message)
+        switch result {
+        case .success:
+            return .success("Sent. Await reply.")
+        case let .failure(error):
             let detail = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-            return .failure(.message("Local send failed: \(detail)"))
+            return .failure(.message("Send failed: \(detail)"))
         }
     }
 

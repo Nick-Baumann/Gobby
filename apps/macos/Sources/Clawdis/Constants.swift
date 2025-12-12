@@ -14,8 +14,6 @@ let defaultVoiceWakeTriggers = ["clawd", "claude"]
 let voiceWakeMicKey = "clawdis.voiceWakeMicID"
 let voiceWakeLocaleKey = "clawdis.voiceWakeLocaleID"
 let voiceWakeAdditionalLocalesKey = "clawdis.voiceWakeAdditionalLocaleIDs"
-let voiceWakeForwardEnabledKey = "clawdis.voiceWakeForwardEnabled"
-let voiceWakeForwardCommandKey = "clawdis.voiceWakeForwardCommand"
 let voicePushToTalkEnabledKey = "clawdis.voicePushToTalkEnabled"
 let iconOverrideKey = "clawdis.iconOverride"
 let connectionModeKey = "clawdis.connectionMode"
@@ -31,6 +29,3 @@ let attachExistingGatewayOnlyKey = "clawdis.gateway.attachExistingOnly"
 let heartbeatsEnabledKey = "clawdis.heartbeatsEnabled"
 let voiceWakeSupported: Bool = ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 26
 let cliHelperSearchPaths = ["/usr/local/bin", "/opt/homebrew/bin"]
-let defaultVoiceWakeForwardCommand = "clawdis-mac agent --message \"${text}\" --thinking low --session main --deliver"
-// Allow enough time for remote agent responses (LLM replies often take >10s).
-let defaultVoiceWakeForwardTimeout: TimeInterval = 30

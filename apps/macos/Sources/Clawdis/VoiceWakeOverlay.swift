@@ -31,7 +31,6 @@ final class VoiceWakeOverlayController: ObservableObject {
     private var hostingView: NSHostingView<VoiceWakeOverlayView>?
     private var autoSendTask: Task<Void, Never>?
     private var autoSendToken: UUID?
-    private var forwardConfig: VoiceWakeForwardConfig?
     private var activeToken: UUID?
     private var activeSource: Source?
 
@@ -64,7 +63,6 @@ final class VoiceWakeOverlayController: ObservableObject {
         self.logger.log(level: .info, "\(message)")
         self.activeToken = token
         self.activeSource = source
-        self.forwardConfig = nil
         self.autoSendTask?.cancel(); self.autoSendTask = nil; self.autoSendToken = nil
         self.model.text = transcript
         self.model.isFinal = isFinal
@@ -91,7 +89,6 @@ final class VoiceWakeOverlayController: ObservableObject {
         """
         self.logger.log(level: .info, "\(message)")
         self.autoSendTask?.cancel(); self.autoSendTask = nil; self.autoSendToken = nil
-        self.forwardConfig = nil
         self.model.text = transcript
         self.model.isFinal = false
         self.model.forwardEnabled = false
@@ -106,7 +103,6 @@ final class VoiceWakeOverlayController: ObservableObject {
     func presentFinal(
         token: UUID,
         transcript: String,
-        forwardConfig: VoiceWakeForwardConfig,
         autoSendAfter delay: TimeInterval?,
         sendChime: VoiceWakeChime = .none,
         attributed: NSAttributedString? = nil)
@@ -116,15 +112,14 @@ final class VoiceWakeOverlayController: ObservableObject {
         overlay presentFinal token=\(token.uuidString) \
         len=\(transcript.count) \
         autoSendAfter=\(delay ?? -1) \
-        forwardEnabled=\(forwardConfig.enabled)
+        forwardEnabled=\(!transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         """
         self.logger.log(level: .info, "\(message)")
         self.autoSendTask?.cancel()
         self.autoSendToken = token
-        self.forwardConfig = forwardConfig
         self.model.text = transcript
         self.model.isFinal = true
-        self.model.forwardEnabled = forwardConfig.enabled
+        self.model.forwardEnabled = !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         self.model.isSending = false
         self.model.isEditing = false
         self.model.attributed = attributed ?? self.makeAttributed(from: transcript)
@@ -228,7 +223,6 @@ final class VoiceWakeOverlayController: ObservableObject {
                 self.model.level = 0
                 self.activeToken = nil
                 self.activeSource = nil
-                self.forwardConfig = nil
                 if outcome == .empty {
                     AppStateStore.shared.blinkOnce()
                 } else if outcome == .sent {

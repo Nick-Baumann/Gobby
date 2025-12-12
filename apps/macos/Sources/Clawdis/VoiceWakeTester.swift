@@ -134,10 +134,8 @@ final class VoiceWakeTester {
             self.detectedText = text
             self.logger.info("voice wake detected; forwarding (len=\(text.count))")
             await MainActor.run { AppStateStore.shared.triggerVoiceEars(ttl: nil) }
-            let config = await MainActor.run { AppStateStore.shared.voiceWakeForwardConfig }
             Task.detached {
-                let payload = VoiceWakeForwarder.prefixedTranscript(text)
-                await VoiceWakeForwarder.forward(transcript: payload, config: config)
+                await VoiceWakeForwarder.forward(transcript: text)
             }
             Task { @MainActor in onUpdate(.detected(text)) }
             self.holdUntilSilence(onUpdate: onUpdate)

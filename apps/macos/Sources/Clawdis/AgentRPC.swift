@@ -2,7 +2,9 @@ import Foundation
 import OSLog
 
 struct ControlRequestParams: @unchecked Sendable {
-    let raw: [String: AnyHashable]
+    /// Heterogeneous JSON-ish params (Bool/String/Int/Double/[...]/[String:...]).
+    /// `@unchecked Sendable` is intentional: values are treated as immutable payloads.
+    let raw: [String: Any]
 }
 
 actor AgentRPC {
@@ -35,7 +37,7 @@ actor AgentRPC {
         do {
             _ = try await self.controlRequest(
                 method: "set-heartbeats",
-                params: ControlRequestParams(raw: ["enabled": AnyHashable(enabled)]))
+                params: ControlRequestParams(raw: ["enabled": enabled]))
             return true
         } catch {
             self.logger.error("setHeartbeatsEnabled failed \(error.localizedDescription, privacy: .public)")
@@ -65,13 +67,13 @@ actor AgentRPC {
         to: String?) async -> (ok: Bool, text: String?, error: String?)
     {
         do {
-            let params: [String: AnyHashable] = [
-                "message": AnyHashable(text),
-                "sessionId": AnyHashable(session),
-                "thinking": AnyHashable(thinking ?? "default"),
-                "deliver": AnyHashable(deliver),
-                "to": AnyHashable(to ?? ""),
-                "idempotencyKey": AnyHashable(UUID().uuidString),
+            let params: [String: Any] = [
+                "message": text,
+                "sessionId": session,
+                "thinking": thinking ?? "default",
+                "deliver": deliver,
+                "to": to ?? "",
+                "idempotencyKey": UUID().uuidString,
             ]
             _ = try await self.controlRequest(method: "agent", params: ControlRequestParams(raw: params))
             return (true, nil, nil)

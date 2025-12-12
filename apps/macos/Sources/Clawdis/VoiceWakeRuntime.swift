@@ -334,7 +334,6 @@ actor VoiceWakeRuntime {
             await MainActor.run { VoiceSessionCoordinator.shared.updateLevel(token: token, 0) }
         }
 
-        let forwardConfig = await MainActor.run { AppStateStore.shared.voiceWakeForwardConfig }
         let delay: TimeInterval = 0.0
         let sendChime = finalTranscript.isEmpty ? .none : config.sendChime
         if let token = self.overlayToken {
@@ -342,18 +341,15 @@ actor VoiceWakeRuntime {
                 VoiceSessionCoordinator.shared.finalize(
                     token: token,
                     text: finalTranscript,
-                    forwardConfig: forwardConfig,
                     sendChime: sendChime,
                     autoSendAfter: delay)
             }
-        } else if forwardConfig.enabled, !finalTranscript.isEmpty {
+        } else if !finalTranscript.isEmpty {
             if sendChime != .none {
                 await MainActor.run { VoiceWakeChimePlayer.play(sendChime, reason: "voicewake.send") }
             }
             Task.detached {
-                await VoiceWakeForwarder.forward(
-                    transcript: VoiceWakeForwarder.prefixedTranscript(finalTranscript),
-                    config: forwardConfig)
+                await VoiceWakeForwarder.forward(transcript: finalTranscript)
             }
         }
         self.overlayToken = nil

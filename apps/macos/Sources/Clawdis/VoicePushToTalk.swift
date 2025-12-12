@@ -100,7 +100,6 @@ actor VoicePushToTalk {
     private struct Config {
         let micID: String?
         let localeID: String?
-        let forwardConfig: VoiceWakeForwardConfig
         let triggerChime: VoiceWakeChime
         let sendChime: VoiceWakeChime
     }
@@ -263,12 +262,6 @@ actor VoicePushToTalk {
             return (self.committed + self.volatile).trimmingCharacters(in: .whitespacesAndNewlines)
         }()
         let finalText = Self.join(self.adoptedPrefix, finalRecognized)
-
-        let forward: VoiceWakeForwardConfig = if let cached = self.activeConfig?.forwardConfig {
-            cached
-        } else {
-            await MainActor.run { AppStateStore.shared.voiceWakeForwardConfig }
-        }
         let chime = finalText.isEmpty ? .none : (self.activeConfig?.sendChime ?? .none)
 
         let token = self.overlayToken
@@ -279,18 +272,15 @@ actor VoicePushToTalk {
                 VoiceSessionCoordinator.shared.finalize(
                     token: token,
                     text: finalText,
-                    forwardConfig: forward,
                     sendChime: chime,
                     autoSendAfter: nil)
                 VoiceSessionCoordinator.shared.sendNow(token: token, reason: reason)
-            } else if !finalText.isEmpty, forward.enabled {
+            } else if !finalText.isEmpty {
                 if chime != .none {
                     VoiceWakeChimePlayer.play(chime, reason: "ptt.fallback_send")
                 }
                 Task.detached {
-                    await VoiceWakeForwarder.forward(
-                        transcript: VoiceWakeForwarder.prefixedTranscript(finalText),
-                        config: forward)
+                    await VoiceWakeForwarder.forward(transcript: finalText)
                 }
             }
         }
@@ -319,7 +309,6 @@ actor VoicePushToTalk {
         return Config(
             micID: state.voiceWakeMicID.isEmpty ? nil : state.voiceWakeMicID,
             localeID: state.voiceWakeLocaleID,
-            forwardConfig: state.voiceWakeForwardConfig,
             triggerChime: state.voiceWakeTriggerChime,
             sendChime: state.voiceWakeSendChime)
     }

@@ -108,18 +108,6 @@ final class AppState: ObservableObject {
             forKey: voiceWakeAdditionalLocalesKey) } }
     }
 
-    @Published var voiceWakeForwardEnabled: Bool {
-        didSet { self.ifNotPreview { UserDefaults.standard.set(
-            self.voiceWakeForwardEnabled,
-            forKey: voiceWakeForwardEnabledKey) } }
-    }
-
-    @Published var voiceWakeForwardCommand: String {
-        didSet { self.ifNotPreview { UserDefaults.standard.set(
-            self.voiceWakeForwardCommand,
-            forKey: voiceWakeForwardCommandKey) } }
-    }
-
     @Published var voicePushToTalkEnabled: Bool {
         didSet { self.ifNotPreview { UserDefaults.standard.set(
             self.voicePushToTalkEnabled,
@@ -210,18 +198,8 @@ final class AppState: ObservableObject {
         self.voiceWakeLocaleID = UserDefaults.standard.string(forKey: voiceWakeLocaleKey) ?? Locale.current.identifier
         self.voiceWakeAdditionalLocaleIDs = UserDefaults.standard
             .stringArray(forKey: voiceWakeAdditionalLocalesKey) ?? []
-        self.voiceWakeForwardEnabled = UserDefaults.standard.bool(forKey: voiceWakeForwardEnabledKey)
         self.voicePushToTalkEnabled = UserDefaults.standard
             .object(forKey: voicePushToTalkEnabledKey) as? Bool ?? false
-
-        var storedForwardCommand = UserDefaults.standard
-            .string(forKey: voiceWakeForwardCommandKey) ?? defaultVoiceWakeForwardCommand
-        // Guard against older prefs missing flags; the forwarder depends on these for replies.
-        if !storedForwardCommand.contains("--deliver") || !storedForwardCommand.contains("--session") {
-            storedForwardCommand = defaultVoiceWakeForwardCommand
-            UserDefaults.standard.set(storedForwardCommand, forKey: voiceWakeForwardCommandKey)
-        }
-        self.voiceWakeForwardCommand = storedForwardCommand
         if let storedHeartbeats = UserDefaults.standard.object(forKey: heartbeatsEnabledKey) as? Bool {
             self.heartbeatsEnabled = storedHeartbeats
         } else {
@@ -350,8 +328,6 @@ extension AppState {
         state.voiceWakeMicID = "BuiltInMic"
         state.voiceWakeLocaleID = Locale.current.identifier
         state.voiceWakeAdditionalLocaleIDs = ["en-US", "de-DE"]
-        state.voiceWakeForwardEnabled = true
-        state.voiceWakeForwardCommand = defaultVoiceWakeForwardCommand
         state.voicePushToTalkEnabled = false
         state.iconOverride = .system
         state.heartbeatsEnabled = true
@@ -393,15 +369,6 @@ enum AppStateStore {
 
     static var attachExistingGatewayOnly: Bool {
         UserDefaults.standard.bool(forKey: attachExistingGatewayOnlyKey)
-    }
-}
-
-extension AppState {
-    var voiceWakeForwardConfig: VoiceWakeForwardConfig {
-        VoiceWakeForwardConfig(
-            enabled: self.voiceWakeForwardEnabled,
-            commandTemplate: self.voiceWakeForwardCommand,
-            timeout: defaultVoiceWakeForwardTimeout)
     }
 }
 
