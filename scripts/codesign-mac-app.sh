@@ -53,6 +53,8 @@ cat > "$ENT_TMP_BASE" <<'PLIST'
 <dict>
     <key>com.apple.security.automation.apple-events</key>
     <true/>
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
 </dict>
 </plist>
 PLIST
@@ -63,6 +65,8 @@ cat > "$ENT_TMP_APP_BASE" <<'PLIST'
 <plist version="1.0">
 <dict>
     <key>com.apple.security.automation.apple-events</key>
+    <true/>
+    <key>com.apple.security.device.audio-input</key>
     <true/>
 </dict>
 </plist>
@@ -76,6 +80,8 @@ cat > "$ENT_TMP_APP" <<'PLIST'
     <key>com.apple.developer.usernotifications.time-sensitive</key>
     <true/>
     <key>com.apple.security.automation.apple-events</key>
+    <true/>
+    <key>com.apple.security.device.audio-input</key>
     <true/>
 </dict>
 </plist>
