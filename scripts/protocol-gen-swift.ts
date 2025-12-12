@@ -157,26 +157,29 @@ function emitGatewayFrame(): string {
   };
   const caseLines = cases.map((c) => `    case ${safeName(c)}(${associated[c]})`);
   const initLines = `
+    private enum CodingKeys: String, CodingKey {
+        case type
+    }
+
     public init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        let raw = try container.decode([String: AnyCodable].self)
-        guard let type = raw["type"]?.value as? String else {
-            throw DecodingError.dataCorruptedError(in: container, debugDescription: "missing type")
-        }
+        let typeContainer = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try typeContainer.decode(String.self, forKey: .type)
         switch type {
         case "hello":
-            self = .hello(try Self.decodePayload(Hello.self, from: raw))
+            self = .hello(try Hello(from: decoder))
         case "hello-ok":
-            self = .helloOk(try Self.decodePayload(HelloOk.self, from: raw))
+            self = .helloOk(try HelloOk(from: decoder))
         case "hello-error":
-            self = .helloError(try Self.decodePayload(HelloError.self, from: raw))
+            self = .helloError(try HelloError(from: decoder))
         case "req":
-            self = .req(try Self.decodePayload(RequestFrame.self, from: raw))
+            self = .req(try RequestFrame(from: decoder))
         case "res":
-            self = .res(try Self.decodePayload(ResponseFrame.self, from: raw))
+            self = .res(try ResponseFrame(from: decoder))
         case "event":
-            self = .event(try Self.decodePayload(EventFrame.self, from: raw))
+            self = .event(try EventFrame(from: decoder))
         default:
+            let container = try decoder.singleValueContainer()
+            let raw = try container.decode([String: AnyCodable].self)
             self = .unknown(type: type, raw: raw)
         }
     }
@@ -196,22 +199,11 @@ function emitGatewayFrame(): string {
     }
 `;
 
-  const helper = `
-    private static func decodePayload<T: Decodable>(_ type: T.Type, from raw: [String: AnyCodable]) throws -> T {
-        // raw is [String: AnyCodable] which is not directly JSONSerialization-compatible.
-        // Round-trip through JSONEncoder so AnyCodable can encode itself safely.
-        let data = try JSONEncoder().encode(raw)
-        let decoder = JSONDecoder()
-        return try decoder.decode(T.self, from: data)
-    }
-`;
-
   return [
     "public enum GatewayFrame: Codable {",
     ...caseLines,
     "    case unknown(type: String, raw: [String: AnyCodable])",
     initLines,
-    helper,
     "}",
     "",
   ].join("\n");

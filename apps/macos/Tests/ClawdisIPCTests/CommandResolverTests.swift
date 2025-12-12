@@ -4,6 +4,11 @@ import Testing
 @testable import Clawdis
 
 @Suite(.serialized) struct CommandResolverTests {
+    private func makeDefaults() -> UserDefaults {
+        // Use a unique suite to avoid cross-suite concurrency on UserDefaults.standard.
+        UserDefaults(suiteName: "CommandResolverTests.\(UUID().uuidString)")!
+    }
+
     private func makeTempDir() throws -> URL {
         let base = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         let dir = base.appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -20,16 +25,8 @@ import Testing
     }
 
     @Test func prefersClawdisBinary() async throws {
-        UserDefaults.standard.set(AppState.ConnectionMode.local.rawValue, forKey: connectionModeKey)
-        UserDefaults.standard.removeObject(forKey: remoteTargetKey)
-        UserDefaults.standard.removeObject(forKey: remoteIdentityKey)
-        UserDefaults.standard.removeObject(forKey: remoteProjectRootKey)
-        defer {
-            UserDefaults.standard.removeObject(forKey: connectionModeKey)
-            UserDefaults.standard.removeObject(forKey: remoteTargetKey)
-            UserDefaults.standard.removeObject(forKey: remoteIdentityKey)
-            UserDefaults.standard.removeObject(forKey: remoteProjectRootKey)
-        }
+        let defaults = self.makeDefaults()
+        defaults.set(AppState.ConnectionMode.local.rawValue, forKey: connectionModeKey)
 
         let tmp = try makeTempDir()
         CommandResolver.setProjectRoot(tmp.path)
@@ -37,21 +34,13 @@ import Testing
         let clawdisPath = tmp.appendingPathComponent("node_modules/.bin/clawdis")
         try self.makeExec(at: clawdisPath)
 
-        let cmd = CommandResolver.clawdisCommand(subcommand: "gateway")
+        let cmd = CommandResolver.clawdisCommand(subcommand: "gateway", defaults: defaults)
         #expect(cmd.prefix(2).elementsEqual([clawdisPath.path, "gateway"]))
     }
 
     @Test func fallsBackToNodeAndScript() async throws {
-        UserDefaults.standard.set(AppState.ConnectionMode.local.rawValue, forKey: connectionModeKey)
-        UserDefaults.standard.removeObject(forKey: remoteTargetKey)
-        UserDefaults.standard.removeObject(forKey: remoteIdentityKey)
-        UserDefaults.standard.removeObject(forKey: remoteProjectRootKey)
-        defer {
-            UserDefaults.standard.removeObject(forKey: connectionModeKey)
-            UserDefaults.standard.removeObject(forKey: remoteTargetKey)
-            UserDefaults.standard.removeObject(forKey: remoteIdentityKey)
-            UserDefaults.standard.removeObject(forKey: remoteProjectRootKey)
-        }
+        let defaults = self.makeDefaults()
+        defaults.set(AppState.ConnectionMode.local.rawValue, forKey: connectionModeKey)
 
         let tmp = try makeTempDir()
         CommandResolver.setProjectRoot(tmp.path)
@@ -63,7 +52,7 @@ import Testing
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: nodePath.path)
         try self.makeExec(at: scriptPath)
 
-        let cmd = CommandResolver.clawdisCommand(subcommand: "rpc")
+        let cmd = CommandResolver.clawdisCommand(subcommand: "rpc", defaults: defaults)
 
         #expect(cmd.count >= 3)
         #expect(cmd[0] == nodePath.path)
@@ -72,16 +61,8 @@ import Testing
     }
 
     @Test func fallsBackToPnpm() async throws {
-        UserDefaults.standard.set(AppState.ConnectionMode.local.rawValue, forKey: connectionModeKey)
-        UserDefaults.standard.removeObject(forKey: remoteTargetKey)
-        UserDefaults.standard.removeObject(forKey: remoteIdentityKey)
-        UserDefaults.standard.removeObject(forKey: remoteProjectRootKey)
-        defer {
-            UserDefaults.standard.removeObject(forKey: connectionModeKey)
-            UserDefaults.standard.removeObject(forKey: remoteTargetKey)
-            UserDefaults.standard.removeObject(forKey: remoteIdentityKey)
-            UserDefaults.standard.removeObject(forKey: remoteProjectRootKey)
-        }
+        let defaults = self.makeDefaults()
+        defaults.set(AppState.ConnectionMode.local.rawValue, forKey: connectionModeKey)
 
         let tmp = try makeTempDir()
         CommandResolver.setProjectRoot(tmp.path)
@@ -89,22 +70,14 @@ import Testing
         let pnpmPath = tmp.appendingPathComponent("node_modules/.bin/pnpm")
         try self.makeExec(at: pnpmPath)
 
-        let cmd = CommandResolver.clawdisCommand(subcommand: "rpc")
+        let cmd = CommandResolver.clawdisCommand(subcommand: "rpc", defaults: defaults)
 
         #expect(cmd.prefix(4).elementsEqual([pnpmPath.path, "--silent", "clawdis", "rpc"]))
     }
 
     @Test func pnpmKeepsExtraArgsAfterSubcommand() async throws {
-        UserDefaults.standard.set(AppState.ConnectionMode.local.rawValue, forKey: connectionModeKey)
-        UserDefaults.standard.removeObject(forKey: remoteTargetKey)
-        UserDefaults.standard.removeObject(forKey: remoteIdentityKey)
-        UserDefaults.standard.removeObject(forKey: remoteProjectRootKey)
-        defer {
-            UserDefaults.standard.removeObject(forKey: connectionModeKey)
-            UserDefaults.standard.removeObject(forKey: remoteTargetKey)
-            UserDefaults.standard.removeObject(forKey: remoteIdentityKey)
-            UserDefaults.standard.removeObject(forKey: remoteProjectRootKey)
-        }
+        let defaults = self.makeDefaults()
+        defaults.set(AppState.ConnectionMode.local.rawValue, forKey: connectionModeKey)
 
         let tmp = try makeTempDir()
         CommandResolver.setProjectRoot(tmp.path)
@@ -112,24 +85,16 @@ import Testing
         let pnpmPath = tmp.appendingPathComponent("node_modules/.bin/pnpm")
         try self.makeExec(at: pnpmPath)
 
-        let cmd = CommandResolver.clawdisCommand(subcommand: "health", extraArgs: ["--json", "--timeout", "5"])
+        let cmd = CommandResolver.clawdisCommand(
+            subcommand: "health",
+            extraArgs: ["--json", "--timeout", "5"],
+            defaults: defaults)
 
         #expect(cmd.prefix(5).elementsEqual([pnpmPath.path, "--silent", "clawdis", "health", "--json"]))
         #expect(cmd.suffix(2).elementsEqual(["--timeout", "5"]))
     }
 
     @Test func preferredPathsStartWithProjectNodeBins() async throws {
-        UserDefaults.standard.set(AppState.ConnectionMode.local.rawValue, forKey: connectionModeKey)
-        UserDefaults.standard.removeObject(forKey: remoteTargetKey)
-        UserDefaults.standard.removeObject(forKey: remoteIdentityKey)
-        UserDefaults.standard.removeObject(forKey: remoteProjectRootKey)
-        defer {
-            UserDefaults.standard.removeObject(forKey: connectionModeKey)
-            UserDefaults.standard.removeObject(forKey: remoteTargetKey)
-            UserDefaults.standard.removeObject(forKey: remoteIdentityKey)
-            UserDefaults.standard.removeObject(forKey: remoteProjectRootKey)
-        }
-
         let tmp = try makeTempDir()
         CommandResolver.setProjectRoot(tmp.path)
 
@@ -138,18 +103,13 @@ import Testing
     }
 
     @Test func buildsSSHCommandForRemoteMode() async throws {
-        UserDefaults.standard.set(AppState.ConnectionMode.remote.rawValue, forKey: connectionModeKey)
-        UserDefaults.standard.set("clawd@example.com:2222", forKey: remoteTargetKey)
-        UserDefaults.standard.set("/tmp/id_ed25519", forKey: remoteIdentityKey)
-        UserDefaults.standard.set("/srv/clawdis", forKey: remoteProjectRootKey)
-        defer {
-            UserDefaults.standard.removeObject(forKey: connectionModeKey)
-            UserDefaults.standard.removeObject(forKey: remoteTargetKey)
-            UserDefaults.standard.removeObject(forKey: remoteIdentityKey)
-            UserDefaults.standard.removeObject(forKey: remoteProjectRootKey)
-        }
+        let defaults = self.makeDefaults()
+        defaults.set(AppState.ConnectionMode.remote.rawValue, forKey: connectionModeKey)
+        defaults.set("clawd@example.com:2222", forKey: remoteTargetKey)
+        defaults.set("/tmp/id_ed25519", forKey: remoteIdentityKey)
+        defaults.set("/srv/clawdis", forKey: remoteProjectRootKey)
 
-        let cmd = CommandResolver.clawdisCommand(subcommand: "status", extraArgs: ["--json"])
+        let cmd = CommandResolver.clawdisCommand(subcommand: "status", extraArgs: ["--json"], defaults: defaults)
 
         #expect(cmd.first == "/usr/bin/ssh")
         #expect(cmd.contains("clawd@example.com"))

@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Clawdis
 
-@Suite struct UtilitiesTests {
+@Suite(.serialized) struct UtilitiesTests {
     @Test func ageStringsCoverCommonWindows() {
         let now = Date(timeIntervalSince1970: 1_000_000)
         #expect(age(from: now, now: now) == "just now")
@@ -33,14 +33,11 @@ import Testing
     }
 
     @Test func sanitizedTargetStripsLeadingSSHPrefix() {
-        UserDefaults.standard.set(AppState.ConnectionMode.remote.rawValue, forKey: connectionModeKey)
-        UserDefaults.standard.set("ssh  alice@example.com", forKey: remoteTargetKey)
-        defer {
-            UserDefaults.standard.removeObject(forKey: connectionModeKey)
-            UserDefaults.standard.removeObject(forKey: remoteTargetKey)
-        }
+        let defaults = UserDefaults(suiteName: "UtilitiesTests.\(UUID().uuidString)")!
+        defaults.set(AppState.ConnectionMode.remote.rawValue, forKey: connectionModeKey)
+        defaults.set("ssh  alice@example.com", forKey: remoteTargetKey)
 
-        let settings = CommandResolver.connectionSettings()
+        let settings = CommandResolver.connectionSettings(defaults: defaults)
         #expect(settings.mode == .remote)
         #expect(settings.target == "alice@example.com")
     }

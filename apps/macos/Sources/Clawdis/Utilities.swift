@@ -303,8 +303,12 @@ enum CommandResolver {
         return false
     }
 
-    static func clawdisNodeCommand(subcommand: String, extraArgs: [String] = []) -> [String] {
-        let settings = self.connectionSettings()
+    static func clawdisNodeCommand(
+        subcommand: String,
+        extraArgs: [String] = [],
+        defaults: UserDefaults = .standard) -> [String]
+    {
+        let settings = self.connectionSettings(defaults: defaults)
         if settings.mode == .remote, let ssh = self.sshNodeCommand(
             subcommand: subcommand,
             extraArgs: extraArgs,
@@ -343,8 +347,12 @@ enum CommandResolver {
         }
     }
 
-    static func clawdisMacCommand(subcommand: String, extraArgs: [String] = []) -> [String] {
-        let settings = self.connectionSettings()
+    static func clawdisMacCommand(
+        subcommand: String,
+        extraArgs: [String] = [],
+        defaults: UserDefaults = .standard) -> [String]
+    {
+        let settings = self.connectionSettings(defaults: defaults)
         if settings.mode == .remote, let ssh = self.sshMacHelperCommand(
             subcommand: subcommand,
             extraArgs: extraArgs,
@@ -359,8 +367,12 @@ enum CommandResolver {
     }
 
     // Existing callers still refer to clawdisCommand; keep it as node alias.
-    static func clawdisCommand(subcommand: String, extraArgs: [String] = []) -> [String] {
-        self.clawdisNodeCommand(subcommand: subcommand, extraArgs: extraArgs)
+    static func clawdisCommand(
+        subcommand: String,
+        extraArgs: [String] = [],
+        defaults: UserDefaults = .standard) -> [String]
+    {
+        self.clawdisNodeCommand(subcommand: subcommand, extraArgs: extraArgs, defaults: defaults)
     }
 
     // MARK: - SSH helpers
@@ -477,12 +489,12 @@ enum CommandResolver {
         let projectRoot: String
     }
 
-    static func connectionSettings() -> RemoteSettings {
-        let modeRaw = UserDefaults.standard.string(forKey: connectionModeKey) ?? "local"
+    static func connectionSettings(defaults: UserDefaults = .standard) -> RemoteSettings {
+        let modeRaw = defaults.string(forKey: connectionModeKey) ?? "local"
         let mode = AppState.ConnectionMode(rawValue: modeRaw) ?? .local
-        let target = UserDefaults.standard.string(forKey: remoteTargetKey) ?? ""
-        let identity = UserDefaults.standard.string(forKey: remoteIdentityKey) ?? ""
-        let projectRoot = UserDefaults.standard.string(forKey: remoteProjectRootKey) ?? ""
+        let target = defaults.string(forKey: remoteTargetKey) ?? ""
+        let identity = defaults.string(forKey: remoteIdentityKey) ?? ""
+        let projectRoot = defaults.string(forKey: remoteProjectRootKey) ?? ""
         return RemoteSettings(
             mode: mode,
             target: self.sanitizedTarget(target),
@@ -494,8 +506,8 @@ enum CommandResolver {
         UserDefaults.standard.bool(forKey: attachExistingGatewayOnlyKey)
     }
 
-    static func connectionModeIsRemote() -> Bool {
-        self.connectionSettings().mode == .remote
+    static func connectionModeIsRemote(defaults: UserDefaults = .standard) -> Bool {
+        self.connectionSettings(defaults: defaults).mode == .remote
     }
 
     private static func sanitizedTarget(_ raw: String) -> String {
