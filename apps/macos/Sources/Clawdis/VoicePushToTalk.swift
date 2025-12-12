@@ -83,6 +83,7 @@ actor VoicePushToTalk {
     private var audioEngine = AVAudioEngine()
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
+    private var tapInstalled = false
 
     // Session token used to drop stale callbacks when a new capture starts.
     private var sessionID = UUID()
@@ -162,9 +163,13 @@ actor VoicePushToTalk {
         self.isCapturing = false
         let sessionID = self.sessionID
 
+        // Stop feeding Speech buffers first, then end the request. Stopping the engine here can race with
+        // Speech draining its converter chain (and we already stop/cancel in finalize).
+        if self.tapInstalled {
+            self.audioEngine.inputNode.removeTap(onBus: 0)
+            self.tapInstalled = false
+        }
         self.recognitionRequest?.endAudio()
-        self.audioEngine.inputNode.removeTap(onBus: 0)
-        self.audioEngine.stop()
 
         // If we captured nothing, dismiss immediately when the user lets go.
         if self.committed.isEmpty, self.volatile.isEmpty, self.adoptedPrefix.isEmpty {
@@ -198,11 +203,15 @@ actor VoicePushToTalk {
 
         let input = self.audioEngine.inputNode
         let format = input.outputFormat(forBus: 0)
-        input.removeTap(onBus: 0)
+        if self.tapInstalled {
+            input.removeTap(onBus: 0)
+            self.tapInstalled = false
+        }
         // Pipe raw mic buffers into the Speech request while the chord is held.
         input.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak request] buffer, _ in
             request?.append(buffer)
         }
+        self.tapInstalled = true
 
         self.audioEngine.prepare()
         try self.audioEngine.start()
@@ -291,8 +300,14 @@ actor VoicePushToTalk {
         self.recognitionTask?.cancel()
         self.recognitionRequest = nil
         self.recognitionTask = nil
-        self.audioEngine.inputNode.removeTap(onBus: 0)
-        self.audioEngine.stop()
+        if self.tapInstalled {
+            self.audioEngine.inputNode.removeTap(onBus: 0)
+            self.tapInstalled = false
+        }
+        if self.audioEngine.isRunning {
+            self.audioEngine.stop()
+            self.audioEngine.reset()
+        }
 
         self.committed = ""
         self.volatile = ""
