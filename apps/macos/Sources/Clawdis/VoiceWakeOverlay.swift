@@ -510,12 +510,13 @@ private struct VoiceWakeOverlayView: View {
             .padding(.vertical, 8)
             .padding(.horizontal, 10)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(.regularMaterial)))
+            .background {
+                let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+                VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
+                    .clipShape(shape)
+                    .overlay(shape.strokeBorder(Color.white.opacity(0.16), lineWidth: 1))
+            }
+            .shadow(color: Color.black.opacity(0.22), radius: 14, x: 0, y: -2)
             .onHover { self.isHovering = $0 }
 
             // Close button rendered above and outside the clipped bubble
