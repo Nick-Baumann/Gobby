@@ -481,7 +481,7 @@ describe("gateway server", () => {
     await server.close();
   });
 
-  test("agent ack event then final response", { timeout: 8000 }, async () => {
+  test("agent ack response then final response", { timeout: 8000 }, async () => {
     const { server, ws } = await startServerWithClient();
     ws.send(
       JSON.stringify({
@@ -502,11 +502,13 @@ describe("gateway server", () => {
     const ackP = onceMessage(
       ws,
       (o) =>
-        o.type === "event" &&
-        o.event === "agent" &&
-        o.payload?.status === "accepted",
+        o.type === "res" && o.id === "ag1" && o.payload?.status === "accepted",
     );
-    const finalP = onceMessage(ws, (o) => o.type === "res" && o.id === "ag1");
+    const finalP = onceMessage(
+      ws,
+      (o) =>
+        o.type === "res" && o.id === "ag1" && o.payload?.status !== "accepted",
+    );
     ws.send(
       JSON.stringify({
         type: "req",
@@ -732,7 +734,8 @@ describe("gateway server", () => {
     const ws1 = await dial();
     const final1P = onceMessage(
       ws1,
-      (o) => o.type === "res" && o.id === "ag1",
+      (o) =>
+        o.type === "res" && o.id === "ag1" && o.payload?.status !== "accepted",
       6000,
     );
     ws1.send(
@@ -749,7 +752,8 @@ describe("gateway server", () => {
     const ws2 = await dial();
     const final2P = onceMessage(
       ws2,
-      (o) => o.type === "res" && o.id === "ag2",
+      (o) =>
+        o.type === "res" && o.id === "ag2" && o.payload?.status !== "accepted",
       6000,
     );
     ws2.send(

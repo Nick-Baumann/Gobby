@@ -1208,65 +1208,64 @@ export async function startGatewayServer(
 
             const deliver =
               params.deliver === true && resolvedChannel !== "webchat";
-            // Acknowledge via event to avoid double res frames
-            const ackEvent = {
-              type: "event",
-              event: "agent",
-              payload: { runId, status: "accepted" as const },
-              seq: ++seq,
-            };
-            socket.send(JSON.stringify(ackEvent));
-            logWs("out", "event", {
-              connId,
-              event: "agent",
-              runId,
-              status: "accepted",
+
+            const accepted = { runId, status: "accepted" as const };
+            // Store an in-flight ack so retries do not spawn a second run.
+            dedupe.set(`agent:${idem}`, {
+              ts: Date.now(),
+              ok: true,
+              payload: accepted,
             });
-            try {
-              await agentCommand(
-                {
-                  message,
-                  to: resolvedTo,
-                  sessionId: resolvedSessionId,
-                  thinking: params.thinking,
-                  deliver,
-                  provider: resolvedChannel,
-                  timeout: params.timeout?.toString(),
-                  bestEffortDeliver,
-                  surface: "VoiceWake",
-                },
-                defaultRuntime,
-                deps,
-              );
-              const payload = {
-                runId,
-                status: "ok" as const,
-                summary: "completed",
-              };
-              dedupe.set(`agent:${idem}`, {
-                ts: Date.now(),
-                ok: true,
-                payload,
+            respond(true, accepted, undefined, { runId });
+
+            void agentCommand(
+              {
+                message,
+                to: resolvedTo,
+                sessionId: resolvedSessionId,
+                thinking: params.thinking,
+                deliver,
+                provider: resolvedChannel,
+                timeout: params.timeout?.toString(),
+                bestEffortDeliver,
+                surface: "VoiceWake",
+              },
+              defaultRuntime,
+              deps,
+            )
+              .then(() => {
+                const payload = {
+                  runId,
+                  status: "ok" as const,
+                  summary: "completed",
+                };
+                dedupe.set(`agent:${idem}`, {
+                  ts: Date.now(),
+                  ok: true,
+                  payload,
+                });
+                // Send a second res frame (same id) so TS clients with expectFinal can wait.
+                // Swift clients will typically treat the first res as the result and ignore this.
+                respond(true, payload, undefined, { runId });
+              })
+              .catch((err) => {
+                const error = errorShape(ErrorCodes.UNAVAILABLE, String(err));
+                const payload = {
+                  runId,
+                  status: "error" as const,
+                  summary: String(err),
+                };
+                dedupe.set(`agent:${idem}`, {
+                  ts: Date.now(),
+                  ok: false,
+                  payload,
+                  error,
+                });
+                respond(false, payload, error, {
+                  runId,
+                  error: formatForLog(err),
+                });
               });
-              respond(true, payload, undefined, { runId });
-            } catch (err) {
-              const error = errorShape(ErrorCodes.UNAVAILABLE, String(err));
-              const payload = {
-                runId,
-                status: "error" as const,
-                summary: String(err),
-              };
-              dedupe.set(`agent:${idem}`, {
-                ts: Date.now(),
-                ok: false,
-                payload,
-                error,
-              });
-              respond(false, payload, error, {
-                runId,
-                error: formatForLog(err),
-              });
-            }
             break;
           }
           default: {
