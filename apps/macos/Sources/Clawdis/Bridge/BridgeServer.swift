@@ -24,13 +24,14 @@ actor BridgeServer {
             self.store = store
 
             let params = NWParameters.tcp
+            params.includePeerToPeer = true
             let listener = try NWListener(using: params, on: .any)
 
             let name = Host.current().localizedName ?? ProcessInfo.processInfo.hostName
             listener.service = NWListener.Service(
                 name: "\(name) (Clawdis)",
                 type: ClawdisBonjour.bridgeServiceType,
-                domain: nil,
+                domain: ClawdisBonjour.bridgeServiceDomain,
                 txtRecord: nil)
 
             listener.newConnectionHandler = { [weak self] connection in

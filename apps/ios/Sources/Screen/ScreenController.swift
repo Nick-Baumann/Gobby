@@ -57,7 +57,7 @@ final class ScreenController: ObservableObject {
         if let maxWidth {
             config.snapshotWidth = NSNumber(value: Double(maxWidth))
         }
-        let image: UIImage = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<UIImage, Error>) in
+        let image: UIImage = try await withCheckedThrowingContinuation { cont in
             self.webView.takeSnapshot(with: config) { image, error in
                 if let error {
                     cont.resume(throwing: error)

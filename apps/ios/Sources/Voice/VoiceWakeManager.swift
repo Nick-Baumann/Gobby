@@ -96,9 +96,8 @@ final class VoiceWakeManager: NSObject, ObservableObject {
         inputNode.removeTap(onBus: 0)
 
         let recordingFormat = inputNode.outputFormat(forBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
-            guard let self else { return }
-            self.recognitionRequest?.append(buffer)
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [request] buffer, _ in
+            request.append(buffer)
         }
 
         self.audioEngine.prepare()
@@ -169,22 +168,18 @@ final class VoiceWakeManager: NSObject, ObservableObject {
         try session.setActive(true, options: [])
     }
 
-    private static func requestMicrophonePermission() async -> Bool {
-        await withCheckedContinuation { cont in
+    private nonisolated static func requestMicrophonePermission() async -> Bool {
+        await withCheckedContinuation(isolation: nil) { cont in
             AVAudioApplication.requestRecordPermission { ok in
-                Task { @MainActor in
-                    cont.resume(returning: ok)
-                }
+                cont.resume(returning: ok)
             }
         }
     }
 
-    private static func requestSpeechPermission() async -> Bool {
-        await withCheckedContinuation { cont in
+    private nonisolated static func requestSpeechPermission() async -> Bool {
+        await withCheckedContinuation(isolation: nil) { cont in
             SFSpeechRecognizer.requestAuthorization { status in
-                Task { @MainActor in
-                    cont.resume(returning: status == .authorized)
-                }
+                cont.resume(returning: status == .authorized)
             }
         }
     }

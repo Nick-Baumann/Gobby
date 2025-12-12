@@ -82,7 +82,7 @@ actor BridgeClient {
         var line = Data()
         line.append(data)
         line.append(0x0A)
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+        try await withCheckedThrowingContinuation(isolation: nil) { (cont: CheckedContinuation<Void, Error>) in
             connection.send(content: line, completion: .contentProcessed { err in
                 if let err { cont.resume(throwing: err) } else { cont.resume(returning: ()) }
             })
@@ -104,7 +104,7 @@ actor BridgeClient {
     }
 
     private func receiveChunk(over connection: NWConnection) async throws -> Data {
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Data, Error>) in
+        try await withCheckedThrowingContinuation(isolation: nil) { (cont: CheckedContinuation<Data, Error>) in
             connection.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { data, _, isComplete, error in
                 if let error {
                     cont.resume(throwing: error)

@@ -210,7 +210,7 @@ actor BridgeConnectionHandler {
         var line = Data()
         line.append(data)
         line.append(0x0A) // \n
-        let _: Void = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+        let _: Void = try await withCheckedThrowingContinuation { cont in
             self.connection.send(content: line, completion: .contentProcessed { err in
                 if let err {
                     cont.resume(throwing: err)

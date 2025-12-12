@@ -19,8 +19,9 @@ final class BridgeDiscoveryModel: ObservableObject {
     func start() {
         if self.browser != nil { return }
         let params = NWParameters.tcp
+        params.includePeerToPeer = true
         let browser = NWBrowser(
-            for: .bonjour(type: ClawdisBonjour.bridgeServiceType, domain: nil),
+            for: .bonjour(type: ClawdisBonjour.bridgeServiceType, domain: ClawdisBonjour.bridgeServiceDomain),
             using: params)
 
         browser.stateUpdateHandler = { [weak self] state in
