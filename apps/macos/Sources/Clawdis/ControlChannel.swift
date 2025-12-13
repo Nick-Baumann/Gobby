@@ -121,7 +121,9 @@ final class ControlChannel: ObservableObject {
         timeoutMs: Double? = nil) async throws -> Data
     {
         do {
-            let rawParams = params?.reduce(into: [String: AnyCodable]()) { $0[$1.key] = AnyCodable($1.value) }
+            let rawParams = params?.reduce(into: [String: AnyCodable]()) {
+                $0[$1.key] = AnyCodable($1.value.base)
+            }
             let data = try await GatewayConnection.shared.request(
                 method: method,
                 params: rawParams,
