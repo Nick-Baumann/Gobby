@@ -16,6 +16,7 @@ struct MenuContent: View {
     @State private var availableMics: [AudioInputDevice] = []
     @State private var loadingMics = false
     @State private var sessionMenu: [SessionRow] = []
+    @State private var browserControlEnabled = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -42,6 +43,15 @@ struct MenuContent: View {
                 Button("Open Chat") {
                     WebChatManager.shared.show(sessionKey: WebChatManager.shared.preferredSessionKey())
                 }
+            }
+            Toggle(isOn: Binding(
+                get: { self.browserControlEnabled },
+                set: { enabled in
+                    self.browserControlEnabled = enabled
+                    ClawdisConfigFile.setBrowserControlEnabled(enabled)
+                })
+            ) {
+                Text("Browser Control")
             }
             Toggle(isOn: Binding(get: { self.state.canvasEnabled }, set: { self.state.canvasEnabled = $0 })) {
                 Text("Allow Canvas")
@@ -194,6 +204,9 @@ struct MenuContent: View {
         }
         .onChange(of: self.state.voicePushToTalkEnabled) { _, enabled in
             VoicePushToTalkHotkey.shared.setEnabled(voiceWakeSupported && enabled)
+        }
+        .onAppear {
+            self.browserControlEnabled = ClawdisConfigFile.browserControlEnabled()
         }
     }
 

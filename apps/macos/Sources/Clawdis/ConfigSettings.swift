@@ -196,12 +196,6 @@ struct ConfigSettings: View {
         }
     }
 
-    private func configURL() -> URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".clawdis")
-            .appendingPathComponent("clawdis.json")
-    }
-
     private func loadConfig() {
         let parsed = self.loadConfigDict()
         let inbound = parsed["inbound"] as? [String: Any]
@@ -274,20 +268,11 @@ struct ConfigSettings: View {
         browser["attachOnly"] = self.browserAttachOnly
         root["browser"] = browser
 
-        do {
-            let data = try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
-            let url = self.configURL()
-            try FileManager.default.createDirectory(
-                at: url.deletingLastPathComponent(),
-                withIntermediateDirectories: true)
-            try data.write(to: url, options: [.atomic])
-        } catch {}
+        ClawdisConfigFile.saveDict(root)
     }
 
     private func loadConfigDict() -> [String: Any] {
-        let url = self.configURL()
-        guard let data = try? Data(contentsOf: url) else { return [:] }
-        return (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+        ClawdisConfigFile.loadDict()
     }
 
     private var browserColor: Color {
