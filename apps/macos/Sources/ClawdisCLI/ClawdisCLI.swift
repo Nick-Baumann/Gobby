@@ -37,7 +37,16 @@ struct ClawdisCLI {
             self.printVersion()
             exit(0)
         } catch {
-            fputs("clawdis-mac error: \(error)\n", stderr)
+            // Keep errors readable for CLI + SSH callers; print full domains/codes only when asked.
+            let verbose = ProcessInfo.processInfo.environment["CLAWDIS_MAC_VERBOSE_ERRORS"] == "1"
+            if verbose {
+                fputs("clawdis-mac error: \(error)\n", stderr)
+            } else {
+                let ns = error as NSError
+                let message = ns.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+                let desc = message.isEmpty ? String(describing: error) : message
+                fputs("clawdis-mac error: \(desc) (\(ns.domain), \(ns.code))\n", stderr)
+            }
             exit(2)
         }
     }

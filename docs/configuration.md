@@ -111,6 +111,7 @@ Defaults:
 - enabled: `true`
 - control URL: `http://127.0.0.1:18791` (CDP uses `18792`)
 - profile color: `#FF4500` (lobster-orange)
+- Note: the control server is started by the running gateway (Clawdis.app menubar, or `clawdis gateway`).
 
 ```json5
 {

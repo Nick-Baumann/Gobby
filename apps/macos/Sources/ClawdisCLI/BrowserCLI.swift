@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 enum BrowserCLI {
@@ -52,100 +53,110 @@ enum BrowserCLI {
             ])
         }
 
-        switch sub {
-        case "status":
-            self.printResult(
-                jsonOutput: jsonOutput,
-                res: try await self.httpJSON(method: "GET", url: baseURL.appendingPathComponent("/")))
-            return 0
+        do {
+            switch sub {
+            case "status":
+                self.printResult(
+                    jsonOutput: jsonOutput,
+                    res: try await self.httpJSON(method: "GET", url: baseURL.appendingPathComponent("/")))
+                return 0
 
-        case "start":
-            self.printResult(
-                jsonOutput: jsonOutput,
-                res: try await self.httpJSON(method: "POST", url: baseURL.appendingPathComponent("/start"), timeoutInterval: 15.0))
-            return 0
+            case "start":
+                self.printResult(
+                    jsonOutput: jsonOutput,
+                    res: try await self.httpJSON(method: "POST", url: baseURL.appendingPathComponent("/start"), timeoutInterval: 15.0))
+                return 0
 
-        case "stop":
-            self.printResult(
-                jsonOutput: jsonOutput,
-                res: try await self.httpJSON(method: "POST", url: baseURL.appendingPathComponent("/stop"), timeoutInterval: 15.0))
-            return 0
+            case "stop":
+                self.printResult(
+                    jsonOutput: jsonOutput,
+                    res: try await self.httpJSON(method: "POST", url: baseURL.appendingPathComponent("/stop"), timeoutInterval: 15.0))
+                return 0
 
-        case "tabs":
-            let res = try await self.httpJSON(method: "GET", url: baseURL.appendingPathComponent("/tabs"), timeoutInterval: 3.0)
+            case "tabs":
+                let res = try await self.httpJSON(method: "GET", url: baseURL.appendingPathComponent("/tabs"), timeoutInterval: 3.0)
+                if jsonOutput {
+                    self.printJSON(ok: true, result: res)
+                } else {
+                    self.printTabs(res: res)
+                }
+                return 0
+
+            case "open":
+                guard let url = rest.first, !url.isEmpty else {
+                    self.printHelp()
+                    return 2
+                }
+                self.printResult(
+                    jsonOutput: jsonOutput,
+                    res: try await self.httpJSON(
+                        method: "POST",
+                        url: baseURL.appendingPathComponent("/tabs/open"),
+                        body: ["url": url],
+                        timeoutInterval: 15.0))
+                return 0
+
+            case "focus":
+                guard let id = rest.first, !id.isEmpty else {
+                    self.printHelp()
+                    return 2
+                }
+                self.printResult(
+                    jsonOutput: jsonOutput,
+                    res: try await self.httpJSON(
+                        method: "POST",
+                        url: baseURL.appendingPathComponent("/tabs/focus"),
+                        body: ["targetId": id],
+                        timeoutInterval: 5.0))
+                return 0
+
+            case "close":
+                guard let id = rest.first, !id.isEmpty else {
+                    self.printHelp()
+                    return 2
+                }
+                self.printResult(
+                    jsonOutput: jsonOutput,
+                    res: try await self.httpJSON(
+                        method: "DELETE",
+                        url: baseURL.appendingPathComponent("/tabs/\(id)"),
+                        timeoutInterval: 5.0))
+                return 0
+
+            case "screenshot":
+                var url = baseURL.appendingPathComponent("/screenshot")
+                var items: [URLQueryItem] = []
+                if let targetId, !targetId.isEmpty {
+                    items.append(URLQueryItem(name: "targetId", value: targetId))
+                }
+                if fullPage {
+                    items.append(URLQueryItem(name: "fullPage", value: "1"))
+                }
+                if !items.isEmpty {
+                    url = self.withQuery(url, items: items)
+                }
+                let res = try await self.httpJSON(method: "GET", url: url, timeoutInterval: 20.0)
+                if jsonOutput {
+                    self.printJSON(ok: true, result: res)
+                } else if let path = res["path"] as? String, !path.isEmpty {
+                    print("MEDIA:\(path)")
+                } else {
+                    self.printResult(jsonOutput: false, res: res)
+                }
+                return 0
+
+            default:
+                self.printHelp()
+                return 2
+            }
+        } catch {
+            let msg = self.describeError(error, baseURL: baseURL)
             if jsonOutput {
-                self.printJSON(ok: true, result: res)
+                self.printJSON(ok: false, result: ["error": msg])
             } else {
-                self.printTabs(res: res)
+                fputs("\(msg)\n", stderr)
             }
-            return 0
-
-        case "open":
-            guard let url = rest.first, !url.isEmpty else {
-                self.printHelp()
-                return 2
-            }
-            self.printResult(
-                jsonOutput: jsonOutput,
-                res: try await self.httpJSON(
-                    method: "POST",
-                    url: baseURL.appendingPathComponent("/tabs/open"),
-                    body: ["url": url],
-                    timeoutInterval: 15.0))
-            return 0
-
-        case "focus":
-            guard let id = rest.first, !id.isEmpty else {
-                self.printHelp()
-                return 2
-            }
-            self.printResult(
-                jsonOutput: jsonOutput,
-                res: try await self.httpJSON(
-                    method: "POST",
-                    url: baseURL.appendingPathComponent("/tabs/focus"),
-                    body: ["targetId": id],
-                    timeoutInterval: 5.0))
-            return 0
-
-        case "close":
-            guard let id = rest.first, !id.isEmpty else {
-                self.printHelp()
-                return 2
-            }
-            self.printResult(
-                jsonOutput: jsonOutput,
-                res: try await self.httpJSON(
-                    method: "DELETE",
-                    url: baseURL.appendingPathComponent("/tabs/\(id)"),
-                    timeoutInterval: 5.0))
-            return 0
-
-        case "screenshot":
-            var url = baseURL.appendingPathComponent("/screenshot")
-            var items: [URLQueryItem] = []
-            if let targetId, !targetId.isEmpty {
-                items.append(URLQueryItem(name: "targetId", value: targetId))
-            }
-            if fullPage {
-                items.append(URLQueryItem(name: "fullPage", value: "1"))
-            }
-            if !items.isEmpty {
-                url = self.withQuery(url, items: items)
-            }
-            let res = try await self.httpJSON(method: "GET", url: url, timeoutInterval: 20.0)
-            if jsonOutput {
-                self.printJSON(ok: true, result: res)
-            } else if let path = res["path"] as? String, !path.isEmpty {
-                print("MEDIA:\(path)")
-            } else {
-                self.printResult(jsonOutput: false, res: res)
-            }
-            return 0
-
-        default:
-            self.printHelp()
-            return 2
+            return 1
         }
     }
 
@@ -189,7 +200,12 @@ enum BrowserCLI {
             req.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
         }
 
-        let (data, resp) = try await URLSession.shared.data(for: req)
+        let (data, resp): (Data, URLResponse)
+        do {
+            (data, resp) = try await URLSession.shared.data(for: req)
+        } catch {
+            throw self.wrapNetworkError(error, url: url, timeoutInterval: timeoutInterval)
+        }
         let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
 
         guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -206,6 +222,39 @@ enum BrowserCLI {
         let msg = (obj["error"] as? String) ?? "HTTP \(status)"
         throw NSError(domain: "BrowserCLI", code: status, userInfo: [
             NSLocalizedDescriptionKey: msg,
+        ])
+    }
+
+    private static func describeError(_ error: Error, baseURL: URL) -> String {
+        let ns = error as NSError
+        let msg = ns.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !msg.isEmpty { return msg }
+        return "Browser request failed (\(baseURL.absoluteString))"
+    }
+
+    private static func wrapNetworkError(_ error: Error, url: URL, timeoutInterval: TimeInterval) -> Error {
+        let ns = error as NSError
+        if ns.domain == NSURLErrorDomain {
+            // Keep this short: this often shows up inside SSH output and agent logs.
+            switch ns.code {
+            case NSURLErrorCannotConnectToHost, NSURLErrorNetworkConnectionLost, NSURLErrorTimedOut,
+                 NSURLErrorCannotFindHost, NSURLErrorNotConnectedToInternet, NSURLErrorDNSLookupFailed:
+                let base = url.absoluteString
+                let hint = """
+                Can't reach the clawd browser control server at \(base).
+                Start (or restart) the Clawdis gateway (Clawdis.app menubar, or `clawdis gateway`) and try again.
+                """
+                return NSError(domain: "BrowserCLI", code: ns.code, userInfo: [
+                    NSLocalizedDescriptionKey: hint,
+                ])
+            default:
+                break
+            }
+        }
+        let base = url.absoluteString
+        let generic = "Failed to reach \(base) (timeout \(Int(timeoutInterval))s)."
+        return NSError(domain: "BrowserCLI", code: ns.code, userInfo: [
+            NSLocalizedDescriptionKey: generic,
         ])
     }
 

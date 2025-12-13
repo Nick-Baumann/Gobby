@@ -93,6 +93,12 @@ If you enable the clawd-managed browser (default on), the agent can use:
 
 This uses a dedicated Chrome/Chromium profile (lobster-orange by default) so it doesn’t interfere with your daily browser.
 
+## Debugging `clawdis-mac` errors
+
+When the agent runs `clawdis-mac` (often over SSH), the CLI prints compact, human-readable errors by default.
+
+- To get the full `NSError` dump (domain/code/userInfo), rerun with `CLAWDIS_MAC_VERBOSE_ERRORS=1` in the environment.
+
 ---
 
 *Next: [Group Chats](./group-messages.md)* 🦞
