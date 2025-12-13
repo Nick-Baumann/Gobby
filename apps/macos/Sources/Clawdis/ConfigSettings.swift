@@ -163,6 +163,23 @@ struct ConfigSettings: View {
                                 .onChange(of: self.browserControlUrl) { _, _ in self.autosaveConfig() }
                         }
                         GridRow {
+                            self.gridLabel("Browser path")
+                            VStack(alignment: .leading, spacing: 2) {
+                                if let label = self.browserPathLabel {
+                                    Text(label)
+                                        .font(.caption.monospaced())
+                                        .foregroundStyle(.secondary)
+                                        .textSelection(.enabled)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                } else {
+                                    Text("—")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        GridRow {
                             self.gridLabel("Accent")
                             HStack(spacing: 8) {
                                 TextField("#FF4500", text: self.$browserColorHex)
@@ -317,6 +334,58 @@ struct ConfigSettings: View {
         let g = Double((value >> 8) & 0xFF) / 255.0
         let b = Double(value & 0xFF) / 255.0
         return Color(red: r, green: g, blue: b)
+    }
+
+    private var browserPathLabel: String? {
+        guard self.browserEnabled else { return nil }
+
+        let host = (URL(string: self.browserControlUrl)?.host ?? "").lowercased()
+        if !host.isEmpty, !Self.isLoopbackHost(host) {
+            return "remote (\(host))"
+        }
+
+        guard let candidate = Self.detectedBrowserCandidate() else { return nil }
+        return candidate.executablePath ?? candidate.appPath
+    }
+
+    private struct BrowserCandidate {
+        let name: String
+        let appPath: String
+        let executablePath: String?
+    }
+
+    private static func detectedBrowserCandidate() -> BrowserCandidate? {
+        let candidates: [(name: String, appName: String)] = [
+            ("Google Chrome Canary", "Google Chrome Canary.app"),
+            ("Chromium", "Chromium.app"),
+            ("Google Chrome", "Google Chrome.app"),
+        ]
+
+        let roots = [
+            "/Applications",
+            "\(NSHomeDirectory())/Applications",
+        ]
+
+        let fm = FileManager.default
+        for (name, appName) in candidates {
+            for root in roots {
+                let appPath = "\(root)/\(appName)"
+                if fm.fileExists(atPath: appPath) {
+                    let bundle = Bundle(url: URL(fileURLWithPath: appPath))
+                    let exec = bundle?.executableURL?.path
+                    return BrowserCandidate(name: name, appPath: appPath, executablePath: exec)
+                }
+            }
+        }
+
+        return nil
+    }
+
+    private static func isLoopbackHost(_ host: String) -> Bool {
+        if host == "localhost" { return true }
+        if host == "127.0.0.1" { return true }
+        if host == "::1" { return true }
+        return false
     }
 
     private func loadModels() async {
