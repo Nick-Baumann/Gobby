@@ -1113,11 +1113,18 @@ final class WebChatSwiftUIWindowController {
         } ?? NSScreen.main
         var frame = window.frame
         if let screen {
-            let minX = screen.frame.minX + WebChatSwiftUILayout.anchorPadding
-            let maxX = screen.frame.maxX - frame.width - WebChatSwiftUILayout.anchorPadding
-            frame.origin.x = min(max(round(anchor.midX - frame.width / 2), minX), maxX)
+            let bounds = screen.visibleFrame.insetBy(
+                dx: WebChatSwiftUILayout.anchorPadding,
+                dy: WebChatSwiftUILayout.anchorPadding)
+
+            let desiredX = round(anchor.midX - frame.width / 2)
             let desiredY = anchor.minY - frame.height - WebChatSwiftUILayout.anchorPadding
-            frame.origin.y = max(desiredY, screen.frame.minY + WebChatSwiftUILayout.anchorPadding)
+
+            let maxX = bounds.maxX - frame.width
+            let maxY = bounds.maxY - frame.height
+
+            frame.origin.x = maxX >= bounds.minX ? min(max(desiredX, bounds.minX), maxX) : bounds.minX
+            frame.origin.y = maxY >= bounds.minY ? min(max(desiredY, bounds.minY), maxY) : bounds.minY
         } else {
             frame.origin.x = round(anchor.midX - frame.width / 2)
             frame.origin.y = anchor.minY - frame.height

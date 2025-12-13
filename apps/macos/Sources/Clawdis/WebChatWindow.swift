@@ -347,11 +347,16 @@ final class WebChatWindowController: NSWindowController, WKNavigationDelegate, N
         } ?? NSScreen.main
 
         if let screen {
-            let minX = screen.frame.minX + WebChatLayout.anchorPadding
-            let maxX = screen.frame.maxX - frame.width - WebChatLayout.anchorPadding
-            frame.origin.x = min(max(round(anchor.midX - frame.width / 2), minX), maxX)
+            let bounds = screen.visibleFrame.insetBy(dx: WebChatLayout.anchorPadding, dy: WebChatLayout.anchorPadding)
+
+            let desiredX = round(anchor.midX - frame.width / 2)
             let desiredY = anchor.minY - frame.height - WebChatLayout.anchorPadding
-            frame.origin.y = max(desiredY, screen.frame.minY + WebChatLayout.anchorPadding)
+
+            let maxX = bounds.maxX - frame.width
+            let maxY = bounds.maxY - frame.height
+
+            frame.origin.x = maxX >= bounds.minX ? min(max(desiredX, bounds.minX), maxX) : bounds.minX
+            frame.origin.y = maxY >= bounds.minY ? min(max(desiredY, bounds.minY), maxY) : bounds.minY
         } else {
             frame.origin.x = round(anchor.midX - frame.width / 2)
             frame.origin.y = anchor.minY - frame.height
