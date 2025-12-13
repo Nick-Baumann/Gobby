@@ -201,3 +201,4 @@ A running notebook of changes, observations, and small experiments.
 - 2025-12-10: tightened type signatures
 - 2025-12-10: fixed a flaky test
 - 2025-12-12: noticed a slow path in the encoder
+- 2025-12-13: found a bug in resign logic
