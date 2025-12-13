@@ -494,6 +494,8 @@ private struct CronJobEditor: View {
     let onCancel: () -> Void
     let onSave: ([String: Any]) -> Void
 
+    private let labelColumnWidth: CGFloat = 160
+
     @State private var name: String = ""
     @State private var enabled: Bool = true
     @State private var sessionTarget: CronSessionTarget = .main
@@ -519,91 +521,195 @@ private struct CronJobEditor: View {
     @State private var postPrefix: String = "Cron"
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(self.job == nil ? "New cron job" : "Edit cron job")
                     .font(.title3.weight(.semibold))
-                Spacer()
+                Text("Create a schedule that wakes clawd via the Gateway. Use an isolated session for agent turns so your main chat stays clean.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
-            Form {
-                Section("Basics") {
-                    TextField("Name (optional)", text: self.$name)
-                    Toggle("Enabled", isOn: self.$enabled)
-                    Picker("Session target", selection: self.$sessionTarget) {
-                        Text("main").tag(CronSessionTarget.main)
-                        Text("isolated").tag(CronSessionTarget.isolated)
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 14) {
+                    GroupBox("Basics") {
+                        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 10) {
+                            GridRow {
+                                self.gridLabel("Name")
+                                TextField("Optional label (e.g. “Daily summary”)", text: self.$name)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(maxWidth: .infinity)
+                            }
+                            GridRow {
+                                self.gridLabel("Enabled")
+                                Toggle("", isOn: self.$enabled)
+                                    .labelsHidden()
+                                    .toggleStyle(.switch)
+                            }
+                            GridRow {
+                                self.gridLabel("Session target")
+                                Picker("", selection: self.$sessionTarget) {
+                                    Text("main").tag(CronSessionTarget.main)
+                                    Text("isolated").tag(CronSessionTarget.isolated)
+                                }
+                                .labelsHidden()
+                                .pickerStyle(.segmented)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            GridRow {
+                                self.gridLabel("Wake mode")
+                                Picker("", selection: self.$wakeMode) {
+                                    Text("next-heartbeat").tag(CronWakeMode.nextHeartbeat)
+                                    Text("now").tag(CronWakeMode.now)
+                                }
+                                .labelsHidden()
+                                .pickerStyle(.segmented)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            GridRow {
+                                Color.clear
+                                    .frame(width: self.labelColumnWidth, height: 1)
+                                Text("Main jobs post a system event into the current main session. Isolated jobs run clawd in a dedicated session and can deliver results (WhatsApp/Telegram/etc).")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
                     }
-                    Picker("Wake mode", selection: self.$wakeMode) {
-                        Text("next-heartbeat").tag(CronWakeMode.nextHeartbeat)
-                        Text("now").tag(CronWakeMode.now)
-                    }
-                }
 
-                Section("Schedule") {
-                    Picker("Kind", selection: self.$scheduleKind) {
-                        Text("at").tag(ScheduleKind.at)
-                        Text("every").tag(ScheduleKind.every)
-                        Text("cron").tag(ScheduleKind.cron)
-                    }
-                    .pickerStyle(.segmented)
+                    GroupBox("Schedule") {
+                        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 10) {
+                            GridRow {
+                                self.gridLabel("Kind")
+                                Picker("", selection: self.$scheduleKind) {
+                                    Text("at").tag(ScheduleKind.at)
+                                    Text("every").tag(ScheduleKind.every)
+                                    Text("cron").tag(ScheduleKind.cron)
+                                }
+                                .labelsHidden()
+                                .pickerStyle(.segmented)
+                                .frame(maxWidth: .infinity)
+                            }
+                            GridRow {
+                                Color.clear
+                                    .frame(width: self.labelColumnWidth, height: 1)
+                                Text("“At” runs once, “Every” repeats with a duration, “Cron” uses a 5-field Unix expression.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
 
-                    switch self.scheduleKind {
-                    case .at:
-                        DatePicker("At", selection: self.$atDate, displayedComponents: [.date, .hourAndMinute])
-                    case .every:
-                        TextField("Every (e.g. 10m, 1h, 1d)", text: self.$everyText)
-                            .textFieldStyle(.roundedBorder)
-                    case .cron:
-                        TextField("Cron expr (5-field)", text: self.$cronExpr)
-                            .textFieldStyle(.roundedBorder)
-                        TextField("Timezone (optional)", text: self.$cronTz)
-                            .textFieldStyle(.roundedBorder)
+                            switch self.scheduleKind {
+                            case .at:
+                                GridRow {
+                                    self.gridLabel("At")
+                                    DatePicker("", selection: self.$atDate, displayedComponents: [.date, .hourAndMinute])
+                                        .labelsHidden()
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            case .every:
+                                GridRow {
+                                    self.gridLabel("Every")
+                                    TextField("10m, 1h, 1d", text: self.$everyText)
+                                        .textFieldStyle(.roundedBorder)
+                                        .frame(maxWidth: .infinity)
+                                }
+                            case .cron:
+                                GridRow {
+                                    self.gridLabel("Expression")
+                                    TextField("e.g. 0 9 * * 3", text: self.$cronExpr)
+                                        .textFieldStyle(.roundedBorder)
+                                        .frame(maxWidth: .infinity)
+                                }
+                                GridRow {
+                                    self.gridLabel("Timezone")
+                                    TextField("Optional (e.g. America/Los_Angeles)", text: self.$cronTz)
+                                        .textFieldStyle(.roundedBorder)
+                                        .frame(maxWidth: .infinity)
+                                }
+                            }
+                        }
                     }
-                }
 
-                Section("Payload") {
+                    GroupBox("Payload") {
+                        VStack(alignment: .leading, spacing: 10) {
+                            if self.sessionTarget == .isolated {
+                                Text("Isolated jobs always run an agent turn. The result can be delivered to a surface, and a short summary is posted back to your main chat.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                self.agentTurnEditor
+                            } else {
+                                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 10) {
+                                    GridRow {
+                                        self.gridLabel("Kind")
+                                        Picker("", selection: self.$payloadKind) {
+                                            Text("systemEvent").tag(PayloadKind.systemEvent)
+                                            Text("agentTurn").tag(PayloadKind.agentTurn)
+                                        }
+                                        .labelsHidden()
+                                        .pickerStyle(.segmented)
+                                        .frame(maxWidth: .infinity)
+                                    }
+                                    GridRow {
+                                        Color.clear
+                                            .frame(width: self.labelColumnWidth, height: 1)
+                                        Text("System events are injected into the current main session. Agent turns require an isolated session target.")
+                                            .font(.footnote)
+                                            .foregroundStyle(.secondary)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                }
+
+                                switch self.payloadKind {
+                                case .systemEvent:
+                                    TextField("System event text", text: self.$systemEventText, axis: .vertical)
+                                        .textFieldStyle(.roundedBorder)
+                                        .lineLimit(3...7)
+                                        .frame(maxWidth: .infinity)
+                                case .agentTurn:
+                                    self.agentTurnEditor
+                                }
+                            }
+                        }
+                    }
+
                     if self.sessionTarget == .isolated {
-                        Text("Isolated jobs always run an agent turn.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        self.agentTurnEditor
-                    } else {
-                        Picker("Kind", selection: self.$payloadKind) {
-                            Text("systemEvent").tag(PayloadKind.systemEvent)
-                            Text("agentTurn").tag(PayloadKind.agentTurn)
-                        }
-                        .pickerStyle(.segmented)
-
-                        switch self.payloadKind {
-                        case .systemEvent:
-                            TextField("System event text", text: self.$systemEventText, axis: .vertical)
-                                .lineLimit(3...6)
-                        case .agentTurn:
-                            self.agentTurnEditor
+                        GroupBox("Main session summary") {
+                            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 10) {
+                                GridRow {
+                                    self.gridLabel("Prefix")
+                                    TextField("Cron", text: self.$postPrefix)
+                                        .textFieldStyle(.roundedBorder)
+                                        .frame(maxWidth: .infinity)
+                                }
+                                GridRow {
+                                    Color.clear
+                                        .frame(width: self.labelColumnWidth, height: 1)
+                                    Text("Controls the label used when posting the completion summary back to the main session.")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            }
                         }
                     }
                 }
-
-                if self.sessionTarget == .isolated {
-                    Section("Main session summary") {
-                        Text("Isolated jobs always post a summary back into the main session when they finish.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        TextField("Prefix", text: self.$postPrefix)
-                    }
-                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 2)
             }
-            .frame(minWidth: 560, minHeight: 520)
 
             if let error, !error.isEmpty {
                 Text(error)
                     .font(.footnote)
                     .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             HStack {
                 Button("Cancel") { self.onCancel() }
+                    .keyboardShortcut(.cancelAction)
                     .buttonStyle(.bordered)
                 Spacer()
                 Button {
@@ -615,11 +721,13 @@ private struct CronJobEditor: View {
                         Text("Save")
                     }
                 }
+                .keyboardShortcut(.defaultAction)
                 .buttonStyle(.borderedProminent)
                 .disabled(self.isSaving)
             }
         }
-        .padding(18)
+        .padding(24)
+        .frame(minWidth: 720, minHeight: 640)
         .onAppear { self.hydrateFromJob() }
         .onChange(of: self.payloadKind) { _, newValue in
             if newValue == .agentTurn, self.sessionTarget == .main {
@@ -636,23 +744,67 @@ private struct CronJobEditor: View {
     }
 
     private var agentTurnEditor: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            TextField("Agent message", text: self.$agentMessage, axis: .vertical)
-                .lineLimit(3...6)
-            TextField("Thinking (optional)", text: self.$thinking)
-            TextField("Timeout seconds (optional)", text: self.$timeoutSeconds)
-                .textFieldStyle(.roundedBorder)
-            Toggle("Deliver result", isOn: self.$deliver)
-            if self.deliver {
-                Picker("Channel", selection: self.$channel) {
-                    Text("last").tag("last")
-                    Text("whatsapp").tag("whatsapp")
-                    Text("telegram").tag("telegram")
+        VStack(alignment: .leading, spacing: 10) {
+            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 10) {
+                GridRow {
+                    self.gridLabel("Message")
+                    TextField("What should clawd do?", text: self.$agentMessage, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .lineLimit(3...7)
+                        .frame(maxWidth: .infinity)
                 }
-                TextField("To (optional)", text: self.$to)
-                Toggle("Best-effort deliver", isOn: self.$bestEffortDeliver)
+                GridRow {
+                    self.gridLabel("Thinking")
+                    TextField("Optional (e.g. low)", text: self.$thinking)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: .infinity)
+                }
+                GridRow {
+                    self.gridLabel("Timeout")
+                    TextField("Seconds (optional)", text: self.$timeoutSeconds)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 180, alignment: .leading)
+                }
+                GridRow {
+                    self.gridLabel("Deliver")
+                    Toggle("Deliver result to a surface", isOn: self.$deliver)
+                        .toggleStyle(.switch)
+                }
+            }
+
+            if self.deliver {
+                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 10) {
+                    GridRow {
+                        self.gridLabel("Channel")
+                        Picker("", selection: self.$channel) {
+                            Text("last").tag("last")
+                            Text("whatsapp").tag("whatsapp")
+                            Text("telegram").tag("telegram")
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.segmented)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    GridRow {
+                        self.gridLabel("To")
+                        TextField("Optional override (phone number / chat id)", text: self.$to)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(maxWidth: .infinity)
+                    }
+                    GridRow {
+                        self.gridLabel("Best-effort")
+                        Toggle("Do not fail the job if delivery fails", isOn: self.$bestEffortDeliver)
+                            .toggleStyle(.switch)
+                    }
+                }
             }
         }
+    }
+
+    private func gridLabel(_ text: String) -> some View {
+        Text(text)
+            .foregroundStyle(.secondary)
+            .frame(width: self.labelColumnWidth, alignment: .leading)
     }
 
     private func hydrateFromJob() {
