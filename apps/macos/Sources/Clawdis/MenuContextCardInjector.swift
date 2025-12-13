@@ -7,13 +7,21 @@ final class MenuContextCardInjector: NSObject, NSMenuDelegate {
 
     private let tag = 9_415_227
     private let cardWidth: CGFloat = 320
+    private weak var originalDelegate: NSMenuDelegate?
 
     func install(into statusItem: NSStatusItem) {
         // SwiftUI owns the menu, but we can inject a custom NSMenuItem.view right before display.
-        statusItem.menu?.delegate = self
+        guard let menu = statusItem.menu else { return }
+        // Preserve SwiftUI's internal NSMenuDelegate, otherwise it may stop populating menu items.
+        if menu.delegate !== self {
+            self.originalDelegate = menu.delegate
+            menu.delegate = self
+        }
     }
 
     func menuWillOpen(_ menu: NSMenu) {
+        self.originalDelegate?.menuWillOpen?(menu)
+
         // Remove any previous injected card items.
         for item in menu.items where item.tag == self.tag {
             menu.removeItem(item)
@@ -34,6 +42,21 @@ final class MenuContextCardInjector: NSObject, NSMenuDelegate {
         menu.insertItem(item, at: insertIndex)
     }
 
+    func menuDidClose(_ menu: NSMenu) {
+        self.originalDelegate?.menuDidClose?(menu)
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        self.originalDelegate?.menuNeedsUpdate?(menu)
+    }
+
+    func confinementRect(for menu: NSMenu, on screen: NSScreen?) -> NSRect {
+        if let rect = self.originalDelegate?.confinementRect?(for: menu, on: screen) {
+            return rect
+        }
+        return NSRect.zero
+    }
+
     private func findInsertIndex(in menu: NSMenu) -> Int? {
         // Prefer inserting before the "Send Heartbeats" toggle item.
         if let idx = menu.items.firstIndex(where: { $0.title == "Send Heartbeats" }) {
@@ -44,4 +67,3 @@ final class MenuContextCardInjector: NSObject, NSMenuDelegate {
         return menu.items.count
     }
 }
-
