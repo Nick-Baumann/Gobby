@@ -2,6 +2,18 @@ import AVFAudio
 import Foundation
 import Speech
 
+final class SpeechRequestBox: @unchecked Sendable {
+    let request: SFSpeechAudioBufferRecognitionRequest
+
+    init(request: SFSpeechAudioBufferRecognitionRequest) {
+        self.request = request
+    }
+
+    func append(_ buffer: AVAudioPCMBuffer) {
+        self.request.append(buffer)
+    }
+}
+
 @MainActor
 final class VoiceWakeManager: NSObject, ObservableObject {
     @Published var isEnabled: Bool = false
@@ -95,9 +107,10 @@ final class VoiceWakeManager: NSObject, ObservableObject {
         let inputNode = self.audioEngine.inputNode
         inputNode.removeTap(onBus: 0)
 
+        let requestBox = SpeechRequestBox(request: request)
         let recordingFormat = inputNode.outputFormat(forBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [request] buffer, _ in
-            request.append(buffer)
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { @Sendable [requestBox] buffer, _ in
+            requestBox.append(buffer)
         }
 
         self.audioEngine.prepare()
