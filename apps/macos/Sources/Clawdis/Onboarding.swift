@@ -157,10 +157,12 @@ struct OnboardingView: View {
         self.onboardingPage {
             Text("Where Clawdis runs")
                 .font(.largeTitle.weight(.semibold))
-            Text("Pick local or remote. Remote uses SSH; we recommend Tailscale for reliable reachability.")
+            Text(
+                "Clawdis has one primary Gateway (“master”) that runs continuously. Connect locally or over SSH/Tailscale so the agent can work on any Mac.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+                .lineLimit(2)
                 .frame(maxWidth: 520)
                 .fixedSize(horizontal: false, vertical: true)
 
