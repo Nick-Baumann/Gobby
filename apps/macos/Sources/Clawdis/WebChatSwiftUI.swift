@@ -163,8 +163,9 @@ final class WebChatViewModel: ObservableObject {
                 do {
                     let data = try await Task.detached { try Data(contentsOf: url) }.value
                     guard data.count <= 5_000_000 else {
-                        await MainActor
-                            .run { self.errorText = "Attachment \(url.lastPathComponent) exceeds 5 MB limit" }
+                        await MainActor.run {
+                            self.errorText = "Attachment \(url.lastPathComponent) exceeds 5 MB limit"
+                        }
                         continue
                     }
                     let uti = UTType(filenameExtension: url.pathExtension) ?? .data
@@ -447,8 +448,11 @@ struct WebChatView: View {
                                 .foregroundStyle(Color.accentColor.opacity(0.9))
                             Text("Say hi to Clawd")
                                 .font(.headline)
-                            Text(self.viewModel
-                                .healthOK ? "This is the native SwiftUI debug chat." : "Connecting to the gateway…")
+                            Text(
+                                self.viewModel.healthOK
+                                    ? "This is the native SwiftUI debug chat."
+                                    : "Connecting to the gateway…"
+                            )
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
@@ -460,10 +464,9 @@ struct WebChatView: View {
                         .padding(.vertical, 34)
                     } else {
                         ForEach(self.viewModel.messages) { msg in
+                            let alignment: Alignment = msg.role.lowercased() == "user" ? .trailing : .leading
                             MessageBubble(message: msg)
-                                .frame(
-                                    maxWidth: .infinity,
-                                    alignment: msg.role.lowercased() == "user" ? .trailing : .leading)
+                                .frame(maxWidth: .infinity, alignment: alignment)
                         }
                     }
 

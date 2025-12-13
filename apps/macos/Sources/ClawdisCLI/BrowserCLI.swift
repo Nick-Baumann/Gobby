@@ -6,62 +6,17 @@ enum BrowserCLI {
 
     static func run(args: [String], jsonOutput: Bool) async throws -> Int32 {
         var args = args
-        guard let sub = args.first else {
+        guard let sub = args.popFirst() else {
             self.printHelp()
             return 0
         }
-        args = Array(args.dropFirst())
 
         if sub == "--help" || sub == "-h" || sub == "help" {
             self.printHelp()
             return 0
         }
 
-        var overrideURL: String?
-        var fullPage = false
-        var targetId: String?
-        var awaitPromise = false
-        var js: String?
-        var jsFile: String?
-        var jsStdin = false
-        var selector: String?
-        var format: String?
-        var limit: Int?
-        var maxChars: Int?
-        var outPath: String?
-        var rest: [String] = []
-
-        while !args.isEmpty {
-            let arg = args.removeFirst()
-            switch arg {
-            case "--url":
-                overrideURL = args.popFirst()
-            case "--full-page":
-                fullPage = true
-            case "--target-id":
-                targetId = args.popFirst()
-            case "--await":
-                awaitPromise = true
-            case "--js":
-                js = args.popFirst()
-            case "--js-file":
-                jsFile = args.popFirst()
-            case "--js-stdin":
-                jsStdin = true
-            case "--selector":
-                selector = args.popFirst()
-            case "--format":
-                format = args.popFirst()
-            case "--limit":
-                limit = args.popFirst().flatMap(Int.init)
-            case "--max-chars":
-                maxChars = args.popFirst().flatMap(Int.init)
-            case "--out":
-                outPath = args.popFirst()
-            default:
-                rest.append(arg)
-            }
-        }
+        let options = self.parseOptions(args: args)
 
         let cfg = self.loadBrowserConfig()
         guard cfg.enabled else {
@@ -73,7 +28,7 @@ enum BrowserCLI {
             return 1
         }
 
-        let base = (overrideURL ?? cfg.controlUrl).trimmingCharacters(in: .whitespacesAndNewlines)
+        let base = (options.overrideURL ?? cfg.controlUrl).trimmingCharacters(in: .whitespacesAndNewlines)
         guard let baseURL = URL(string: base) else {
             throw NSError(domain: "BrowserCLI", code: 1, userInfo: [
                 NSLocalizedDescriptionKey: "Invalid browser control URL: \(base)",
@@ -81,237 +36,7 @@ enum BrowserCLI {
         }
 
         do {
-            switch sub {
-            case "status":
-                try await self.printResult(
-                    jsonOutput: jsonOutput,
-                    res: self.httpJSON(method: "GET", url: baseURL.appendingPathComponent("/")))
-                return 0
-
-            case "start":
-                try await self.printResult(
-                    jsonOutput: jsonOutput,
-                    res: self.httpJSON(
-                        method: "POST",
-                        url: baseURL.appendingPathComponent("/start"),
-                        timeoutInterval: 15.0))
-                return 0
-
-            case "stop":
-                try await self.printResult(
-                    jsonOutput: jsonOutput,
-                    res: self.httpJSON(
-                        method: "POST",
-                        url: baseURL.appendingPathComponent("/stop"),
-                        timeoutInterval: 15.0))
-                return 0
-
-            case "tabs":
-                let res = try await self.httpJSON(
-                    method: "GET",
-                    url: baseURL.appendingPathComponent("/tabs"),
-                    timeoutInterval: 3.0)
-                if jsonOutput {
-                    self.printJSON(ok: true, result: res)
-                } else {
-                    self.printTabs(res: res)
-                }
-                return 0
-
-            case "open":
-                guard let url = rest.first, !url.isEmpty else {
-                    self.printHelp()
-                    return 2
-                }
-                try await self.printResult(
-                    jsonOutput: jsonOutput,
-                    res: self.httpJSON(
-                        method: "POST",
-                        url: baseURL.appendingPathComponent("/tabs/open"),
-                        body: ["url": url],
-                        timeoutInterval: 15.0))
-                return 0
-
-            case "focus":
-                guard let id = rest.first, !id.isEmpty else {
-                    self.printHelp()
-                    return 2
-                }
-                try await self.printResult(
-                    jsonOutput: jsonOutput,
-                    res: self.httpJSON(
-                        method: "POST",
-                        url: baseURL.appendingPathComponent("/tabs/focus"),
-                        body: ["targetId": id],
-                        timeoutInterval: 5.0))
-                return 0
-
-            case "close":
-                guard let id = rest.first, !id.isEmpty else {
-                    self.printHelp()
-                    return 2
-                }
-                try await self.printResult(
-                    jsonOutput: jsonOutput,
-                    res: self.httpJSON(
-                        method: "DELETE",
-                        url: baseURL.appendingPathComponent("/tabs/\(id)"),
-                        timeoutInterval: 5.0))
-                return 0
-
-            case "screenshot":
-                var url = baseURL.appendingPathComponent("/screenshot")
-                var items: [URLQueryItem] = []
-                if let targetId, !targetId.isEmpty {
-                    items.append(URLQueryItem(name: "targetId", value: targetId))
-                }
-                if fullPage {
-                    items.append(URLQueryItem(name: "fullPage", value: "1"))
-                }
-                if !items.isEmpty {
-                    url = self.withQuery(url, items: items)
-                }
-                let res = try await self.httpJSON(method: "GET", url: url, timeoutInterval: 20.0)
-                if jsonOutput {
-                    self.printJSON(ok: true, result: res)
-                } else if let path = res["path"] as? String, !path.isEmpty {
-                    print("MEDIA:\(path)")
-                } else {
-                    self.printResult(jsonOutput: false, res: res)
-                }
-                return 0
-
-            case "eval":
-                if jsStdin, jsFile != nil {
-                    self.printHelp()
-                    return 2
-                }
-
-                let code: String = try {
-                    if let jsFile, !jsFile.isEmpty {
-                        return try String(contentsOfFile: jsFile, encoding: .utf8)
-                    }
-                    if jsStdin {
-                        let data = FileHandle.standardInput.readDataToEndOfFile()
-                        return String(data: data, encoding: .utf8) ?? ""
-                    }
-                    if let js, !js.isEmpty { return js }
-                    if !rest.isEmpty { return rest.joined(separator: " ") }
-                    return ""
-                }()
-
-                if code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    self.printHelp()
-                    return 2
-                }
-
-                let res = try await self.httpJSON(
-                    method: "POST",
-                    url: baseURL.appendingPathComponent("/eval"),
-                    body: [
-                        "js": code,
-                        "targetId": targetId ?? "",
-                        "await": awaitPromise,
-                    ],
-                    timeoutInterval: 15.0)
-
-                if jsonOutput {
-                    self.printJSON(ok: true, result: res)
-                } else {
-                    self.printEval(res: res)
-                }
-                return 0
-
-            case "query":
-                let sel = (selector ?? rest.first ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                if sel.isEmpty {
-                    self.printHelp()
-                    return 2
-                }
-                var url = baseURL.appendingPathComponent("/query")
-                var items: [URLQueryItem] = [URLQueryItem(name: "selector", value: sel)]
-                if let targetId, !targetId.isEmpty {
-                    items.append(URLQueryItem(name: "targetId", value: targetId))
-                }
-                if let limit, limit > 0 {
-                    items.append(URLQueryItem(name: "limit", value: String(limit)))
-                }
-                url = self.withQuery(url, items: items)
-                let res = try await self.httpJSON(method: "GET", url: url, timeoutInterval: 15.0)
-                if jsonOutput || format == "json" {
-                    self.printJSON(ok: true, result: res)
-                } else {
-                    self.printQuery(res: res)
-                }
-                return 0
-
-            case "dom":
-                let fmt = (format == "text") ? "text" : "html"
-                var url = baseURL.appendingPathComponent("/dom")
-                var items: [URLQueryItem] = [URLQueryItem(name: "format", value: fmt)]
-                if let targetId, !targetId.isEmpty {
-                    items.append(URLQueryItem(name: "targetId", value: targetId))
-                }
-                if let selector = selector?.trimmingCharacters(in: .whitespacesAndNewlines), !selector.isEmpty {
-                    items.append(URLQueryItem(name: "selector", value: selector))
-                }
-                if let maxChars, maxChars > 0 {
-                    items.append(URLQueryItem(name: "maxChars", value: String(maxChars)))
-                }
-                url = self.withQuery(url, items: items)
-                let res = try await self.httpJSON(method: "GET", url: url, timeoutInterval: 20.0)
-                let text = (res["text"] as? String) ?? ""
-                if let out = outPath, !out.isEmpty {
-                    try Data(text.utf8).write(to: URL(fileURLWithPath: out))
-                    if jsonOutput {
-                        self.printJSON(ok: true, result: ["ok": true, "out": out])
-                    } else {
-                        print(out)
-                    }
-                    return 0
-                }
-                if jsonOutput {
-                    self.printJSON(ok: true, result: res)
-                } else {
-                    print(text)
-                }
-                return 0
-
-            case "snapshot":
-                let fmt = (format == "domSnapshot") ? "domSnapshot" : "aria"
-                var url = baseURL.appendingPathComponent("/snapshot")
-                var items: [URLQueryItem] = [URLQueryItem(name: "format", value: fmt)]
-                if let targetId, !targetId.isEmpty {
-                    items.append(URLQueryItem(name: "targetId", value: targetId))
-                }
-                if let limit, limit > 0 {
-                    items.append(URLQueryItem(name: "limit", value: String(limit)))
-                }
-                url = self.withQuery(url, items: items)
-                let res = try await self.httpJSON(method: "GET", url: url, timeoutInterval: 20.0)
-
-                if let out = outPath, !out.isEmpty {
-                    let data = try JSONSerialization.data(withJSONObject: res, options: [.prettyPrinted])
-                    try data.write(to: URL(fileURLWithPath: out))
-                    if jsonOutput {
-                        self.printJSON(ok: true, result: ["ok": true, "out": out])
-                    } else {
-                        print(out)
-                    }
-                    return 0
-                }
-
-                if jsonOutput || fmt == "domSnapshot" {
-                    self.printJSON(ok: true, result: res)
-                } else {
-                    self.printSnapshotAria(res: res)
-                }
-                return 0
-
-            default:
-                self.printHelp()
-                return 2
-            }
+            return try await self.runCommand(sub: sub, options: options, baseURL: baseURL, jsonOutput: jsonOutput)
         } catch {
             let msg = self.describeError(error, baseURL: baseURL)
             if jsonOutput {
@@ -321,6 +46,329 @@ enum BrowserCLI {
             }
             return 1
         }
+    }
+
+    private struct RunOptions {
+        var overrideURL: String?
+        var fullPage: Bool = false
+        var targetId: String?
+        var awaitPromise: Bool = false
+        var js: String?
+        var jsFile: String?
+        var jsStdin: Bool = false
+        var selector: String?
+        var format: String?
+        var limit: Int?
+        var maxChars: Int?
+        var outPath: String?
+        var rest: [String] = []
+    }
+
+    private static func parseOptions(args: [String]) -> RunOptions {
+        var args = args
+        var options = RunOptions()
+        while !args.isEmpty {
+            let arg = args.removeFirst()
+            switch arg {
+            case "--url":
+                options.overrideURL = args.popFirst()
+            case "--full-page":
+                options.fullPage = true
+            case "--target-id":
+                options.targetId = args.popFirst()
+            case "--await":
+                options.awaitPromise = true
+            case "--js":
+                options.js = args.popFirst()
+            case "--js-file":
+                options.jsFile = args.popFirst()
+            case "--js-stdin":
+                options.jsStdin = true
+            case "--selector":
+                options.selector = args.popFirst()
+            case "--format":
+                options.format = args.popFirst()
+            case "--limit":
+                options.limit = args.popFirst().flatMap(Int.init)
+            case "--max-chars":
+                options.maxChars = args.popFirst().flatMap(Int.init)
+            case "--out":
+                options.outPath = args.popFirst()
+            default:
+                options.rest.append(arg)
+            }
+        }
+        return options
+    }
+
+    private static func runCommand(
+        sub: String,
+        options: RunOptions,
+        baseURL: URL,
+        jsonOutput: Bool
+    ) async throws -> Int32 {
+        switch sub {
+        case "status":
+            return try await self.handleStatus(baseURL: baseURL, jsonOutput: jsonOutput)
+        case "start":
+            return try await self.handleStartStop(action: "start", baseURL: baseURL, jsonOutput: jsonOutput)
+        case "stop":
+            return try await self.handleStartStop(action: "stop", baseURL: baseURL, jsonOutput: jsonOutput)
+        case "tabs":
+            return try await self.handleTabs(baseURL: baseURL, jsonOutput: jsonOutput)
+        case "open":
+            return try await self.handleOpen(baseURL: baseURL, jsonOutput: jsonOutput, options: options)
+        case "focus":
+            return try await self.handleFocus(baseURL: baseURL, jsonOutput: jsonOutput, options: options)
+        case "close":
+            return try await self.handleClose(baseURL: baseURL, jsonOutput: jsonOutput, options: options)
+        case "screenshot":
+            return try await self.handleScreenshot(baseURL: baseURL, jsonOutput: jsonOutput, options: options)
+        case "eval":
+            return try await self.handleEval(baseURL: baseURL, jsonOutput: jsonOutput, options: options)
+        case "query":
+            return try await self.handleQuery(baseURL: baseURL, jsonOutput: jsonOutput, options: options)
+        case "dom":
+            return try await self.handleDOM(baseURL: baseURL, jsonOutput: jsonOutput, options: options)
+        case "snapshot":
+            return try await self.handleSnapshot(baseURL: baseURL, jsonOutput: jsonOutput, options: options)
+        default:
+            self.printHelp()
+            return 2
+        }
+    }
+
+    private static func handleStatus(baseURL: URL, jsonOutput: Bool) async throws -> Int32 {
+        let res = try await self.httpJSON(method: "GET", url: baseURL.appendingPathComponent("/"))
+        self.printResult(jsonOutput: jsonOutput, res: res)
+        return 0
+    }
+
+    private static func handleStartStop(action: String, baseURL: URL, jsonOutput: Bool) async throws -> Int32 {
+        let url = baseURL.appendingPathComponent("/\(action)")
+        let res = try await self.httpJSON(method: "POST", url: url, timeoutInterval: 15.0)
+        self.printResult(jsonOutput: jsonOutput, res: res)
+        return 0
+    }
+
+    private static func handleTabs(baseURL: URL, jsonOutput: Bool) async throws -> Int32 {
+        let url = baseURL.appendingPathComponent("/tabs")
+        let res = try await self.httpJSON(method: "GET", url: url, timeoutInterval: 3.0)
+        if jsonOutput {
+            self.printJSON(ok: true, result: res)
+        } else {
+            self.printTabs(res: res)
+        }
+        return 0
+    }
+
+    private static func handleOpen(baseURL: URL, jsonOutput: Bool, options: RunOptions) async throws -> Int32 {
+        guard let urlString = options.rest.first, !urlString.isEmpty else {
+            self.printHelp()
+            return 2
+        }
+        let url = baseURL.appendingPathComponent("/tabs/open")
+        let res = try await self.httpJSON(
+            method: "POST",
+            url: url,
+            body: ["url": urlString],
+            timeoutInterval: 15.0
+        )
+        self.printResult(jsonOutput: jsonOutput, res: res)
+        return 0
+    }
+
+    private static func handleFocus(baseURL: URL, jsonOutput: Bool, options: RunOptions) async throws -> Int32 {
+        guard let id = options.rest.first, !id.isEmpty else {
+            self.printHelp()
+            return 2
+        }
+        let url = baseURL.appendingPathComponent("/tabs/focus")
+        let res = try await self.httpJSON(
+            method: "POST",
+            url: url,
+            body: ["targetId": id],
+            timeoutInterval: 5.0
+        )
+        self.printResult(jsonOutput: jsonOutput, res: res)
+        return 0
+    }
+
+    private static func handleClose(baseURL: URL, jsonOutput: Bool, options: RunOptions) async throws -> Int32 {
+        guard let id = options.rest.first, !id.isEmpty else {
+            self.printHelp()
+            return 2
+        }
+        let url = baseURL.appendingPathComponent("/tabs/\(id)")
+        let res = try await self.httpJSON(method: "DELETE", url: url, timeoutInterval: 5.0)
+        self.printResult(jsonOutput: jsonOutput, res: res)
+        return 0
+    }
+
+    private static func handleScreenshot(baseURL: URL, jsonOutput: Bool, options: RunOptions) async throws -> Int32 {
+        var url = baseURL.appendingPathComponent("/screenshot")
+        var items: [URLQueryItem] = []
+        if let targetId = options.targetId, !targetId.isEmpty {
+            items.append(URLQueryItem(name: "targetId", value: targetId))
+        }
+        if options.fullPage {
+            items.append(URLQueryItem(name: "fullPage", value: "1"))
+        }
+        if !items.isEmpty {
+            url = self.withQuery(url, items: items)
+        }
+
+        let res = try await self.httpJSON(method: "GET", url: url, timeoutInterval: 20.0)
+        if jsonOutput {
+            self.printJSON(ok: true, result: res)
+        } else if let path = res["path"] as? String, !path.isEmpty {
+            print("MEDIA:\(path)")
+        } else {
+            self.printResult(jsonOutput: false, res: res)
+        }
+        return 0
+    }
+
+    private static func handleEval(baseURL: URL, jsonOutput: Bool, options: RunOptions) async throws -> Int32 {
+        if options.jsStdin, options.jsFile != nil {
+            self.printHelp()
+            return 2
+        }
+
+        let code = try self.resolveEvalCode(options: options)
+        if code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            self.printHelp()
+            return 2
+        }
+
+        let url = baseURL.appendingPathComponent("/eval")
+        let res = try await self.httpJSON(
+            method: "POST",
+            url: url,
+            body: [
+                "js": code,
+                "targetId": options.targetId ?? "",
+                "await": options.awaitPromise,
+            ],
+            timeoutInterval: 15.0
+        )
+
+        if jsonOutput {
+            self.printJSON(ok: true, result: res)
+        } else {
+            self.printEval(res: res)
+        }
+        return 0
+    }
+
+    private static func resolveEvalCode(options: RunOptions) throws -> String {
+        if let jsFile = options.jsFile, !jsFile.isEmpty {
+            return try String(contentsOfFile: jsFile, encoding: .utf8)
+        }
+        if options.jsStdin {
+            let data = FileHandle.standardInput.readDataToEndOfFile()
+            return String(data: data, encoding: .utf8) ?? ""
+        }
+        if let js = options.js, !js.isEmpty {
+            return js
+        }
+        if !options.rest.isEmpty {
+            return options.rest.joined(separator: " ")
+        }
+        return ""
+    }
+
+    private static func handleQuery(baseURL: URL, jsonOutput: Bool, options: RunOptions) async throws -> Int32 {
+        let sel = (options.selector ?? options.rest.first ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if sel.isEmpty {
+            self.printHelp()
+            return 2
+        }
+
+        var url = baseURL.appendingPathComponent("/query")
+        var items: [URLQueryItem] = [URLQueryItem(name: "selector", value: sel)]
+        if let targetId = options.targetId, !targetId.isEmpty {
+            items.append(URLQueryItem(name: "targetId", value: targetId))
+        }
+        if let limit = options.limit, limit > 0 {
+            items.append(URLQueryItem(name: "limit", value: String(limit)))
+        }
+        url = self.withQuery(url, items: items)
+
+        let res = try await self.httpJSON(method: "GET", url: url, timeoutInterval: 15.0)
+        if jsonOutput || options.format == "json" {
+            self.printJSON(ok: true, result: res)
+        } else {
+            self.printQuery(res: res)
+        }
+        return 0
+    }
+
+    private static func handleDOM(baseURL: URL, jsonOutput: Bool, options: RunOptions) async throws -> Int32 {
+        let fmt = (options.format == "text") ? "text" : "html"
+        var url = baseURL.appendingPathComponent("/dom")
+        var items: [URLQueryItem] = [URLQueryItem(name: "format", value: fmt)]
+        if let targetId = options.targetId, !targetId.isEmpty {
+            items.append(URLQueryItem(name: "targetId", value: targetId))
+        }
+        if let selector = options.selector?.trimmingCharacters(in: .whitespacesAndNewlines), !selector.isEmpty {
+            items.append(URLQueryItem(name: "selector", value: selector))
+        }
+        if let maxChars = options.maxChars, maxChars > 0 {
+            items.append(URLQueryItem(name: "maxChars", value: String(maxChars)))
+        }
+        url = self.withQuery(url, items: items)
+
+        let res = try await self.httpJSON(method: "GET", url: url, timeoutInterval: 20.0)
+        let text = (res["text"] as? String) ?? ""
+        if let out = options.outPath, !out.isEmpty {
+            try Data(text.utf8).write(to: URL(fileURLWithPath: out))
+            if jsonOutput {
+                self.printJSON(ok: true, result: ["ok": true, "out": out])
+            } else {
+                print(out)
+            }
+            return 0
+        }
+
+        if jsonOutput {
+            self.printJSON(ok: true, result: res)
+        } else {
+            print(text)
+        }
+        return 0
+    }
+
+    private static func handleSnapshot(baseURL: URL, jsonOutput: Bool, options: RunOptions) async throws -> Int32 {
+        let fmt = (options.format == "domSnapshot") ? "domSnapshot" : "aria"
+        var url = baseURL.appendingPathComponent("/snapshot")
+        var items: [URLQueryItem] = [URLQueryItem(name: "format", value: fmt)]
+        if let targetId = options.targetId, !targetId.isEmpty {
+            items.append(URLQueryItem(name: "targetId", value: targetId))
+        }
+        if let limit = options.limit, limit > 0 {
+            items.append(URLQueryItem(name: "limit", value: String(limit)))
+        }
+        url = self.withQuery(url, items: items)
+
+        let res = try await self.httpJSON(method: "GET", url: url, timeoutInterval: 20.0)
+        if let out = options.outPath, !out.isEmpty {
+            let data = try JSONSerialization.data(withJSONObject: res, options: [.prettyPrinted])
+            try data.write(to: URL(fileURLWithPath: out))
+            if jsonOutput {
+                self.printJSON(ok: true, result: ["ok": true, "out": out])
+            } else {
+                print(out)
+            }
+            return 0
+        }
+
+        if jsonOutput || fmt == "domSnapshot" {
+            self.printJSON(ok: true, result: res)
+        } else {
+            self.printSnapshotAria(res: res)
+        }
+        return 0
     }
 
     private struct BrowserConfig {

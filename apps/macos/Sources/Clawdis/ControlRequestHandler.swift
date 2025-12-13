@@ -10,156 +10,254 @@ enum ControlRequestHandler {
     {
         // Keep `status` responsive even if the main actor is busy.
         let paused = UserDefaults.standard.bool(forKey: pauseDefaultsKey)
-        if paused {
-            switch request {
-            case .status:
-                break
-            default:
-                return Response(ok: false, message: "clawdis paused")
-            }
+        if paused, request != .status {
+            return Response(ok: false, message: "clawdis paused")
         }
 
-        switch request {
-        case let .notify(title, body, sound, priority, delivery):
-            let chosenSound = sound?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let chosenDelivery = delivery ?? .system
+	        switch request {
+	        case let .notify(title, body, sound, priority, delivery):
+	            let notify = NotifyRequest(
+	                title: title,
+	                body: body,
+	                sound: sound,
+	                priority: priority,
+	                delivery: delivery
+	            )
+	            return await self.handleNotify(notify, notifier: notifier)
 
-            switch chosenDelivery {
-            case .system:
-                let ok = await notifier.send(title: title, body: body, sound: chosenSound, priority: priority)
-                return ok ? Response(ok: true) : Response(ok: false, message: "notification not authorized")
+	        case let .ensurePermissions(caps, interactive):
+	            return await self.handleEnsurePermissions(caps: caps, interactive: interactive)
 
-            case .overlay:
-                await MainActor.run {
-                    NotifyOverlayController.shared.present(title: title, body: body)
-                }
-                return Response(ok: true)
+	        case .status:
+	            return paused
+	                ? Response(ok: false, message: "clawdis paused")
+	                : Response(ok: true, message: "ready")
 
-            case .auto:
-                let ok = await notifier.send(title: title, body: body, sound: chosenSound, priority: priority)
-                if ok { return Response(ok: true) }
-                await MainActor.run {
-                    NotifyOverlayController.shared.present(title: title, body: body)
-                }
-                return Response(ok: true, message: "notification not authorized; used overlay")
+	        case .rpcStatus:
+	            return await self.handleRPCStatus()
+
+	        case let .runShell(command, cwd, env, timeoutSec, needsSR):
+	            return await self.handleRunShell(
+	                command: command,
+	                cwd: cwd,
+	                env: env,
+	                timeoutSec: timeoutSec,
+	                needsSR: needsSR
+	            )
+
+	        case let .agent(message, thinking, session, deliver, to):
+	            return await self.handleAgent(
+	                message: message,
+	                thinking: thinking,
+	                session: session,
+	                deliver: deliver,
+	                to: to
+	            )
+
+	        case let .canvasShow(session, path, placement):
+	            return await self.handleCanvasShow(session: session, path: path, placement: placement)
+
+	        case let .canvasHide(session):
+	            return await self.handleCanvasHide(session: session)
+
+	        case let .canvasGoto(session, path, placement):
+	            return await self.handleCanvasGoto(session: session, path: path, placement: placement)
+
+	        case let .canvasEval(session, javaScript):
+	            return await self.handleCanvasEval(session: session, javaScript: javaScript)
+
+	        case let .canvasSnapshot(session, outPath):
+	            return await self.handleCanvasSnapshot(session: session, outPath: outPath)
+
+	        case .nodeList:
+	            return await self.handleNodeList()
+
+	        case let .nodeInvoke(nodeId, command, paramsJSON):
+	            return await self.handleNodeInvoke(
+	                nodeId: nodeId,
+	                command: command,
+	                paramsJSON: paramsJSON,
+	                logger: logger
+	            )
+	        }
+	    }
+
+	    private struct NotifyRequest {
+	        var title: String
+	        var body: String
+	        var sound: String?
+	        var priority: NotificationPriority?
+	        var delivery: NotificationDelivery?
+	    }
+
+	    private static func handleNotify(_ request: NotifyRequest, notifier: NotificationManager) async -> Response {
+	        let chosenSound = request.sound?.trimmingCharacters(in: .whitespacesAndNewlines)
+	        let chosenDelivery = request.delivery ?? .system
+
+        switch chosenDelivery {
+        case .system:
+            let ok = await notifier.send(
+                title: request.title,
+                body: request.body,
+                sound: chosenSound,
+                priority: request.priority
+            )
+            return ok ? Response(ok: true) : Response(ok: false, message: "notification not authorized")
+        case .overlay:
+            await MainActor.run {
+                NotifyOverlayController.shared.present(title: request.title, body: request.body)
             }
-
-        case let .ensurePermissions(caps, interactive):
-            let statuses = await PermissionManager.ensure(caps, interactive: interactive)
-            let missing = statuses.filter { !$0.value }.map(\.key.rawValue)
-            let ok = missing.isEmpty
-            let msg = ok ? "all granted" : "missing: \(missing.joined(separator: ","))"
-            return Response(ok: ok, message: msg)
-
-        case .status:
-            return paused ? Response(ok: false, message: "clawdis paused") : Response(ok: true, message: "ready")
-
-        case .rpcStatus:
-            let result = await AgentRPC.shared.status()
-            return Response(ok: result.ok, message: result.error)
-
-        case let .runShell(command, cwd, env, timeoutSec, needsSR):
-            if needsSR {
-                let authorized = await PermissionManager
-                    .ensure([.screenRecording], interactive: false)[.screenRecording] ?? false
-                guard authorized else { return Response(ok: false, message: "screen recording permission missing") }
-            }
-            return await ShellExecutor.run(command: command, cwd: cwd, env: env, timeout: timeoutSec)
-
-        case let .agent(message, thinking, session, deliver, to):
-            let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { return Response(ok: false, message: "message empty") }
-            let sessionKey = session ?? "main"
-            let rpcResult = await AgentRPC.shared.send(
-                text: trimmed,
-                thinking: thinking,
-                sessionKey: sessionKey,
-                deliver: deliver,
-                to: to,
-                channel: nil)
-            return rpcResult.ok
-                ? Response(ok: true, message: rpcResult.text ?? "sent")
-                : Response(ok: false, message: rpcResult.error ?? "failed to send")
-
-        case let .canvasShow(session, path, placement):
-            let canvasEnabled = UserDefaults.standard.object(forKey: canvasEnabledKey) as? Bool ?? true
-            guard canvasEnabled else {
-                return Response(ok: false, message: "Canvas disabled by user")
-            }
-            do {
-                let dir = try await MainActor.run { try CanvasManager.shared.show(
-                    sessionKey: session,
-                    path: path,
-                    placement: placement) }
-                return Response(ok: true, message: dir)
-            } catch {
-                return Response(ok: false, message: error.localizedDescription)
-            }
-
-        case let .canvasHide(session):
-            await MainActor.run { CanvasManager.shared.hide(sessionKey: session) }
             return Response(ok: true)
+        case .auto:
+            let ok = await notifier.send(
+                title: request.title,
+                body: request.body,
+                sound: chosenSound,
+                priority: request.priority
+            )
+            if ok { return Response(ok: true) }
+            await MainActor.run {
+                NotifyOverlayController.shared.present(title: request.title, body: request.body)
+            }
+            return Response(ok: true, message: "notification not authorized; used overlay")
+        }
+    }
 
-        case let .canvasGoto(session, path, placement):
-            let canvasEnabled = UserDefaults.standard.object(forKey: canvasEnabledKey) as? Bool ?? true
-            guard canvasEnabled else {
-                return Response(ok: false, message: "Canvas disabled by user")
-            }
-            do {
-                try await MainActor.run { try CanvasManager.shared.goto(
-                    sessionKey: session,
-                    path: path,
-                    placement: placement) }
-                return Response(ok: true)
-            } catch {
-                return Response(ok: false, message: error.localizedDescription)
-            }
+    private static func handleEnsurePermissions(caps: [Capability], interactive: Bool) async -> Response {
+        let statuses = await PermissionManager.ensure(caps, interactive: interactive)
+        let missing = statuses.filter { !$0.value }.map(\.key.rawValue)
+        let ok = missing.isEmpty
+        let msg = ok ? "all granted" : "missing: \(missing.joined(separator: ","))"
+        return Response(ok: ok, message: msg)
+    }
 
-        case let .canvasEval(session, javaScript):
-            let canvasEnabled = UserDefaults.standard.object(forKey: canvasEnabledKey) as? Bool ?? true
-            guard canvasEnabled else {
-                return Response(ok: false, message: "Canvas disabled by user")
-            }
-            do {
-                let result = try await CanvasManager.shared.eval(sessionKey: session, javaScript: javaScript)
-                return Response(ok: true, payload: Data(result.utf8))
-            } catch {
-                return Response(ok: false, message: error.localizedDescription)
-            }
+    private static func handleRPCStatus() async -> Response {
+        let result = await AgentRPC.shared.status()
+        return Response(ok: result.ok, message: result.error)
+    }
 
-        case let .canvasSnapshot(session, outPath):
-            let canvasEnabled = UserDefaults.standard.object(forKey: canvasEnabledKey) as? Bool ?? true
-            guard canvasEnabled else {
-                return Response(ok: false, message: "Canvas disabled by user")
-            }
-            do {
-                let path = try await CanvasManager.shared.snapshot(sessionKey: session, outPath: outPath)
-                return Response(ok: true, message: path)
-            } catch {
-                return Response(ok: false, message: error.localizedDescription)
-            }
+    private static func handleRunShell(
+        command: [String],
+        cwd: String?,
+        env: [String: String]?,
+        timeoutSec: Double?,
+        needsSR: Bool
+    ) async -> Response {
+        if needsSR {
+            let authorized = await PermissionManager
+                .ensure([.screenRecording], interactive: false)[.screenRecording] ?? false
+            guard authorized else { return Response(ok: false, message: "screen recording permission missing") }
+        }
+        return await ShellExecutor.run(command: command, cwd: cwd, env: env, timeout: timeoutSec)
+    }
 
-        case .nodeList:
-            let ids = await BridgeServer.shared.connectedNodeIds()
-            let payload = (try? JSONSerialization.data(
-                withJSONObject: ["connectedNodeIds": ids],
-                options: [.prettyPrinted]))
-                .flatMap { String(data: $0, encoding: .utf8) }
-                ?? "{}"
-            return Response(ok: true, payload: Data(payload.utf8))
+    private static func handleAgent(
+        message: String,
+        thinking: String?,
+        session: String?,
+        deliver: Bool,
+        to: String?
+    ) async -> Response {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return Response(ok: false, message: "message empty") }
+        let sessionKey = session ?? "main"
+        let rpcResult = await AgentRPC.shared.send(
+            text: trimmed,
+            thinking: thinking,
+            sessionKey: sessionKey,
+            deliver: deliver,
+            to: to,
+            channel: nil
+        )
+        return rpcResult.ok
+            ? Response(ok: true, message: rpcResult.text ?? "sent")
+            : Response(ok: false, message: rpcResult.error ?? "failed to send")
+    }
 
-        case let .nodeInvoke(nodeId, command, paramsJSON):
-            do {
-                let res = try await BridgeServer.shared.invoke(nodeId: nodeId, command: command, paramsJSON: paramsJSON)
-                if res.ok {
-                    let payload = res.payloadJSON ?? ""
-                    return Response(ok: true, payload: Data(payload.utf8))
-                }
-                let errText = res.error?.message ?? "node invoke failed"
-                return Response(ok: false, message: errText)
-            } catch {
-                return Response(ok: false, message: error.localizedDescription)
+    private static func canvasEnabled() -> Bool {
+        UserDefaults.standard.object(forKey: canvasEnabledKey) as? Bool ?? true
+    }
+
+    private static func handleCanvasShow(
+        session: String,
+        path: String?,
+        placement: CanvasPlacement?
+    ) async -> Response {
+        guard self.canvasEnabled() else { return Response(ok: false, message: "Canvas disabled by user") }
+        do {
+            let dir = try await MainActor.run {
+                try CanvasManager.shared.show(sessionKey: session, path: path, placement: placement)
             }
+            return Response(ok: true, message: dir)
+        } catch {
+            return Response(ok: false, message: error.localizedDescription)
+        }
+    }
+
+    private static func handleCanvasHide(session: String) async -> Response {
+        await MainActor.run { CanvasManager.shared.hide(sessionKey: session) }
+        return Response(ok: true)
+    }
+
+    private static func handleCanvasGoto(session: String, path: String, placement: CanvasPlacement?) async -> Response {
+        guard self.canvasEnabled() else { return Response(ok: false, message: "Canvas disabled by user") }
+        do {
+            try await MainActor.run {
+                try CanvasManager.shared.goto(sessionKey: session, path: path, placement: placement)
+            }
+            return Response(ok: true)
+        } catch {
+            return Response(ok: false, message: error.localizedDescription)
+        }
+    }
+
+    private static func handleCanvasEval(session: String, javaScript: String) async -> Response {
+        guard self.canvasEnabled() else { return Response(ok: false, message: "Canvas disabled by user") }
+        do {
+            let result = try await CanvasManager.shared.eval(sessionKey: session, javaScript: javaScript)
+            return Response(ok: true, payload: Data(result.utf8))
+        } catch {
+            return Response(ok: false, message: error.localizedDescription)
+        }
+    }
+
+    private static func handleCanvasSnapshot(session: String, outPath: String?) async -> Response {
+        guard self.canvasEnabled() else { return Response(ok: false, message: "Canvas disabled by user") }
+        do {
+            let path = try await CanvasManager.shared.snapshot(sessionKey: session, outPath: outPath)
+            return Response(ok: true, message: path)
+        } catch {
+            return Response(ok: false, message: error.localizedDescription)
+        }
+    }
+
+    private static func handleNodeList() async -> Response {
+        let ids = await BridgeServer.shared.connectedNodeIds()
+        let payload = (try? JSONSerialization.data(
+            withJSONObject: ["connectedNodeIds": ids],
+            options: [.prettyPrinted]
+        ))
+        .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        return Response(ok: true, payload: Data(payload.utf8))
+    }
+
+    private static func handleNodeInvoke(
+        nodeId: String,
+        command: String,
+        paramsJSON: String?,
+        logger: Logger
+    ) async -> Response {
+        do {
+            let res = try await BridgeServer.shared.invoke(nodeId: nodeId, command: command, paramsJSON: paramsJSON)
+            if res.ok {
+                let payload = res.payloadJSON ?? ""
+                return Response(ok: true, payload: Data(payload.utf8))
+            }
+            let errText = res.error?.message ?? "node invoke failed"
+            return Response(ok: false, message: errText)
+        } catch {
+            logger.error("node invoke failed: \(error.localizedDescription, privacy: .public)")
+            return Response(ok: false, message: error.localizedDescription)
         }
     }
 }

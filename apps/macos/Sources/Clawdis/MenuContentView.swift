@@ -110,9 +110,8 @@ struct MenuContent: View {
                                             await self.reloadSessionMenu()
                                         }
                                     } label: {
-                                        Label(
-                                            level.capitalized,
-                                            systemImage: row.thinkingLevel == normalized ? "checkmark" : "")
+                                        let checkmark = row.thinkingLevel == normalized ? "checkmark" : ""
+                                        Label(level.capitalized, systemImage: checkmark)
                                     }
                                 }
                             }
@@ -128,9 +127,8 @@ struct MenuContent: View {
                                             await self.reloadSessionMenu()
                                         }
                                     } label: {
-                                        Label(
-                                            level.capitalized,
-                                            systemImage: row.verboseLevel == normalized ? "checkmark" : "")
+                                        let checkmark = row.verboseLevel == normalized ? "checkmark" : ""
+                                        Label(level.capitalized, systemImage: checkmark)
                                     }
                                 }
                             }
