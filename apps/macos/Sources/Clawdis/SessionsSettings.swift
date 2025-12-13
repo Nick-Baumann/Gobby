@@ -196,20 +196,13 @@ struct SessionsSettings: View {
         self.loading = true
         self.errorMessage = nil
 
-        let hints = SessionLoader.configHints()
-        let resolvedStore = SessionLoader.resolveStorePath(override: hints.storePath)
-        let defaults = SessionDefaults(
-            model: hints.model ?? SessionLoader.fallbackModel,
-            contextTokens: hints.contextTokens ?? SessionLoader.fallbackContextTokens)
-
         do {
-            let newRows = try await SessionLoader.loadRows(at: resolvedStore, defaults: defaults)
-            self.rows = newRows
-            self.storePath = resolvedStore
+            let snapshot = try await SessionLoader.loadSnapshot()
+            self.rows = snapshot.rows
+            self.storePath = snapshot.storePath
             self.lastLoaded = Date()
         } catch {
             self.rows = []
-            self.storePath = resolvedStore
             self.errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
 

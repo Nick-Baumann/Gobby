@@ -645,21 +645,9 @@ final class WebChatManager {
     }
 
     func preferredSessionKey() -> String {
-        // Prefer canonical main session; fall back to most recent.
-        let storePath = SessionLoader.defaultStorePath
-        if let data = try? Data(contentsOf: URL(fileURLWithPath: storePath)),
-           let decoded = try? JSONDecoder().decode([String: SessionEntryRecord].self, from: data)
-        {
-            if decoded.keys.contains("main") { return "main" }
-
-            let sorted = decoded.sorted { a, b -> Bool in
-                let lhs = a.value.updatedAt ?? 0
-                let rhs = b.value.updatedAt ?? 0
-                return lhs > rhs
-            }
-            if let first = sorted.first { return first.key }
-        }
-        return "+1003"
+        // The gateway store uses a canonical direct-chat bucket (default: "main").
+        // Avoid reading local session files; in remote mode they are not authoritative.
+        "main"
     }
 
     @MainActor

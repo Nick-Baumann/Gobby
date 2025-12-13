@@ -151,6 +151,7 @@ enum DebugActions {
         NSApp.terminate(nil)
     }
 
+    @MainActor
     private static func resolveSessionStorePath() -> String {
         let defaultPath = SessionLoader.defaultStorePath
         let configURL = FileManager.default.homeDirectoryForCurrentUser
@@ -172,13 +173,8 @@ enum DebugActions {
     // MARK: - Sessions (thinking / verbose)
 
     static func recentSessions(limit: Int = sessionMenuLimit) async -> [SessionRow] {
-        let hints = SessionLoader.configHints()
-        let store = SessionLoader.resolveStorePath(override: hints.storePath)
-        let defaults = SessionDefaults(
-            model: hints.model ?? SessionLoader.fallbackModel,
-            contextTokens: hints.contextTokens ?? SessionLoader.fallbackContextTokens)
-        guard let rows = try? await SessionLoader.loadRows(at: store, defaults: defaults) else { return [] }
-        return Array(rows.prefix(limit))
+        guard let snapshot = try? await SessionLoader.loadSnapshot(limit: limit) else { return [] }
+        return Array(snapshot.rows.prefix(limit))
     }
 
     static func updateSession(
@@ -186,44 +182,10 @@ enum DebugActions {
         thinking: String?,
         verbose: String?) async throws
     {
-        let hints = SessionLoader.configHints()
-        let store = SessionLoader.resolveStorePath(override: hints.storePath)
-        let url = URL(fileURLWithPath: store)
-        guard FileManager.default.fileExists(atPath: store) else {
-            throw DebugActionError.message("Session store missing at \(store)")
-        }
-
-        let data = try Data(contentsOf: url)
-        var decoded = try JSONDecoder().decode([String: SessionEntryRecord].self, from: data)
-        var entry = decoded[key] ?? SessionEntryRecord(
-            sessionId: nil,
-            updatedAt: Date().timeIntervalSince1970 * 1000,
-            systemSent: nil,
-            abortedLastRun: nil,
-            thinkingLevel: nil,
-            verboseLevel: nil,
-            inputTokens: nil,
-            outputTokens: nil,
-            totalTokens: nil,
-            model: nil,
-            contextTokens: nil)
-
-        entry = SessionEntryRecord(
-            sessionId: entry.sessionId,
-            updatedAt: Date().timeIntervalSince1970 * 1000,
-            systemSent: entry.systemSent,
-            abortedLastRun: entry.abortedLastRun,
-            thinkingLevel: thinking,
-            verboseLevel: verbose,
-            inputTokens: entry.inputTokens,
-            outputTokens: entry.outputTokens,
-            totalTokens: entry.totalTokens,
-            model: entry.model,
-            contextTokens: entry.contextTokens)
-
-        decoded[key] = entry
-        let encoded = try JSONEncoder().encode(decoded)
-        try encoded.write(to: url, options: [.atomic])
+        var params: [String: AnyHashable] = ["key": AnyHashable(key)]
+        params["thinkingLevel"] = thinking.map(AnyHashable.init) ?? AnyHashable(NSNull())
+        params["verboseLevel"] = verbose.map(AnyHashable.init) ?? AnyHashable(NSNull())
+        _ = try await ControlChannel.shared.request(method: "sessions.patch", params: params)
     }
 
     // MARK: - Port diagnostics

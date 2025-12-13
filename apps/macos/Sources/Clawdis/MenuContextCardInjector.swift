@@ -135,13 +135,8 @@ final class MenuContextCardInjector: NSObject, NSMenuDelegate {
     }
 
     private func loadCurrentRows() async throws -> [SessionRow] {
-        let hints = SessionLoader.configHints()
-        let store = SessionLoader.resolveStorePath(override: hints.storePath)
-        let defaults = SessionDefaults(
-            model: hints.model ?? SessionLoader.fallbackModel,
-            contextTokens: hints.contextTokens ?? SessionLoader.fallbackContextTokens)
-
-        let loaded = try await SessionLoader.loadRows(at: store, defaults: defaults)
+        let snapshot = try await SessionLoader.loadSnapshot()
+        let loaded = snapshot.rows
         let now = Date()
         let current = loaded.filter { row in
             if row.key == "main" { return true }
