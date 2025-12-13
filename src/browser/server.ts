@@ -6,7 +6,7 @@ import { loadConfig } from "../config/config.js";
 import { logError, logInfo, logWarn } from "../logger.js";
 import { ensureMediaDir, saveMediaBuffer } from "../media/store.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
-import { captureScreenshotPng } from "./cdp.js";
+import { captureScreenshotPng, createTargetViaCdp } from "./cdp.js";
 import {
   isChromeReachable,
   launchClawdChrome,
@@ -93,9 +93,25 @@ async function listTabs(cdpPort: number): Promise<BrowserTab[]> {
 }
 
 async function openTab(cdpPort: number, url: string): Promise<BrowserTab> {
+  // Prefer CDP websocket Target.createTarget (more stable across Chrome versions),
+  // then fall back to /json/new for older/quirky builds.
+  const createdViaCdp = await createTargetViaCdp({ cdpPort, url })
+    .then((r) => r.targetId)
+    .catch(() => null);
+
+  if (createdViaCdp) {
+    const deadline = Date.now() + 2000;
+    while (Date.now() < deadline) {
+      const tabs = await listTabs(cdpPort).catch(() => [] as BrowserTab[]);
+      const found = tabs.find((t) => t.targetId === createdViaCdp);
+      if (found) return found;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return { targetId: createdViaCdp, title: "", url, type: "page" };
+  }
+
   const encoded = encodeURIComponent(url);
 
-  // Chrome changed /json/new to require PUT (older versions allowed GET).
   type CdpTarget = {
     id?: string;
     title?: string;
@@ -103,6 +119,8 @@ async function openTab(cdpPort: number, url: string): Promise<BrowserTab> {
     webSocketDebuggerUrl?: string;
     type?: string;
   };
+
+  // Chrome changed /json/new to require PUT (older versions allowed GET).
   const endpoint = `http://127.0.0.1:${cdpPort}/json/new?${encoded}`;
   const created = await fetchJson<CdpTarget>(endpoint, 1500, {
     method: "PUT",

@@ -11,16 +11,19 @@ type Pending = {
   reject: (err: Error) => void;
 };
 
-export async function captureScreenshotPng(opts: {
-  wsUrl: string;
-  fullPage?: boolean;
-}): Promise<Buffer> {
-  const ws = new WebSocket(opts.wsUrl, { handshakeTimeout: 5000 });
+type CdpSendFn = (
+  method: string,
+  params?: Record<string, unknown>,
+) => Promise<unknown>;
 
+function createCdpSender(ws: WebSocket) {
   let nextId = 1;
   const pending = new Map<number, Pending>();
 
-  const send = (method: string, params?: Record<string, unknown>) => {
+  const send: CdpSendFn = (
+    method: string,
+    params?: Record<string, unknown>,
+  ) => {
     const id = nextId++;
     const msg = { id, method, params };
     ws.send(JSON.stringify(msg));
@@ -38,11 +41,6 @@ export async function captureScreenshotPng(opts: {
       // ignore
     }
   };
-
-  const openPromise = new Promise<void>((resolve, reject) => {
-    ws.once("open", () => resolve());
-    ws.once("error", (err) => reject(err));
-  });
 
   ws.on("message", (data) => {
     try {
@@ -63,6 +61,33 @@ export async function captureScreenshotPng(opts: {
 
   ws.on("close", () => {
     closeWithError(new Error("CDP socket closed"));
+  });
+
+  return { send, closeWithError };
+}
+
+async function fetchJson<T>(url: string, timeoutMs = 1500): Promise<T> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return (await res.json()) as T;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+export async function captureScreenshotPng(opts: {
+  wsUrl: string;
+  fullPage?: boolean;
+}): Promise<Buffer> {
+  const ws = new WebSocket(opts.wsUrl, { handshakeTimeout: 5000 });
+  const { send, closeWithError } = createCdpSender(ws);
+
+  const openPromise = new Promise<void>((resolve, reject) => {
+    ws.once("open", () => resolve());
+    ws.once("error", (err) => reject(err));
   });
 
   await openPromise;
@@ -105,4 +130,43 @@ export async function captureScreenshotPng(opts: {
   }
 
   return Buffer.from(base64, "base64");
+}
+
+export async function createTargetViaCdp(opts: {
+  cdpPort: number;
+  url: string;
+}): Promise<{ targetId: string }> {
+  const version = await fetchJson<{ webSocketDebuggerUrl?: string }>(
+    `http://127.0.0.1:${opts.cdpPort}/json/version`,
+    1500,
+  );
+  const wsUrl = String(version?.webSocketDebuggerUrl ?? "").trim();
+  if (!wsUrl) throw new Error("CDP /json/version missing webSocketDebuggerUrl");
+
+  const ws = new WebSocket(wsUrl, { handshakeTimeout: 5000 });
+  const { send, closeWithError } = createCdpSender(ws);
+
+  const openPromise = new Promise<void>((resolve, reject) => {
+    ws.once("open", () => resolve());
+    ws.once("error", (err) => reject(err));
+  });
+
+  await openPromise;
+
+  const created = (await send("Target.createTarget", { url: opts.url })) as {
+    targetId?: string;
+  };
+  const targetId = String(created?.targetId ?? "").trim();
+  if (!targetId) {
+    closeWithError(new Error("CDP Target.createTarget returned no targetId"));
+    throw new Error("CDP Target.createTarget returned no targetId");
+  }
+
+  try {
+    ws.close();
+  } catch {
+    // ignore
+  }
+
+  return { targetId };
 }
