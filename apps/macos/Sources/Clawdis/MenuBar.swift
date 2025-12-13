@@ -182,7 +182,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { await HealthStore.shared.refresh(onDemand: true) }
         Task { await PortGuardian.shared.sweep(mode: AppStateStore.shared.connectionMode) }
         Task { await self.socketServer.start() }
-        Task { await BridgeServer.shared.start() }
         self.scheduleFirstRunOnboardingIfNeeded()
 
         // Developer/testing helper: auto-open WebChat when launched with --webchat
@@ -201,7 +200,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { await AgentRPC.shared.shutdown() }
         Task { await GatewayConnection.shared.shutdown() }
         Task { await self.socketServer.stop() }
-        Task { await BridgeServer.shared.stop() }
     }
 
     @MainActor

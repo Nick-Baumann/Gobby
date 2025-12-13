@@ -17,7 +17,7 @@ This enables:
 ## Concepts
 - **Pending request**: a node asked to join; requires explicit approve/reject.
 - **Paired node**: node is allowed; gateway returns an auth token for subsequent connects.
-- **Bridge**: LAN transport that forwards between node ↔ gateway. The bridge does not decide membership.
+- **Bridge**: direct transport endpoint owned by the gateway. The bridge does not decide membership.
 
 ## API surface (gateway protocol)
 These are conceptual method names; wire them into `src/gateway/protocol/schema.ts` and regenerate Swift types.
@@ -46,20 +46,24 @@ These are conceptual method names; wire them into `src/gateway/protocol/schema.t
   - Creates (or returns) a pending request.
   - Params: node metadata (same shape as `node.pair.requested` payload, minus `requestId`/`ts`).
   - Result:
-    - `requestId`
-    - `status` ("pending" | "alreadyPaired")
-    - If already paired: may include `token` directly to allow fast path.
+    - `status` ("pending")
+    - `created` (boolean) — whether this call created the pending request
+    - `request` (pending request object), including `isRepair` when the node was already paired
+  - Security: **never returns an existing token**. If a paired node “lost” its token, it must be approved again (token rotation).
 - `node.pair.list`
   - Returns:
     - `pending[]` (pending requests)
     - `paired[]` (paired node records)
 - `node.pair.approve`
   - Params: `{ requestId }`
-  - Result: `{ nodeId, token }`
+  - Result: `{ requestId, node: { nodeId, token, ... } }`
   - Must be idempotent (first decision wins).
 - `node.pair.reject`
   - Params: `{ requestId }`
-  - Result: `{ nodeId }`
+  - Result: `{ requestId, nodeId }`
+- `node.pair.verify`
+  - Params: `{ nodeId, token }`
+  - Result: `{ ok: boolean, node?: { nodeId, ... } }`
 
 ## CLI flows
 CLI must be able to fully operate without any GUI:
@@ -80,10 +84,9 @@ Notes:
 - Pending entries should have a TTL (e.g. 5 minutes) and expire automatically.
 
 ## Bridge integration
-The macOS Bridge is responsible for:
-- Surfacing the pairing request to the gateway (`node.pair.request`).
-- Waiting for the decision (`node.pair.approve`/`reject`) and completing the on-wire pairing handshake to the node.
-- Enforcing ACLs on what the node can call, even after paired.
+Target direction:
+- The gateway runs the bridge listener (LAN/tailnet-facing) and advertises discovery beacons (Bonjour).
+- The bridge is transport only; it forwards/scopes requests and enforces ACLs, but pairing decisions are made by the gateway.
 
 The macOS UI (Swift) can:
 - Subscribe to `node.pair.requested`, show an alert, and call `node.pair.approve` or `node.pair.reject`.
@@ -91,5 +94,4 @@ The macOS UI (Swift) can:
 
 ## Implementation note
 If the bridge is only provided by the macOS app, then “no Swift app running” cannot work end-to-end.
-To support headless pairing, also add a `clawdis bridge` CLI mode that provides the Bonjour bridge service and forwards to the local gateway.
-
+The long-term goal is to move bridge hosting + Bonjour advertising into the Node gateway so headless pairing works by default.

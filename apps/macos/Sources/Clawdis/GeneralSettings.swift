@@ -5,6 +5,7 @@ struct GeneralSettings: View {
     @ObservedObject var state: AppState
     @ObservedObject private var healthStore = HealthStore.shared
     @ObservedObject private var gatewayManager = GatewayProcessManager.shared
+    @StateObject private var masterDiscovery = MasterDiscoveryModel()
     @State private var isInstallingCLI = false
     @State private var cliStatus: String?
     @State private var cliInstalled = false
@@ -124,6 +125,18 @@ struct GeneralSettings: View {
                 TextField("user@host[:22]", text: self.$state.remoteTarget)
                     .textFieldStyle(.roundedBorder)
                     .frame(maxWidth: .infinity)
+                Menu {
+                    if self.masterDiscovery.masters.isEmpty {
+                        Button(self.masterDiscovery.statusText) {}.disabled(true)
+                    } else {
+                        ForEach(self.masterDiscovery.masters) { master in
+                            Button(master.displayName) { self.applyDiscoveredMaster(master) }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "dot.radiowaves.left.and.right")
+                }
+                .help("Discover Clawdis masters on your LAN")
                 Button {
                     Task { await self.testRemote() }
                 } label: {
@@ -188,6 +201,8 @@ struct GeneralSettings: View {
                 .lineLimit(1)
         }
         .transition(.opacity)
+        .onAppear { self.masterDiscovery.start() }
+        .onDisappear { self.masterDiscovery.stop() }
     }
 
     private var controlStatusLine: String {
@@ -561,6 +576,17 @@ extension GeneralSettings {
         alert.alertStyle = .informational
         alert.addButton(withTitle: "OK")
         alert.runModal()
+    }
+
+    private func applyDiscoveredMaster(_ master: MasterDiscoveryModel.DiscoveredMaster) {
+        let host = master.tailnetDns ?? master.lanHost
+        guard let host else { return }
+        let user = NSUserName()
+        var target = "\(user)@\(host)"
+        if master.sshPort != 22 {
+            target += ":\(master.sshPort)"
+        }
+        self.state.remoteTarget = target
     }
 }
 

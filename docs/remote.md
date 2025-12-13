@@ -7,6 +7,9 @@ read_when:
 
 This repo supports “remote over SSH” by keeping a single gateway (the master) running on a host (e.g., your Mac Studio) and connecting one or more macOS menu bar clients to it. The menu app no longer shells out to `pnpm clawdis …`; it talks to the gateway over a persistent control channel that is tunneled through SSH.
 
+Remote mode is the SSH fallback transport. As Clawdis adds a direct “bridge” transport for LAN/tailnet setups, SSH remains supported for universal reach.
+See `docs/discovery.md` for how clients choose between direct vs SSH.
+
 ## Topology
 - Master: runs the gateway + control server on `127.0.0.1:18789` (in-process TCP server).
 - Clients: when “Remote over SSH” is selected, the app opens one SSH tunnel:

@@ -36,6 +36,16 @@ import {
   GatewayFrameSchema,
   type HelloOk,
   HelloOkSchema,
+  type NodePairApproveParams,
+  NodePairApproveParamsSchema,
+  type NodePairListParams,
+  NodePairListParamsSchema,
+  type NodePairRejectParams,
+  NodePairRejectParamsSchema,
+  type NodePairRequestParams,
+  NodePairRequestParamsSchema,
+  type NodePairVerifyParams,
+  NodePairVerifyParamsSchema,
   PROTOCOL_VERSION,
   type PresenceEntry,
   PresenceEntrySchema,
@@ -74,6 +84,21 @@ export const validateRequestFrame =
 export const validateSendParams = ajv.compile(SendParamsSchema);
 export const validateAgentParams = ajv.compile(AgentParamsSchema);
 export const validateWakeParams = ajv.compile<WakeParams>(WakeParamsSchema);
+export const validateNodePairRequestParams = ajv.compile<NodePairRequestParams>(
+  NodePairRequestParamsSchema,
+);
+export const validateNodePairListParams = ajv.compile<NodePairListParams>(
+  NodePairListParamsSchema,
+);
+export const validateNodePairApproveParams = ajv.compile<NodePairApproveParams>(
+  NodePairApproveParamsSchema,
+);
+export const validateNodePairRejectParams = ajv.compile<NodePairRejectParams>(
+  NodePairRejectParamsSchema,
+);
+export const validateNodePairVerifyParams = ajv.compile<NodePairVerifyParams>(
+  NodePairVerifyParamsSchema,
+);
 export const validateCronListParams =
   ajv.compile<CronListParams>(CronListParamsSchema);
 export const validateCronStatusParams = ajv.compile<CronStatusParams>(
@@ -118,6 +143,11 @@ export {
   SendParamsSchema,
   AgentParamsSchema,
   WakeParamsSchema,
+  NodePairRequestParamsSchema,
+  NodePairListParamsSchema,
+  NodePairApproveParamsSchema,
+  NodePairRejectParamsSchema,
+  NodePairVerifyParamsSchema,
   CronJobSchema,
   CronListParamsSchema,
   CronStatusParamsSchema,
@@ -152,6 +182,11 @@ export type {
   TickEvent,
   ShutdownEvent,
   WakeParams,
+  NodePairRequestParams,
+  NodePairListParams,
+  NodePairApproveParams,
+  NodePairRejectParams,
+  NodePairVerifyParams,
   CronJob,
   CronListParams,
   CronStatusParams,

@@ -30,11 +30,20 @@ import { resolveCronStorePath } from "../cron/store.js";
 import type { CronJobCreate, CronJobPatch } from "../cron/types.js";
 import { isVerbose } from "../globals.js";
 import { onAgentEvent } from "../infra/agent-events.js";
+import { startGatewayBonjourAdvertiser } from "../infra/bonjour.js";
+import { startNodeBridgeServer } from "../infra/bridge/server.js";
 import { GatewayLockError } from "../infra/gateway-lock.js";
 import {
   getLastHeartbeatEvent,
   onHeartbeatEvent,
 } from "../infra/heartbeat-events.js";
+import {
+  approveNodePairing,
+  listNodePairing,
+  rejectNodePairing,
+  requestNodePairing,
+  verifyNodeToken,
+} from "../infra/node-pairing.js";
 import { enqueueSystemEvent } from "../infra/system-events.js";
 import {
   listSystemPresence,
@@ -78,6 +87,11 @@ import {
   validateCronRunsParams,
   validateCronStatusParams,
   validateCronUpdateParams,
+  validateNodePairApproveParams,
+  validateNodePairListParams,
+  validateNodePairRejectParams,
+  validateNodePairRequestParams,
+  validateNodePairVerifyParams,
   validateRequestFrame,
   validateSendParams,
   validateWakeParams,
@@ -96,6 +110,11 @@ const METHODS = [
   "last-heartbeat",
   "set-heartbeats",
   "wake",
+  "node.pair.request",
+  "node.pair.list",
+  "node.pair.approve",
+  "node.pair.reject",
+  "node.pair.verify",
   "cron.list",
   "cron.status",
   "cron.add",
@@ -121,6 +140,8 @@ const EVENTS = [
   "health",
   "heartbeat",
   "cron",
+  "node.pair.requested",
+  "node.pair.resolved",
 ];
 
 export type GatewayServer = {
@@ -319,6 +340,8 @@ export async function startGatewayServer(
 ): Promise<GatewayServer> {
   const host = "127.0.0.1";
   const httpServer: HttpServer = createHttpServer();
+  let bonjourStop: (() => Promise<void>) | null = null;
+  let bridge: Awaited<ReturnType<typeof startNodeBridgeServer>> | null = null;
   try {
     await new Promise<void>((resolve, reject) => {
       const onError = (err: NodeJS.ErrnoException) => {
@@ -362,7 +385,7 @@ export async function startGatewayServer(
     module: "cron",
     storePath: cronStorePath,
   });
-  const cronDeps = createDefaultDeps();
+  const deps = createDefaultDeps();
   const cronEnabled =
     process.env.CLAWDIS_SKIP_CRON !== "1" && cfgAtStart.cron?.enabled === true;
   const cron = new CronService({
@@ -374,7 +397,7 @@ export async function startGatewayServer(
       const cfg = loadConfig();
       return await runCronIsolatedAgentTurn({
         cfg,
-        deps: cronDeps,
+        deps,
         job,
         message,
         sessionKey: `cron:${job.id}`,
@@ -496,6 +519,176 @@ export async function startGatewayServer(
     }
   };
 
+  const bridgeHost = process.env.CLAWDIS_BRIDGE_HOST ?? "0.0.0.0";
+  const bridgePort =
+    process.env.CLAWDIS_BRIDGE_PORT !== undefined
+      ? Number.parseInt(process.env.CLAWDIS_BRIDGE_PORT, 10)
+      : 18790;
+  const bridgeEnabled = process.env.CLAWDIS_BRIDGE_ENABLED !== "0";
+
+  const handleBridgeEvent = async (
+    nodeId: string,
+    evt: { event: string; payloadJSON?: string | null },
+  ) => {
+    switch (evt.event) {
+      case "voice.transcript": {
+        if (!evt.payloadJSON) return;
+        let payload: unknown;
+        try {
+          payload = JSON.parse(evt.payloadJSON) as unknown;
+        } catch {
+          return;
+        }
+        const obj =
+          typeof payload === "object" && payload !== null
+            ? (payload as Record<string, unknown>)
+            : {};
+        const text = typeof obj.text === "string" ? obj.text.trim() : "";
+        if (!text) return;
+        if (text.length > 20_000) return;
+        const sessionKeyRaw =
+          typeof obj.sessionKey === "string" ? obj.sessionKey.trim() : "";
+        const sessionKey =
+          sessionKeyRaw.length > 0 ? sessionKeyRaw : `node-${nodeId}`;
+        const { storePath, store, entry } = loadSessionEntry(sessionKey);
+        const now = Date.now();
+        const sessionId = entry?.sessionId ?? randomUUID();
+        store[sessionKey] = {
+          sessionId,
+          updatedAt: now,
+          thinkingLevel: entry?.thinkingLevel,
+          verboseLevel: entry?.verboseLevel,
+          systemSent: entry?.systemSent,
+          lastChannel: entry?.lastChannel,
+          lastTo: entry?.lastTo,
+        };
+        if (storePath) {
+          await saveSessionStore(storePath, store);
+        }
+
+        void agentCommand(
+          {
+            message: text,
+            sessionId,
+            thinking: "low",
+            deliver: false,
+            surface: "Iris",
+          },
+          defaultRuntime,
+          deps,
+        ).catch((err) => {
+          logWarn(`bridge: agent failed node=${nodeId}: ${formatForLog(err)}`);
+        });
+        return;
+      }
+      case "agent.request": {
+        if (!evt.payloadJSON) return;
+        type AgentDeepLink = {
+          message?: string;
+          sessionKey?: string | null;
+          thinking?: string | null;
+          deliver?: boolean;
+          to?: string | null;
+          channel?: string | null;
+          timeoutSeconds?: number | null;
+          key?: string | null;
+        };
+        let link: AgentDeepLink | null = null;
+        try {
+          link = JSON.parse(evt.payloadJSON) as AgentDeepLink;
+        } catch {
+          return;
+        }
+        const message = (link?.message ?? "").trim();
+        if (!message) return;
+        if (message.length > 20_000) return;
+
+        const channelRaw =
+          typeof link?.channel === "string" ? link.channel.trim() : "";
+        const channel = channelRaw.toLowerCase();
+        const provider =
+          channel === "whatsapp" || channel === "telegram"
+            ? channel
+            : undefined;
+        const to =
+          typeof link?.to === "string" && link.to.trim()
+            ? link.to.trim()
+            : undefined;
+        const deliver = Boolean(link?.deliver) && Boolean(provider);
+
+        const sessionKeyRaw = (link?.sessionKey ?? "").trim();
+        const sessionKey =
+          sessionKeyRaw.length > 0 ? sessionKeyRaw : `node-${nodeId}`;
+        const { storePath, store, entry } = loadSessionEntry(sessionKey);
+        const now = Date.now();
+        const sessionId = entry?.sessionId ?? randomUUID();
+        store[sessionKey] = {
+          sessionId,
+          updatedAt: now,
+          thinkingLevel: entry?.thinkingLevel,
+          verboseLevel: entry?.verboseLevel,
+          systemSent: entry?.systemSent,
+          lastChannel: entry?.lastChannel,
+          lastTo: entry?.lastTo,
+        };
+        if (storePath) {
+          await saveSessionStore(storePath, store);
+        }
+
+        void agentCommand(
+          {
+            message,
+            sessionId,
+            thinking: link?.thinking ?? undefined,
+            deliver,
+            to,
+            provider,
+            timeout:
+              typeof link?.timeoutSeconds === "number"
+                ? link.timeoutSeconds.toString()
+                : undefined,
+            surface: "Iris",
+          },
+          defaultRuntime,
+          deps,
+        ).catch((err) => {
+          logWarn(`bridge: agent failed node=${nodeId}: ${formatForLog(err)}`);
+        });
+        return;
+      }
+      default:
+        return;
+    }
+  };
+
+  if (bridgeEnabled && bridgePort > 0) {
+    try {
+      const started = await startNodeBridgeServer({
+        host: bridgeHost,
+        port: bridgePort,
+        onEvent: handleBridgeEvent,
+      });
+      if (started.port > 0) {
+        bridge = started;
+        defaultRuntime.log(
+          `bridge listening on tcp://${bridgeHost}:${bridge.port} (Iris)`,
+        );
+      }
+    } catch (err) {
+      logWarn(`gateway: bridge failed to start: ${String(err)}`);
+    }
+  }
+
+  try {
+    const bonjour = await startGatewayBonjourAdvertiser({
+      gatewayPort: port,
+      bridgePort: bridge?.port,
+    });
+    bonjourStop = bonjour.stop;
+  } catch (err) {
+    logWarn(`gateway: bonjour advertising failed: ${String(err)}`);
+  }
+
   broadcastHealthUpdate = (snap: HealthSummary) => {
     broadcast("health", snap, {
       stateVersion: { presence: presenceVersion, health: healthVersion },
@@ -606,7 +799,6 @@ export async function startGatewayServer(
     let client: Client | null = null;
     let closed = false;
     const connId = randomUUID();
-    const deps = createDefaultDeps();
     const remoteAddr = (
       socket as WebSocket & { _socket?: { remoteAddress?: string } }
     )._socket?.remoteAddress;
@@ -1338,6 +1530,191 @@ export async function startGatewayServer(
             respond(true, { ok: true }, undefined);
             break;
           }
+          case "node.pair.request": {
+            const params = (req.params ?? {}) as Record<string, unknown>;
+            if (!validateNodePairRequestParams(params)) {
+              respond(
+                false,
+                undefined,
+                errorShape(
+                  ErrorCodes.INVALID_REQUEST,
+                  `invalid node.pair.request params: ${formatValidationErrors(validateNodePairRequestParams.errors)}`,
+                ),
+              );
+              break;
+            }
+            const p = params as {
+              nodeId: string;
+              displayName?: string;
+              platform?: string;
+              version?: string;
+              remoteIp?: string;
+            };
+            try {
+              const result = await requestNodePairing({
+                nodeId: p.nodeId,
+                displayName: p.displayName,
+                platform: p.platform,
+                version: p.version,
+                remoteIp: p.remoteIp,
+              });
+              if (result.status === "pending" && result.created) {
+                broadcast("node.pair.requested", result.request, {
+                  dropIfSlow: true,
+                });
+              }
+              respond(true, result, undefined);
+            } catch (err) {
+              respond(
+                false,
+                undefined,
+                errorShape(ErrorCodes.UNAVAILABLE, formatForLog(err)),
+              );
+            }
+            break;
+          }
+          case "node.pair.list": {
+            const params = (req.params ?? {}) as Record<string, unknown>;
+            if (!validateNodePairListParams(params)) {
+              respond(
+                false,
+                undefined,
+                errorShape(
+                  ErrorCodes.INVALID_REQUEST,
+                  `invalid node.pair.list params: ${formatValidationErrors(validateNodePairListParams.errors)}`,
+                ),
+              );
+              break;
+            }
+            try {
+              const list = await listNodePairing();
+              respond(true, list, undefined);
+            } catch (err) {
+              respond(
+                false,
+                undefined,
+                errorShape(ErrorCodes.UNAVAILABLE, formatForLog(err)),
+              );
+            }
+            break;
+          }
+          case "node.pair.approve": {
+            const params = (req.params ?? {}) as Record<string, unknown>;
+            if (!validateNodePairApproveParams(params)) {
+              respond(
+                false,
+                undefined,
+                errorShape(
+                  ErrorCodes.INVALID_REQUEST,
+                  `invalid node.pair.approve params: ${formatValidationErrors(validateNodePairApproveParams.errors)}`,
+                ),
+              );
+              break;
+            }
+            const { requestId } = params as { requestId: string };
+            try {
+              const approved = await approveNodePairing(requestId);
+              if (!approved) {
+                respond(
+                  false,
+                  undefined,
+                  errorShape(ErrorCodes.INVALID_REQUEST, "unknown requestId"),
+                );
+                break;
+              }
+              broadcast(
+                "node.pair.resolved",
+                {
+                  requestId,
+                  nodeId: approved.node.nodeId,
+                  decision: "approved",
+                  ts: Date.now(),
+                },
+                { dropIfSlow: true },
+              );
+              respond(true, approved, undefined);
+            } catch (err) {
+              respond(
+                false,
+                undefined,
+                errorShape(ErrorCodes.UNAVAILABLE, formatForLog(err)),
+              );
+            }
+            break;
+          }
+          case "node.pair.reject": {
+            const params = (req.params ?? {}) as Record<string, unknown>;
+            if (!validateNodePairRejectParams(params)) {
+              respond(
+                false,
+                undefined,
+                errorShape(
+                  ErrorCodes.INVALID_REQUEST,
+                  `invalid node.pair.reject params: ${formatValidationErrors(validateNodePairRejectParams.errors)}`,
+                ),
+              );
+              break;
+            }
+            const { requestId } = params as { requestId: string };
+            try {
+              const rejected = await rejectNodePairing(requestId);
+              if (!rejected) {
+                respond(
+                  false,
+                  undefined,
+                  errorShape(ErrorCodes.INVALID_REQUEST, "unknown requestId"),
+                );
+                break;
+              }
+              broadcast(
+                "node.pair.resolved",
+                {
+                  requestId,
+                  nodeId: rejected.nodeId,
+                  decision: "rejected",
+                  ts: Date.now(),
+                },
+                { dropIfSlow: true },
+              );
+              respond(true, rejected, undefined);
+            } catch (err) {
+              respond(
+                false,
+                undefined,
+                errorShape(ErrorCodes.UNAVAILABLE, formatForLog(err)),
+              );
+            }
+            break;
+          }
+          case "node.pair.verify": {
+            const params = (req.params ?? {}) as Record<string, unknown>;
+            if (!validateNodePairVerifyParams(params)) {
+              respond(
+                false,
+                undefined,
+                errorShape(
+                  ErrorCodes.INVALID_REQUEST,
+                  `invalid node.pair.verify params: ${formatValidationErrors(validateNodePairVerifyParams.errors)}`,
+                ),
+              );
+              break;
+            }
+            const { nodeId, token } = params as {
+              nodeId: string;
+              token: string;
+            };
+            try {
+              const result = await verifyNodeToken(nodeId, token);
+              respond(true, result, undefined);
+            } catch (err) {
+              respond(
+                false,
+                undefined,
+                errorShape(ErrorCodes.UNAVAILABLE, formatForLog(err)),
+              );
+            }
+            break;
+          }
           case "send": {
             const p = (req.params ?? {}) as Record<string, unknown>;
             if (!validateSendParams(p)) {
@@ -1682,6 +2059,20 @@ export async function startGatewayServer(
 
   return {
     close: async () => {
+      if (bonjourStop) {
+        try {
+          await bonjourStop();
+        } catch {
+          /* ignore */
+        }
+      }
+      if (bridge) {
+        try {
+          await bridge.close();
+        } catch {
+          /* ignore */
+        }
+      }
       providerAbort.abort();
       cron.stop();
       broadcast("shutdown", {

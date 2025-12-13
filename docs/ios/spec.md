@@ -31,10 +31,10 @@ Non-goals (v1):
 - macOS “Canvas” exists today, but is **mac-only** and controlled via mac app IPC (`clawdis-mac canvas ...`) rather than the Gateway protocol (`docs/mac/canvas.md`).
 - Voice wake forwards via `GatewayChannel` to Gateway `agent` (mac app: `VoiceWakeForwarder` → `AgentRPC`).
 
-## Recommended topology (B): macOS Bridge + loopback Gateway
-Keep the Node gateway loopback-only; expose a dedicated **macOS bridge** to the LAN.
+## Recommended topology (B): Gateway-owned Bridge + loopback Gateway
+Keep the Node gateway loopback-only; expose a dedicated **gateway-owned bridge** to the LAN/tailnet.
 
-**iOS App** ⇄ (TLS + pairing) ⇄ **macOS Bridge** ⇄ (loopback) ⇄ **Gateway WS** (`ws://127.0.0.1:18789`)
+**iOS App** ⇄ (TLS + pairing) ⇄ **Bridge (in gateway)** ⇄ (loopback) ⇄ **Gateway WS** (`ws://127.0.0.1:18789`)
 
 Why:
 - Preserves current threat model: Gateway remains local-only.
@@ -70,6 +70,11 @@ Desired behavior:
 - If the Swift UI is not present: `clawdis` CLI can list pending requests and approve/reject.
 
 See `docs/gateway/pairing.md` for the API/events and storage.
+
+CLI (headless approvals):
+- `clawdis nodes pending`
+- `clawdis nodes approve <requestId>`
+- `clawdis nodes reject <requestId>`
 
 ### Authorization / scope control (bridge-side ACL)
 The bridge must not be a raw proxy to every gateway method.
@@ -183,8 +188,8 @@ open ClawdisNode.xcodeproj
 - Keep current Canvas root (already implemented):
   - `~/Library/Application Support/Clawdis/canvas/<session>/...`
 - Bridge state:
-  - `~/Library/Application Support/Clawdis/bridge/paired-nodes.json`
-  - `~/Library/Application Support/Clawdis/bridge/keys/...`
+  - No local pairing store (pairing is gateway-owned).
+  - Any local bridge-only state should remain private under Application Support.
 
 ### Gateway (node)
 - Pairing (source of truth):

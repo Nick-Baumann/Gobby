@@ -13,6 +13,7 @@ import { startWebChatServer } from "../webchat/server.js";
 import { registerCronCli } from "./cron-cli.js";
 import { createDefaultDeps } from "./deps.js";
 import { registerGatewayCli } from "./gateway-cli.js";
+import { registerNodesCli } from "./nodes-cli.js";
 import { forceFreePort } from "./ports.js";
 
 export { forceFreePort };
@@ -209,6 +210,7 @@ Examples:
     });
 
   registerGatewayCli(program);
+  registerNodesCli(program);
   registerCronCli(program);
   program
     .command("status")

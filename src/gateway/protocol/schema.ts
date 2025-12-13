@@ -211,6 +211,37 @@ export const WakeParamsSchema = Type.Object(
   { additionalProperties: false },
 );
 
+export const NodePairRequestParamsSchema = Type.Object(
+  {
+    nodeId: NonEmptyString,
+    displayName: Type.Optional(NonEmptyString),
+    platform: Type.Optional(NonEmptyString),
+    version: Type.Optional(NonEmptyString),
+    remoteIp: Type.Optional(NonEmptyString),
+  },
+  { additionalProperties: false },
+);
+
+export const NodePairListParamsSchema = Type.Object(
+  {},
+  { additionalProperties: false },
+);
+
+export const NodePairApproveParamsSchema = Type.Object(
+  { requestId: NonEmptyString },
+  { additionalProperties: false },
+);
+
+export const NodePairRejectParamsSchema = Type.Object(
+  { requestId: NonEmptyString },
+  { additionalProperties: false },
+);
+
+export const NodePairVerifyParamsSchema = Type.Object(
+  { nodeId: NonEmptyString, token: NonEmptyString },
+  { additionalProperties: false },
+);
+
 export const CronScheduleSchema = Type.Union([
   Type.Object(
     {
@@ -441,6 +472,11 @@ export const ProtocolSchemas: Record<string, TSchema> = {
   SendParams: SendParamsSchema,
   AgentParams: AgentParamsSchema,
   WakeParams: WakeParamsSchema,
+  NodePairRequestParams: NodePairRequestParamsSchema,
+  NodePairListParams: NodePairListParamsSchema,
+  NodePairApproveParams: NodePairApproveParamsSchema,
+  NodePairRejectParams: NodePairRejectParamsSchema,
+  NodePairVerifyParams: NodePairVerifyParamsSchema,
   CronJob: CronJobSchema,
   CronListParams: CronListParamsSchema,
   CronStatusParams: CronStatusParamsSchema,
@@ -471,6 +507,11 @@ export type ErrorShape = Static<typeof ErrorShapeSchema>;
 export type StateVersion = Static<typeof StateVersionSchema>;
 export type AgentEvent = Static<typeof AgentEventSchema>;
 export type WakeParams = Static<typeof WakeParamsSchema>;
+export type NodePairRequestParams = Static<typeof NodePairRequestParamsSchema>;
+export type NodePairListParams = Static<typeof NodePairListParamsSchema>;
+export type NodePairApproveParams = Static<typeof NodePairApproveParamsSchema>;
+export type NodePairRejectParams = Static<typeof NodePairRejectParamsSchema>;
+export type NodePairVerifyParams = Static<typeof NodePairVerifyParamsSchema>;
 export type CronJob = Static<typeof CronJobSchema>;
 export type CronListParams = Static<typeof CronListParamsSchema>;
 export type CronStatusParams = Static<typeof CronStatusParamsSchema>;
