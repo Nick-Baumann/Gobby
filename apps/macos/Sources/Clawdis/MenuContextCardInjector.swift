@@ -7,6 +7,7 @@ final class MenuContextCardInjector: NSObject, NSMenuDelegate {
 
     private let tag = 9_415_227
     private let fallbackCardWidth: CGFloat = 320
+    private var lastKnownMenuWidth: CGFloat?
     private weak var originalDelegate: NSMenuDelegate?
     private var loadTask: Task<Void, Never>?
     private var warmTask: Task<Void, Never>?
@@ -55,9 +56,10 @@ final class MenuContextCardInjector: NSObject, NSMenuDelegate {
 
         let hosting = NSHostingView(rootView: initial)
         let size = hosting.fittingSize
+        let initialWidth = self.initialCardWidth(for: menu)
         hosting.frame = NSRect(
             origin: .zero,
-            size: NSSize(width: self.initialCardWidth(for: menu), height: size.height))
+            size: NSSize(width: initialWidth, height: size.height))
 
         let item = NSMenuItem()
         item.tag = self.tag
@@ -66,10 +68,10 @@ final class MenuContextCardInjector: NSObject, NSMenuDelegate {
 
         menu.insertItem(item, at: insertIndex)
 
-        // After the menu attaches the view to its window, adopt the menu's computed width.
+        // Capture the menu window width for next open, but do not mutate widths while the menu is visible.
         DispatchQueue.main.async { [weak self, weak hosting] in
             guard let self, let hosting else { return }
-            self.adoptMenuWidthIfAvailable(for: menu, hosting: hosting)
+            self.captureMenuWidthIfAvailable(for: menu, hosting: hosting)
         }
 
         if initialIsLoading {
@@ -80,7 +82,7 @@ final class MenuContextCardInjector: NSObject, NSMenuDelegate {
                 await MainActor.run {
                     hosting.rootView = view
                     hosting.invalidateIntrinsicContentSize()
-                    self.adoptMenuWidthIfAvailable(for: menu, hosting: hosting)
+                    self.captureMenuWidthIfAvailable(for: menu, hosting: hosting)
                     let size = hosting.fittingSize
                     hosting.frame.size.height = size.height
                 }
@@ -165,12 +167,16 @@ final class MenuContextCardInjector: NSObject, NSMenuDelegate {
     }
 
     private func initialCardWidth(for menu: NSMenu) -> CGFloat {
-        let width = menu.minimumWidth
-        if width > 0 { return max(300, width) }
-        return 300
+        let widthCandidates: [CGFloat] = [
+            menu.minimumWidth,
+            self.lastKnownMenuWidth ?? 0,
+            self.fallbackCardWidth,
+        ]
+        let resolved = widthCandidates.max() ?? self.fallbackCardWidth
+        return max(300, resolved)
     }
 
-    private func adoptMenuWidthIfAvailable(for menu: NSMenu, hosting: NSHostingView<AnyView>) {
+    private func captureMenuWidthIfAvailable(for menu: NSMenu, hosting: NSHostingView<AnyView>) {
         let targetWidth: CGFloat? = {
             if let contentWidth = hosting.window?.contentView?.bounds.width, contentWidth > 0 { return contentWidth }
             if let superWidth = hosting.superview?.bounds.width, superWidth > 0 { return superWidth }
@@ -179,15 +185,7 @@ final class MenuContextCardInjector: NSObject, NSMenuDelegate {
             return nil
         }()
 
-        guard let targetWidth else {
-            if hosting.frame.width <= 0 {
-                hosting.frame.size.width = self.fallbackCardWidth
-            }
-            return
-        }
-
-        let clamped = max(300, targetWidth)
-        if abs(hosting.frame.width - clamped) < 1 { return }
-        hosting.frame.size.width = clamped
+        guard let targetWidth else { return }
+        self.lastKnownMenuWidth = max(300, targetWidth)
     }
 }
