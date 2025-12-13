@@ -8,7 +8,7 @@ read_when:
 Date: 2025-12-06 · Status: draft · Owner: steipete
 
 ## Goal
-Run the Node-based Clawdis/clawdis gateway as a direct child of the LSUIElement app (instead of a launchd agent) while keeping all TCC-sensitive work inside the Swift app/XPC and wiring the existing “Clawdis Active” toggle to start/stop the child.
+Run the Node-based Clawdis/clawdis gateway as a direct child of the LSUIElement app (instead of a launchd agent) while keeping all TCC-sensitive work inside the Swift app/broker layer and wiring the existing “Clawdis Active” toggle to start/stop the child.
 
 ## When to prefer the child-process mode
 - You want gateway lifetime strictly coupled to the menu-bar app (dies when the app quits) and controlled by the “Clawdis Active” toggle without touching launchd.
@@ -18,12 +18,13 @@ Run the Node-based Clawdis/clawdis gateway as a direct child of the LSUIElement 
 ## Tradeoffs vs. launchd
 - **Pros:** tighter coupling to UI state; simpler surface (no plist install/bootout); easier to stream stdout/stderr; fewer moving parts for beta users.
 - **Cons:** no built-in KeepAlive/login auto-start; app crash kills gateway; you must build your own restart/backoff; Activity Monitor will show both processes under the app; still need correct TCC handling (see below).
-- **TCC:** behaviorally, child processes often inherit the parent app’s “responsible process” for TCC, but this is *not a contract*. Continue to route all protected actions through the Swift app/XPC so prompts stay tied to the signed app bundle.
+- **TCC:** behaviorally, child processes often inherit the parent app’s “responsible process” for TCC, but this is *not a contract*. Continue to route all protected actions through the Swift app/broker so prompts stay tied to the signed app bundle.
 
 ## TCC guardrails (must keep)
-- Screen Recording, Accessibility, mic, and speech prompts must originate from the Swift app/XPC. The Node child should never call these APIs directly; use the existing XPC/CLI broker (`clawdis-mac`) for:
+- Screen Recording, Accessibility, mic, and speech prompts must originate from the signed Swift app/broker. The Node child should never call these APIs directly; use the CLI broker (`clawdis-mac`) for:
   - `ensure-permissions`
-  - `ui screenshot` / ScreenCaptureKit work
+  - `ui screenshot` (via PeekabooBridge host)
+  - other `ui …` automation (see/click/type/scroll/wait) when implemented
   - mic/speech permission checks
   - notifications
   - shell runs that need `needs-screen-recording`
@@ -48,7 +49,7 @@ Run the Node-based Clawdis/clawdis gateway as a direct child of the LSUIElement 
 ## Packaging and signing
 - Bundle the gateway payload (dist + production node_modules) under `Contents/Resources/Gateway/`; rely on host Node ≥22 instead of embedding a runtime.
 - Codesign native addons and dylibs inside the bundle; no nested runtime binary to sign now.
-- Host runtime should not call TCC APIs directly; keep privileged work inside the app/XPC.
+- Host runtime should not call TCC APIs directly; keep privileged work inside the app/broker.
 
 ## Logging and observability
 - Stream child stdout/stderr to `/tmp/clawdis-gateway.log`; surface the last N lines in the Debug tab.
@@ -58,14 +59,14 @@ Run the Node-based Clawdis/clawdis gateway as a direct child of the LSUIElement 
 ## Failure/edge cases
 - App crash/quit kills the gateway. Decide if that is acceptable for the deployment tier; otherwise, stick with launchd for production and keep child-process for dev/experiments.
 - If the gateway exits repeatedly, back off (e.g., 1s/2s/5s/10s) and give up after N attempts with a menu warning.
-- Respect the existing pause semantics: when paused, the XPC should return `ok=false, "clawdis paused"`; the gateway should avoid calling privileged routes while paused.
+- Respect the existing pause semantics: when paused, the broker should return `ok=false, "clawdis paused"`; the gateway should avoid calling privileged routes while paused.
 
 ## Open questions / follow-ups
 - Do we need dual-mode (launchd for prod, child for dev)? If yes, gate via a setting or build flag.
 - Embedding a runtime is off the table for now; we rely on host Node for size/simplicity. Revisit only if host PATH drift becomes painful.
-- Do we want a tiny signed helper for rare TCC actions that cannot be brokered via XPC?
+- Do we want a tiny signed helper for rare TCC actions that cannot be brokered via the Swift app/broker?
 
 ## Decision snapshot (current recommendation)
-- Keep all TCC surfaces in the Swift app/XPC.
+- Keep all TCC surfaces in the Swift app/broker (control socket + PeekabooBridgeHost).
 - Implement `GatewayProcessManager` with Swift Subprocess to start/stop the gateway on the “Clawdis Active” toggle.
 - Maintain the launchd path as a fallback for uptime/login persistence until child-mode proves stable. 

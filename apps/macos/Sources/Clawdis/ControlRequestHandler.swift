@@ -58,53 +58,6 @@ enum ControlRequestHandler {
             let result = await AgentRPC.shared.status()
             return Response(ok: result.ok, message: result.error)
 
-        case .uiListScreens:
-            let screens = await MainActor.run { UIScreenService.listScreens() }
-            let payload = try JSONEncoder().encode(screens)
-            return Response(ok: true, payload: payload)
-
-        case let .uiScreenshot(screenIndex, windowID):
-            let authorized = await PermissionManager
-                .ensure([.screenRecording], interactive: false)[.screenRecording] ?? false
-            guard authorized else { return Response(ok: false, message: "screen recording permission missing") }
-
-            let resolution: (screenIndex: Int?, displayID: UInt32?) = await Task { @MainActor in
-                if let screenIndex,
-                   let match = UIScreenService.listScreens().first(where: { $0.index == screenIndex })
-                {
-                    return (screenIndex, match.displayID)
-                }
-                return (nil, nil)
-            }.value
-
-            let data = await Task { @MainActor in
-                await Screenshotter.capture(displayID: resolution.displayID, windowID: windowID)
-            }.value
-
-            guard let data else {
-                return Response(ok: false, message: "screenshot failed")
-            }
-
-            let dir = FileManager.default.temporaryDirectory.appendingPathComponent("clawdis-ui", isDirectory: true)
-            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            let outURL = dir.appendingPathComponent("screenshot-\(Int(Date().timeIntervalSince1970 * 1000)).png")
-            do {
-                try data.write(to: outURL)
-            } catch {
-                return Response(ok: false, message: "failed to write screenshot: \(error.localizedDescription)")
-            }
-
-            let size = ScreenshotSize.readPNGSize(data: data)
-            let result = UIScreenshotResult(
-                path: outURL.path,
-                width: size?.width ?? 0,
-                height: size?.height ?? 0,
-                screenIndex: resolution.screenIndex,
-                displayID: resolution.displayID,
-                windowID: windowID)
-            let payload = try JSONEncoder().encode(result)
-            return Response(ok: true, payload: payload)
-
         case let .runShell(command, cwd, env, timeoutSec, needsSR):
             if needsSR {
                 let authorized = await PermissionManager

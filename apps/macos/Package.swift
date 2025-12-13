@@ -18,6 +18,9 @@ let package = Package(
         .package(url: "https://github.com/swiftlang/swift-subprocess.git", from: "0.1.0"),
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.8.1"),
         .package(path: "../shared/ClawdisKit"),
+        .package(path: "../../Peekaboo/Core/PeekabooCore"),
+        .package(path: "../../Peekaboo/Core/PeekabooAutomationKit"),
+        .package(path: "../../Peekaboo/Core/PeekabooVisualizer"),
     ],
     targets: [
         .target(
@@ -42,6 +45,9 @@ let package = Package(
                 .product(name: "MenuBarExtraAccess", package: "MenuBarExtraAccess"),
                 .product(name: "Subprocess", package: "swift-subprocess"),
                 .product(name: "Sparkle", package: "Sparkle"),
+                .product(name: "PeekabooBridge", package: "PeekabooCore"),
+                .product(name: "PeekabooAutomationKit", package: "PeekabooAutomationKit"),
+                .product(name: "PeekabooVisualizer", package: "PeekabooVisualizer"),
             ],
             resources: [
                 .copy("Resources/Clawdis.icns"),
@@ -55,6 +61,8 @@ let package = Package(
             dependencies: [
                 "ClawdisIPC",
                 "ClawdisProtocol",
+                .product(name: "PeekabooBridge", package: "PeekabooCore"),
+                .product(name: "PeekabooAutomationKit", package: "PeekabooAutomationKit"),
             ],
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),

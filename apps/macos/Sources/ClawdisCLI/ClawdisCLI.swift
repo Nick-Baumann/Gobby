@@ -15,6 +15,11 @@ struct ClawdisCLI {
                 exit(code)
             }
 
+            if args.first == "ui" {
+                let code = try await UICLI.run(args: Array(args.dropFirst()), jsonOutput: jsonOutput)
+                exit(code)
+            }
+
             let parsed = try parseCommandLine(args: args)
             let response = try await send(request: parsed.request)
 
@@ -42,8 +47,6 @@ struct ClawdisCLI {
         var kind: Kind
 
         enum Kind {
-            case uiScreens
-            case uiScreenshot
             case generic
         }
     }
@@ -99,29 +102,6 @@ struct ClawdisCLI {
             }
             if caps.isEmpty { caps = Capability.allCases }
             return ParsedCLIRequest(request: .ensurePermissions(caps, interactive: interactive), kind: .generic)
-
-        case "ui":
-            guard let sub = args.first else { throw CLIError.help }
-            args = Array(args.dropFirst())
-
-            switch sub {
-            case "screens":
-                return ParsedCLIRequest(request: .uiListScreens, kind: .uiScreens)
-            case "screenshot":
-                var screenIndex: Int?
-                var windowID: UInt32?
-                while !args.isEmpty {
-                    let arg = args.removeFirst()
-                    switch arg {
-                    case "--screen-index": screenIndex = args.popFirst().flatMap(Int.init)
-                    case "--window-id": windowID = args.popFirst().flatMap(UInt32.init)
-                    default: break
-                    }
-                }
-                return ParsedCLIRequest(request: .uiScreenshot(screenIndex: screenIndex, windowID: windowID), kind: .uiScreenshot)
-            default:
-                throw CLIError.help
-            }
 
         case "run":
             var cwd: String?
@@ -333,24 +313,6 @@ struct ClawdisCLI {
         }
 
         switch parsed.kind {
-        case .uiScreens:
-            let screens = try self.decodePayload([UIScreenInfo].self, payload: response.payload)
-            if screens.isEmpty {
-                FileHandle.standardOutput.write(Data("No screens\n".utf8))
-                return
-            }
-            for s in screens {
-                let primary = s.isPrimary ? " (primary)" : ""
-                let size = "\(Int(s.frame.width))×\(Int(s.frame.height))"
-                let scale = String(format: "%.1f", Double(s.scaleFactor))
-                let line = "Display \(s.index + 1)\(primary): \(s.name) \(size) @\(scale)x (id \(s.displayID))\n"
-                FileHandle.standardOutput.write(Data(line.utf8))
-            }
-
-        case .uiScreenshot:
-            let result = try self.decodePayload(UIScreenshotResult.self, payload: response.payload)
-            FileHandle.standardOutput.write(Data((result.path + "\n").utf8))
-
         case .generic:
             if let payload = response.payload, let text = String(data: payload, encoding: .utf8), !text.isEmpty {
                 FileHandle.standardOutput.write(payload)
@@ -370,22 +332,6 @@ struct ClawdisCLI {
         ]
 
         switch parsed.kind {
-        case .uiScreens:
-            if let payload = response.payload,
-               let obj = try? JSONSerialization.jsonObject(with: payload) {
-                output["result"] = obj
-            } else {
-                output["result"] = []
-            }
-
-        case .uiScreenshot:
-            if let payload = response.payload,
-               let obj = try? JSONSerialization.jsonObject(with: payload) {
-                output["result"] = obj
-            } else {
-                output["result"] = NSNull()
-            }
-
         case .generic:
             if let payload = response.payload, !payload.isEmpty {
                 if let obj = try? JSONSerialization.jsonObject(with: payload) {
@@ -424,8 +370,12 @@ struct ClawdisCLI {
               [--interactive]
 
           UI:
-            clawdis-mac ui screens
-            clawdis-mac ui screenshot [--screen-index <n>] [--window-id <u32>]
+            clawdis-mac ui screenshot [...]
+            clawdis-mac ui see [...]
+            clawdis-mac ui click ...
+            clawdis-mac ui type ...
+            clawdis-mac ui wait ...
+            clawdis-mac ui --help
 
           Shell:
             clawdis-mac run [--cwd <path>] [--env KEY=VAL] [--timeout <sec>]

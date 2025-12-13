@@ -22,5 +22,5 @@ Shapes & sizes
 - Scurry uses leg wiggle up to ~1.0 with a small horizontal jiggle; it’s additive to any existing idle wiggle.
 
 Behavioral notes
-- No external CLI/XPC toggle for ears/working; keep it internal to the app’s own signals to avoid accidental flapping.
+- No external CLI/broker toggle for ears/working; keep it internal to the app’s own signals to avoid accidental flapping.
 - Keep TTLs short (<10s) so the icon returns to baseline quickly if a job hangs.

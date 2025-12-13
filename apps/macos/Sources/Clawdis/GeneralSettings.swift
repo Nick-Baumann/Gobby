@@ -58,6 +58,11 @@ struct GeneralSettings: View {
                         binding: self.$state.canvasEnabled)
 
                     SettingsToggleRow(
+                        title: "Enable Peekaboo Bridge",
+                        subtitle: "Allow signed tools to drive UI automation via `clawdis-mac ui …`.",
+                        binding: self.$state.peekabooBridgeEnabled)
+
+                    SettingsToggleRow(
                         title: "Enable debug tools",
                         subtitle: "Show the Debug tab with development utilities.",
                         binding: self.$state.debugPaneEnabled)

@@ -69,7 +69,7 @@ Implementation notes:
 
 ## Agent API surface (proposed)
 
-Expose Canvas via the existing `clawdis-mac` → XPC → app routing so the agent can:
+Expose Canvas via the existing `clawdis-mac` → control socket → app routing so the agent can:
 - Show/hide the panel.
 - Navigate to a path (relative to the session root).
 - Evaluate JavaScript and optionally return results.

@@ -50,64 +50,6 @@ public struct CanvasPlacement: Codable, Sendable {
     }
 }
 
-// MARK: - UI (Peekaboo-aligned types)
-
-/// Display info aligned with Peekaboo's `ScreenService.ScreenInfo`:
-/// - `index` is the 0-based position in `NSScreen.screens` at runtime.
-/// - `frame`/`visibleFrame` are AppKit screen rectangles (bottom-left origin).
-public struct UIScreenInfo: Codable, Sendable {
-    public let index: Int
-    public let name: String
-    public let frame: CGRect
-    public let visibleFrame: CGRect
-    public let isPrimary: Bool
-    public let scaleFactor: CGFloat
-    public let displayID: UInt32
-
-    public init(
-        index: Int,
-        name: String,
-        frame: CGRect,
-        visibleFrame: CGRect,
-        isPrimary: Bool,
-        scaleFactor: CGFloat,
-        displayID: UInt32)
-    {
-        self.index = index
-        self.name = name
-        self.frame = frame
-        self.visibleFrame = visibleFrame
-        self.isPrimary = isPrimary
-        self.scaleFactor = scaleFactor
-        self.displayID = displayID
-    }
-}
-
-public struct UIScreenshotResult: Codable, Sendable {
-    public let path: String
-    public let width: Int
-    public let height: Int
-    public let screenIndex: Int?
-    public let displayID: UInt32?
-    public let windowID: UInt32?
-
-    public init(
-        path: String,
-        width: Int,
-        height: Int,
-        screenIndex: Int? = nil,
-        displayID: UInt32? = nil,
-        windowID: UInt32? = nil)
-    {
-        self.path = path
-        self.width = width
-        self.height = height
-        self.screenIndex = screenIndex
-        self.displayID = displayID
-        self.windowID = windowID
-    }
-}
-
 public enum Request: Sendable {
     case notify(
         title: String,
@@ -116,8 +58,6 @@ public enum Request: Sendable {
         priority: NotificationPriority?,
         delivery: NotificationDelivery?)
     case ensurePermissions([Capability], interactive: Bool)
-    case uiListScreens
-    case uiScreenshot(screenIndex: Int?, windowID: UInt32?)
     case runShell(
         command: [String],
         cwd: String?,
@@ -158,7 +98,6 @@ extension Request: Codable {
         case type
         case title, body, sound, priority, delivery
         case caps, interactive
-        case screenIndex, windowID
         case command, cwd, env, timeoutSec, needsScreenRecording
         case message, thinking, session, deliver, to
         case rpcStatus
@@ -174,8 +113,6 @@ extension Request: Codable {
     private enum Kind: String, Codable {
         case notify
         case ensurePermissions
-        case uiListScreens
-        case uiScreenshot
         case runShell
         case status
         case agent
@@ -204,14 +141,6 @@ extension Request: Codable {
             try container.encode(Kind.ensurePermissions, forKey: .type)
             try container.encode(caps, forKey: .caps)
             try container.encode(interactive, forKey: .interactive)
-
-        case .uiListScreens:
-            try container.encode(Kind.uiListScreens, forKey: .type)
-
-        case let .uiScreenshot(screenIndex, windowID):
-            try container.encode(Kind.uiScreenshot, forKey: .type)
-            try container.encodeIfPresent(screenIndex, forKey: .screenIndex)
-            try container.encodeIfPresent(windowID, forKey: .windowID)
 
         case let .runShell(command, cwd, env, timeoutSec, needsSR):
             try container.encode(Kind.runShell, forKey: .type)
@@ -288,14 +217,6 @@ extension Request: Codable {
             let caps = try container.decode([Capability].self, forKey: .caps)
             let interactive = try container.decode(Bool.self, forKey: .interactive)
             self = .ensurePermissions(caps, interactive: interactive)
-
-        case .uiListScreens:
-            self = .uiListScreens
-
-        case .uiScreenshot:
-            let screenIndex = try container.decodeIfPresent(Int.self, forKey: .screenIndex)
-            let windowID = try container.decodeIfPresent(UInt32.self, forKey: .windowID)
-            self = .uiScreenshot(screenIndex: screenIndex, windowID: windowID)
 
         case .runShell:
             let command = try container.decode([String].self, forKey: .command)

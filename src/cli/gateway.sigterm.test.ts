@@ -2,18 +2,49 @@ import { spawn } from "node:child_process";
 import net from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 
-const waitForText = async (
-  chunks: string[],
-  pattern: RegExp,
+const waitForPortOpen = async (
+  proc: ReturnType<typeof spawn>,
+  chunksOut: string[],
+  chunksErr: string[],
+  port: number,
   timeoutMs: number,
 ) => {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
-    const joined = chunks.join("");
-    if (pattern.test(joined)) return;
+    if (proc.exitCode !== null) {
+      const stdout = chunksOut.join("");
+      const stderr = chunksErr.join("");
+      throw new Error(
+        `gateway exited before listening (code=${String(proc.exitCode)} signal=${String(proc.signalCode)})\n` +
+          `--- stdout ---\n${stdout}\n--- stderr ---\n${stderr}`,
+      );
+    }
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const socket = net.connect({ host: "127.0.0.1", port });
+        socket.once("connect", () => {
+          socket.destroy();
+          resolve();
+        });
+        socket.once("error", (err) => {
+          socket.destroy();
+          reject(err);
+        });
+      });
+      return;
+    } catch {
+      // keep polling
+    }
+
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
-  throw new Error(`timeout waiting for ${String(pattern)}`);
+  const stdout = chunksOut.join("");
+  const stderr = chunksErr.join("");
+  throw new Error(
+    `timeout waiting for gateway to listen on port ${port}\n` +
+      `--- stdout ---\n${stdout}\n--- stderr ---\n${stderr}`,
+  );
 };
 
 const getFreePort = async () => {
@@ -67,9 +98,11 @@ describe("gateway SIGTERM", () => {
     child.stdout?.on("data", (d) => out.push(String(d)));
     child.stderr?.on("data", (d) => err.push(String(d)));
 
-    await waitForText(
+    await waitForPortOpen(
+      proc,
       out,
-      new RegExp(`gateway listening on ws://127\\.0\\.0\\.1:${port}\\b`),
+      err,
+      port,
       20_000,
     );
 

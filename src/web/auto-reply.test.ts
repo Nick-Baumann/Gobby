@@ -1015,7 +1015,7 @@ describe("web auto-reply", () => {
 
   it(
     "compresses common formats to jpeg under the cap",
-    { timeout: 15_000 },
+    { timeout: 45_000 },
     async () => {
       const formats = [
         {

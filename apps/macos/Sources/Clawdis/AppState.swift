@@ -155,6 +155,15 @@ final class AppState: ObservableObject {
         didSet { self.ifNotPreview { UserDefaults.standard.set(self.canvasEnabled, forKey: canvasEnabledKey) } }
     }
 
+    @Published var peekabooBridgeEnabled: Bool {
+        didSet {
+            self.ifNotPreview {
+                UserDefaults.standard.set(self.peekabooBridgeEnabled, forKey: peekabooBridgeEnabledKey)
+                Task { await PeekabooBridgeHostCoordinator.shared.setEnabled(self.peekabooBridgeEnabled) }
+            }
+        }
+    }
+
     @Published var attachExistingGatewayOnly: Bool {
         didSet {
             self.ifNotPreview {
@@ -231,6 +240,8 @@ final class AppState: ObservableObject {
         let storedPort = UserDefaults.standard.integer(forKey: webChatPortKey)
         self.webChatPort = storedPort > 0 ? storedPort : 18788
         self.canvasEnabled = UserDefaults.standard.object(forKey: canvasEnabledKey) as? Bool ?? true
+        self.peekabooBridgeEnabled = UserDefaults.standard
+            .object(forKey: peekabooBridgeEnabledKey) as? Bool ?? true
         self.attachExistingGatewayOnly = UserDefaults.standard.bool(forKey: attachExistingGatewayOnlyKey)
 
         if !self.isPreview {
