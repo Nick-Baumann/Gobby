@@ -123,17 +123,24 @@ final class VoiceWakeManager: NSObject, ObservableObject {
         self.audioEngine.prepare()
         try self.audioEngine.start()
 
-        self.recognitionTask = self.speechRecognizer?
-            .recognitionTask(with: request) { [weak manager = self] result, error in
-                Task { @MainActor in
-                    manager?.handleRecognitionCallback(result: result, error: error)
-                }
-            }
+        let handler = self.makeRecognitionResultHandler()
+        self.recognitionTask = self.speechRecognizer?.recognitionTask(with: request, resultHandler: handler)
     }
 
-    private func handleRecognitionCallback(result: SFSpeechRecognitionResult?, error: Error?) {
-        if let error {
-            self.statusText = "Recognizer error: \(error.localizedDescription)"
+    private nonisolated func makeRecognitionResultHandler() -> @Sendable (SFSpeechRecognitionResult?, Error?) -> Void {
+        { [weak self] result, error in
+            let transcript = result?.bestTranscription.formattedString
+            let errorText = error?.localizedDescription
+
+            Task { @MainActor in
+                self?.handleRecognitionCallback(transcript: transcript, errorText: errorText)
+            }
+        }
+    }
+
+    private func handleRecognitionCallback(transcript: String?, errorText: String?) {
+        if let errorText {
+            self.statusText = "Recognizer error: \(errorText)"
             self.isListening = false
 
             let shouldRestart = self.isEnabled
@@ -146,8 +153,7 @@ final class VoiceWakeManager: NSObject, ObservableObject {
             return
         }
 
-        guard let result else { return }
-        let transcript = result.bestTranscription.formattedString
+        guard let transcript else { return }
         guard let cmd = self.extractCommand(from: transcript) else { return }
 
         if cmd == self.lastDispatched { return }
@@ -189,17 +195,21 @@ final class VoiceWakeManager: NSObject, ObservableObject {
     }
 
     private nonisolated static func requestMicrophonePermission() async -> Bool {
-        await withCheckedContinuation(isolation: nil) { cont in
+        await withCheckedContinuation { cont in
             AVAudioApplication.requestRecordPermission { ok in
-                cont.resume(returning: ok)
+                Task { @MainActor in
+                    cont.resume(returning: ok)
+                }
             }
         }
     }
 
     private nonisolated static func requestSpeechPermission() async -> Bool {
-        await withCheckedContinuation(isolation: nil) { cont in
+        await withCheckedContinuation { cont in
             SFSpeechRecognizer.requestAuthorization { status in
-                cont.resume(returning: status == .authorized)
+                Task { @MainActor in
+                    cont.resume(returning: status == .authorized)
+                }
             }
         }
     }

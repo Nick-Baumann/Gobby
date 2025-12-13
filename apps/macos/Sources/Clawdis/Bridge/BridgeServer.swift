@@ -145,6 +145,31 @@ actor BridgeServer {
                 deliver: false,
                 to: nil,
                 channel: "last")
+        case "agent.request":
+            guard let json = evt.payloadJSON, let data = json.data(using: .utf8) else {
+                return
+            }
+            guard let link = try? JSONDecoder().decode(AgentDeepLink.self, from: data) else {
+                return
+            }
+
+            let message = link.message.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !message.isEmpty else { return }
+            guard message.count <= 20000 else { return }
+
+            let sessionKey = link.sessionKey?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+                ?? "node-\(nodeId)"
+            let thinking = link.thinking?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+            let to = link.to?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+            let channel = link.channel?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+
+            _ = await AgentRPC.shared.send(
+                text: message,
+                thinking: thinking,
+                sessionKey: sessionKey,
+                deliver: link.deliver,
+                to: to,
+                channel: channel ?? "last")
         default:
             break
         }

@@ -1,58 +1,10 @@
 import AppKit
+import ClawdisNodeKit
 import Foundation
 import OSLog
 import Security
 
 private let deepLinkLogger = Logger(subsystem: "com.steipete.clawdis", category: "DeepLink")
-
-enum DeepLinkRoute: Sendable, Equatable {
-    case agent(AgentDeepLink)
-}
-
-struct AgentDeepLink: Sendable, Equatable {
-    let message: String
-    let sessionKey: String?
-    let thinking: String?
-    let deliver: Bool
-    let to: String?
-    let channel: String?
-    let timeoutSeconds: Int?
-    let key: String?
-}
-
-enum DeepLinkParser {
-    static func parse(_ url: URL) -> DeepLinkRoute? {
-        guard url.scheme?.lowercased() == "clawdis" else { return nil }
-        guard let host = url.host?.lowercased(), !host.isEmpty else { return nil }
-
-        guard let comps = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
-        let query = (comps.queryItems ?? []).reduce(into: [String: String]()) { dict, item in
-            guard let value = item.value else { return }
-            dict[item.name] = value
-        }
-
-        switch host {
-        case "agent":
-            guard let message = query["message"], !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                return nil
-            }
-            let deliver = (query["deliver"] as NSString?)?.boolValue ?? false
-            let timeoutSeconds = query["timeoutSeconds"].flatMap { Int($0) }.flatMap { $0 >= 0 ? $0 : nil }
-            return .agent(
-                .init(
-                    message: message,
-                    sessionKey: query["sessionKey"],
-                    thinking: query["thinking"],
-                    deliver: deliver,
-                    to: query["to"],
-                    channel: query["channel"],
-                    timeoutSeconds: timeoutSeconds,
-                    key: query["key"]))
-        default:
-            return nil
-        }
-    }
-}
 
 @MainActor
 final class DeepLinkHandler {
@@ -128,7 +80,7 @@ final class DeepLinkHandler {
     // MARK: - Auth
 
     static func currentKey() -> String {
-        Self.expectedKey()
+        self.expectedKey()
     }
 
     private static func expectedKey() -> String {
