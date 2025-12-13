@@ -482,11 +482,6 @@ struct OnboardingView: View {
                         AppStateStore.updateLaunchAtLogin(enabled: newValue)
                     }
             }
-            Text("Finish to save this version of onboarding. We'll reshow automatically when steps change.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 520)
         }
     }
 
