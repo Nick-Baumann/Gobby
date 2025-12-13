@@ -103,6 +103,13 @@ export type SnapshotResult =
         type?: string;
         value?: string;
       }>;
+    }
+  | {
+      ok: true;
+      format: "ai";
+      targetId: string;
+      url: string;
+      snapshot: string;
     };
 
 function unwrapCause(err: unknown): unknown {
@@ -310,7 +317,7 @@ export async function browserDom(
 export async function browserSnapshot(
   baseUrl: string,
   opts: {
-    format: "aria" | "domSnapshot";
+    format: "aria" | "domSnapshot" | "ai";
     targetId?: string;
     limit?: number;
   },
@@ -322,6 +329,27 @@ export async function browserSnapshot(
   return await fetchJson<SnapshotResult>(
     `${baseUrl}/snapshot?${q.toString()}`,
     {
+      timeoutMs: 20000,
+    },
+  );
+}
+
+export async function browserClickRef(
+  baseUrl: string,
+  opts: {
+    ref: string;
+    targetId?: string;
+  },
+): Promise<{ ok: true; targetId: string; url: string }> {
+  return await fetchJson<{ ok: true; targetId: string; url: string }>(
+    `${baseUrl}/click`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ref: opts.ref,
+        targetId: opts.targetId,
+      }),
       timeoutMs: 20000,
     },
   );

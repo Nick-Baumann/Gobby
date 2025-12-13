@@ -27,6 +27,11 @@ import {
   shouldStartLocalBrowserServer,
 } from "./config.js";
 import {
+  clickRefViaPlaywright,
+  closePlaywrightBrowserConnection,
+  snapshotAiViaPlaywright,
+} from "./pw-ai.js";
+import {
   DEFAULT_BROWSER_SCREENSHOT_MAX_BYTES,
   DEFAULT_BROWSER_SCREENSHOT_MAX_SIDE,
   normalizeBrowserScreenshot,
@@ -522,12 +527,31 @@ export async function startBrowserControlServerFromConfig(
     if (!state) return jsonError(res, 503, "browser server not started");
     const targetId =
       typeof req.query.targetId === "string" ? req.query.targetId.trim() : "";
-    const format = req.query.format === "domSnapshot" ? "domSnapshot" : "aria";
+    const format =
+      req.query.format === "domSnapshot"
+        ? "domSnapshot"
+        : req.query.format === "ai"
+          ? "ai"
+          : "aria";
     const limit =
       typeof req.query.limit === "string" ? Number(req.query.limit) : undefined;
 
     try {
       const tab = await ensureTabAvailable(runtime, targetId || undefined);
+
+      if (format === "ai") {
+        const snap = await snapshotAiViaPlaywright({
+          cdpPort: state.cdpPort,
+          targetId: tab.targetId,
+        });
+        return res.json({
+          ok: true,
+          format,
+          targetId: tab.targetId,
+          url: tab.url,
+          ...snap,
+        });
+      }
 
       if (format === "aria") {
         const snap = await snapshotAria({
@@ -554,6 +578,30 @@ export async function startBrowserControlServerFromConfig(
         url: tab.url,
         ...snap,
       });
+    } catch (err) {
+      const mapped = mapTabError(err);
+      if (mapped) return jsonError(res, mapped.status, mapped.message);
+      jsonError(res, 500, String(err));
+    }
+  });
+
+  app.post("/click", async (req, res) => {
+    if (!state) return jsonError(res, 503, "browser server not started");
+    const ref = String((req.body as { ref?: unknown })?.ref ?? "").trim();
+    const targetId = String(
+      (req.body as { targetId?: unknown })?.targetId ?? "",
+    ).trim();
+
+    if (!ref) return jsonError(res, 400, "ref is required");
+
+    try {
+      const tab = await ensureTabAvailable(runtime, targetId || undefined);
+      await clickRefViaPlaywright({
+        cdpPort: state.cdpPort,
+        targetId: tab.targetId,
+        ref,
+      });
+      res.json({ ok: true, targetId: tab.targetId, url: tab.url });
     } catch (err) {
       const mapped = mapTabError(err);
       if (mapped) return jsonError(res, mapped.status, mapped.message);
@@ -596,6 +644,7 @@ export async function stopBrowserControlServer(
   const current = state;
   state = null;
   try {
+    await closePlaywrightBrowserConnection();
     if (current.running) {
       await stopClawdChrome(current.running).catch((err) =>
         logWarn(`clawd browser stop failed: ${String(err)}`, runtime),

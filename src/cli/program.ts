@@ -1,6 +1,7 @@
 import chalk from "chalk";
 import { Command } from "commander";
 import {
+  browserClickRef,
   browserCloseTab,
   browserDom,
   browserEval,
@@ -441,6 +442,8 @@ Examples:
   clawdis browser query "a" --limit 5
   clawdis browser dom --format text --max-chars 5000
   clawdis browser snapshot --format aria --limit 200
+  clawdis browser snapshot --format ai
+  clawdis browser click 76
 `,
     )
     .action(() => {
@@ -803,9 +806,9 @@ Examples:
 
   browser
     .command("snapshot")
-    .description("Capture an AI-friendly snapshot (aria or domSnapshot)")
+    .description("Capture an AI-friendly snapshot (aria, domSnapshot, or ai)")
     .option(
-      "--format <aria|domSnapshot>",
+      "--format <aria|domSnapshot|ai>",
       "Snapshot format (default: aria)",
       "aria",
     )
@@ -813,11 +816,16 @@ Examples:
     .option("--limit <n>", "Max nodes (default: 500/800)", (v: string) =>
       Number(v),
     )
-    .option("--out <path>", "Write JSON snapshot to a file")
+    .option("--out <path>", "Write snapshot to a file")
     .action(async (opts, cmd) => {
       const parent = parentOpts(cmd);
       const baseUrl = resolveBrowserControlUrl(parent?.url);
-      const format = opts.format === "domSnapshot" ? "domSnapshot" : "aria";
+      const format =
+        opts.format === "domSnapshot"
+          ? "domSnapshot"
+          : opts.format === "ai"
+            ? "ai"
+            : "aria";
       try {
         const result = await browserSnapshot(baseUrl, {
           format,
@@ -825,10 +833,14 @@ Examples:
           limit: Number.isFinite(opts.limit) ? opts.limit : undefined,
         });
 
-        const payload = JSON.stringify(result, null, 2);
         if (opts.out) {
           const fs = await import("node:fs/promises");
-          await fs.writeFile(opts.out, payload, "utf8");
+          if (result.format === "ai") {
+            await fs.writeFile(opts.out, result.snapshot, "utf8");
+          } else {
+            const payload = JSON.stringify(result, null, 2);
+            await fs.writeFile(opts.out, payload, "utf8");
+          }
           if (parent?.json) {
             defaultRuntime.log(
               JSON.stringify({ ok: true, out: opts.out }, null, 2),
@@ -839,8 +851,18 @@ Examples:
           return;
         }
 
-        if (parent?.json || format === "domSnapshot") {
-          defaultRuntime.log(payload);
+        if (parent?.json) {
+          defaultRuntime.log(JSON.stringify(result, null, 2));
+          return;
+        }
+
+        if (result.format === "ai") {
+          defaultRuntime.log(result.snapshot);
+          return;
+        }
+
+        if (result.format === "domSnapshot") {
+          defaultRuntime.log(JSON.stringify(result, null, 2));
           return;
         }
 
@@ -856,6 +878,30 @@ Examples:
             })
             .join("\n"),
         );
+      } catch (err) {
+        defaultRuntime.error(danger(String(err)));
+        defaultRuntime.exit(1);
+      }
+    });
+
+  browser
+    .command("click")
+    .description("Click an element by ref from an ai snapshot (e.g. 76)")
+    .argument("<ref>", "Ref id from ai snapshot")
+    .option("--target-id <id>", "CDP target id (or unique prefix)")
+    .action(async (ref: string, opts, cmd) => {
+      const parent = parentOpts(cmd);
+      const baseUrl = resolveBrowserControlUrl(parent?.url);
+      try {
+        const result = await browserClickRef(baseUrl, {
+          ref,
+          targetId: opts.targetId?.trim() || undefined,
+        });
+        if (parent?.json) {
+          defaultRuntime.log(JSON.stringify(result, null, 2));
+          return;
+        }
+        defaultRuntime.log(`clicked ref ${ref} on ${result.url}`);
       } catch (err) {
         defaultRuntime.error(danger(String(err)));
         defaultRuntime.exit(1);
