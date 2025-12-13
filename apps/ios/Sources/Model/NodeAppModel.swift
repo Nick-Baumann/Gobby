@@ -114,6 +114,56 @@ final class NodeAppModel: ObservableObject {
         try await self.bridge.sendEvent(event: "voice.transcript", payloadJSON: json)
     }
 
+    func handleDeepLink(url: URL) async {
+        guard let route = DeepLinkParser.parse(url) else { return }
+
+        switch route {
+        case let .agent(link):
+            await self.handleAgentDeepLink(link, originalURL: url)
+        }
+    }
+
+    private func handleAgentDeepLink(_ link: AgentDeepLink, originalURL: URL) async {
+        let message = link.message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !message.isEmpty else { return }
+
+        if message.count > 20000 {
+            self.screen.errorText = "Deep link too large (message exceeds 20,000 characters)."
+            return
+        }
+
+        guard await self.isBridgeConnected() else {
+            self.screen.errorText = "Bridge not connected (cannot forward deep link)."
+            return
+        }
+
+        do {
+            try await self.sendAgentRequest(link: link)
+            self.screen.errorText = nil
+        } catch {
+            self.screen.errorText = "Agent request failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func sendAgentRequest(link: AgentDeepLink) async throws {
+        if link.message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            throw NSError(domain: "DeepLink", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: "invalid agent message",
+            ])
+        }
+
+        // iOS bridge forwards to the gateway; no local auth prompts here.
+        // (Key-based unattended auth is handled on macOS for clawdis:// links.)
+        let data = try JSONEncoder().encode(link)
+        let json = String(decoding: data, as: UTF8.self)
+        try await self.bridge.sendEvent(event: "agent.request", payloadJSON: json)
+    }
+
+    private func isBridgeConnected() async -> Bool {
+        if case .connected = await self.bridge.state { return true }
+        return false
+    }
+
     private func handleInvoke(_ req: BridgeInvokeRequest) async -> BridgeInvokeResponse {
         if req.command.hasPrefix("screen."), self.isBackgrounded {
             return BridgeInvokeResponse(

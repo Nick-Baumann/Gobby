@@ -10,6 +10,9 @@ struct ClawdisNodeApp: App {
             RootCanvas()
                 .environmentObject(self.appModel)
                 .environmentObject(self.appModel.voiceWake)
+                .onOpenURL { url in
+                    Task { await self.appModel.handleDeepLink(url: url) }
+                }
                 .onChange(of: self.scenePhase) { _, newValue in
                     self.appModel.setScenePhase(newValue)
                 }
