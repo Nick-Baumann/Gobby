@@ -131,6 +131,10 @@ actor BridgeConnectionHandler {
         }
     }
 
+    func remoteAddress() -> String? {
+        self.remoteAddressString()
+    }
+
     private func handlePairResult(_ result: PairResult, serverName: String) async {
         switch result {
         case let .ok(token):

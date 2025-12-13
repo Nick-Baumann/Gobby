@@ -12,6 +12,7 @@ actor BridgeServer {
     private var isRunning = false
     private var store: PairedNodesStore?
     private var connections: [String: BridgeConnectionHandler] = [:]
+    private var presenceTasks: [String: Task<Void, Never>] = [:]
 
     func start() async {
         if self.isRunning { return }
@@ -110,12 +111,14 @@ actor BridgeServer {
 
     private func registerConnection(handler: BridgeConnectionHandler, nodeId: String) async {
         self.connections[nodeId] = handler
-        await self.beacon(text: "Node connected", nodeId: nodeId, tags: ["node", "ios"])
+        await self.beaconPresence(nodeId: nodeId, reason: "connect")
+        self.startPresenceTask(nodeId: nodeId)
     }
 
     private func unregisterConnection(nodeId: String) async {
+        await self.beaconPresence(nodeId: nodeId, reason: "disconnect")
+        self.stopPresenceTask(nodeId: nodeId)
         self.connections.removeValue(forKey: nodeId)
-        await self.beacon(text: "Node disconnected", nodeId: nodeId, tags: ["node", "ios"])
     }
 
     private struct VoiceTranscriptPayload: Codable, Sendable {
@@ -175,20 +178,58 @@ actor BridgeServer {
         }
     }
 
-    private func beacon(text: String, nodeId: String, tags: [String]) async {
+    private func beaconPresence(nodeId: String, reason: String) async {
         do {
-            let params: [String: Any] = [
-                "text": "\(text): \(nodeId)",
+            let paired = await self.store?.find(nodeId: nodeId)
+            let host = paired?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+                ?? nodeId
+            let version = paired?.version?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+            let platform = paired?.platform?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+            let ip = await self.connections[nodeId]?.remoteAddress()
+
+            var tags: [String] = ["node", "ios"]
+            if let platform { tags.append(platform) }
+
+            let summary = [
+                "Node: \(host)\(ip.map { " (\($0))" } ?? "")",
+                platform.map { "platform \($0)" },
+                version.map { "app \($0)" },
+                "mode node",
+                "reason \(reason)",
+            ].compactMap(\.self).joined(separator: " · ")
+
+            var params: [String: Any] = [
+                "text": summary,
                 "instanceId": nodeId,
+                "host": host,
                 "mode": "node",
+                "reason": reason,
                 "tags": tags,
             ]
+            if let ip { params["ip"] = ip }
+            if let version { params["version"] = version }
             _ = try await AgentRPC.shared.controlRequest(
                 method: "system-event",
                 params: ControlRequestParams(raw: params))
         } catch {
             // Best-effort only.
         }
+    }
+
+    private func startPresenceTask(nodeId: String) {
+        self.presenceTasks[nodeId]?.cancel()
+        self.presenceTasks[nodeId] = Task.detached { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 180 * 1_000_000_000)
+                if Task.isCancelled { return }
+                await self?.beaconPresence(nodeId: nodeId, reason: "periodic")
+            }
+        }
+    }
+
+    private func stopPresenceTask(nodeId: String) {
+        self.presenceTasks[nodeId]?.cancel()
+        self.presenceTasks.removeValue(forKey: nodeId)
     }
 
     private func authorize(hello: BridgeHello) async -> BridgeConnectionHandler.AuthResult {

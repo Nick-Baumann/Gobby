@@ -31,6 +31,19 @@ public struct AnyCodable: Codable, @unchecked Sendable {
         case is NSNull: try container.encodeNil()
         case let dict as [String: AnyCodable]: try container.encode(dict)
         case let array as [AnyCodable]: try container.encode(array)
+        case let dict as [String: Any]:
+            try container.encode(dict.mapValues { AnyCodable($0) })
+        case let array as [Any]:
+            try container.encode(array.map { AnyCodable($0) })
+        case let dict as NSDictionary:
+            var converted: [String: AnyCodable] = [:]
+            for (k, v) in dict {
+                guard let key = k as? String else { continue }
+                converted[key] = AnyCodable(v)
+            }
+            try container.encode(converted)
+        case let array as NSArray:
+            try container.encode(array.map { AnyCodable($0) })
         default:
             let context = EncodingError.Context(
                 codingPath: encoder.codingPath,
