@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 // MARK: - Capabilities
@@ -49,6 +50,39 @@ public struct CanvasPlacement: Codable, Sendable {
     }
 }
 
+// MARK: - UI (Peekaboo-aligned types)
+
+/// Display info aligned with Peekaboo's `ScreenService.ScreenInfo`:
+/// - `index` is the 0-based position in `NSScreen.screens` at runtime.
+/// - `frame`/`visibleFrame` are AppKit screen rectangles (bottom-left origin).
+public struct UIScreenInfo: Codable, Sendable {
+    public let index: Int
+    public let name: String
+    public let frame: CGRect
+    public let visibleFrame: CGRect
+    public let isPrimary: Bool
+    public let scaleFactor: CGFloat
+    public let displayID: UInt32
+
+    public init(
+        index: Int,
+        name: String,
+        frame: CGRect,
+        visibleFrame: CGRect,
+        isPrimary: Bool,
+        scaleFactor: CGFloat,
+        displayID: UInt32)
+    {
+        self.index = index
+        self.name = name
+        self.frame = frame
+        self.visibleFrame = visibleFrame
+        self.isPrimary = isPrimary
+        self.scaleFactor = scaleFactor
+        self.displayID = displayID
+    }
+}
+
 public enum Request: Sendable {
     case notify(
         title: String,
@@ -58,6 +92,7 @@ public enum Request: Sendable {
         delivery: NotificationDelivery?)
     case ensurePermissions([Capability], interactive: Bool)
     case screenshot(displayID: UInt32?, windowID: UInt32?, format: String)
+    case uiListScreens
     case runShell(
         command: [String],
         cwd: String?,
@@ -115,6 +150,7 @@ extension Request: Codable {
         case notify
         case ensurePermissions
         case screenshot
+        case uiListScreens
         case runShell
         case status
         case agent
@@ -149,6 +185,9 @@ extension Request: Codable {
             try container.encodeIfPresent(displayID, forKey: .displayID)
             try container.encodeIfPresent(windowID, forKey: .windowID)
             try container.encode(format, forKey: .format)
+
+        case .uiListScreens:
+            try container.encode(Kind.uiListScreens, forKey: .type)
 
         case let .runShell(command, cwd, env, timeoutSec, needsSR):
             try container.encode(Kind.runShell, forKey: .type)
@@ -231,6 +270,9 @@ extension Request: Codable {
             let windowID = try container.decodeIfPresent(UInt32.self, forKey: .windowID)
             let format = try container.decode(String.self, forKey: .format)
             self = .screenshot(displayID: displayID, windowID: windowID, format: format)
+
+        case .uiListScreens:
+            self = .uiListScreens
 
         case .runShell:
             let command = try container.decode([String].self, forKey: .command)

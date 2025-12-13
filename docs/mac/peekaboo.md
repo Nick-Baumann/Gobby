@@ -47,7 +47,7 @@ Change `clawdis-mac` to default to human text output:
 
 This applies globally, not only `ui` commands.
 
-Note (current state as of 2025-12-13): `clawdis-mac` prints JSON by default. This is a planned behavior change.
+Note (current state as of 2025-12-13): `clawdis-mac` prints text by default; use `--json` for structured output.
 
 ### Timeouts
 Default timeout for UI actions: **10 seconds** end-to-end (CLI already defaults to 10s).

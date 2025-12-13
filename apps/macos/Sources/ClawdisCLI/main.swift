@@ -6,24 +6,19 @@ import Foundation
 struct ClawdisCLI {
     static func main() async {
         do {
-            let request = try parseCommandLine()
-            let response = try await send(request: request)
-            let payloadString: String? = if let payload = response.payload, let text = String(
-                data: payload,
-                encoding: .utf8)
-            {
-                text
+            var args = Array(CommandLine.arguments.dropFirst())
+            let jsonOutput = args.contains("--json")
+            args.removeAll(where: { $0 == "--json" })
+
+            let parsed = try parseCommandLine(args: args)
+            let response = try await send(request: parsed.request)
+
+            if jsonOutput {
+                try self.printJSON(parsed: parsed, response: response)
             } else {
-                nil
+                try self.printText(parsed: parsed, response: response)
             }
-            let output: [String: Any] = [
-                "ok": response.ok,
-                "message": response.message ?? "",
-                "payload": payloadString ?? "",
-            ]
-            let json = try JSONSerialization.data(withJSONObject: output, options: [.prettyPrinted])
-            FileHandle.standardOutput.write(json)
-            FileHandle.standardOutput.write(Data([0x0A]))
+
             exit(response.ok ? 0 : 1)
         } catch CLIError.help {
             self.printHelp()
@@ -37,9 +32,20 @@ struct ClawdisCLI {
         }
     }
 
+    private struct ParsedCLIRequest {
+        var request: Request
+        var kind: Kind
+
+        enum Kind {
+            case screenshot(outPath: String?)
+            case uiScreens
+            case generic
+        }
+    }
+
     // swiftlint:disable cyclomatic_complexity
-    private static func parseCommandLine() throws -> Request {
-        var args = Array(CommandLine.arguments.dropFirst())
+    private static func parseCommandLine(args: [String]) throws -> ParsedCLIRequest {
+        var args = args
         guard let command = args.first else { throw CLIError.help }
         args = Array(args.dropFirst())
 
@@ -70,7 +76,9 @@ struct ClawdisCLI {
                 }
             }
             guard let t = title, let b = body else { throw CLIError.help }
-            return .notify(title: t, body: b, sound: sound, priority: priority, delivery: delivery)
+            return ParsedCLIRequest(
+                request: .notify(title: t, body: b, sound: sound, priority: priority, delivery: delivery),
+                kind: .generic)
 
         case "ensure-permissions":
             var caps: [Capability] = []
@@ -85,20 +93,35 @@ struct ClawdisCLI {
                 }
             }
             if caps.isEmpty { caps = Capability.allCases }
-            return .ensurePermissions(caps, interactive: interactive)
+            return ParsedCLIRequest(request: .ensurePermissions(caps, interactive: interactive), kind: .generic)
 
         case "screenshot":
             var displayID: UInt32?
             var windowID: UInt32?
+            var outPath: String?
             while !args.isEmpty {
                 let arg = args.removeFirst()
                 switch arg {
                 case "--display-id": if let val = args.popFirst(), let num = UInt32(val) { displayID = num }
                 case "--window-id": if let val = args.popFirst(), let num = UInt32(val) { windowID = num }
+                case "--out": outPath = args.popFirst()
                 default: break
                 }
             }
-            return .screenshot(displayID: displayID, windowID: windowID, format: "png")
+            return ParsedCLIRequest(
+                request: .screenshot(displayID: displayID, windowID: windowID, format: "png"),
+                kind: .screenshot(outPath: outPath))
+
+        case "ui":
+            guard let sub = args.first else { throw CLIError.help }
+            args = Array(args.dropFirst())
+
+            switch sub {
+            case "screens":
+                return ParsedCLIRequest(request: .uiListScreens, kind: .uiScreens)
+            default:
+                throw CLIError.help
+            }
 
         case "run":
             var cwd: String?
@@ -124,18 +147,18 @@ struct ClawdisCLI {
                     cmd.append(arg)
                 }
             }
-            return .runShell(
+            return ParsedCLIRequest(request: .runShell(
                 command: cmd,
                 cwd: cwd,
                 env: env.isEmpty ? nil : env,
                 timeoutSec: timeout,
-                needsScreenRecording: needsSR)
+                needsScreenRecording: needsSR), kind: .generic)
 
         case "status":
-            return .status
+            return ParsedCLIRequest(request: .status, kind: .generic)
 
         case "rpc-status":
-            return .rpcStatus
+            return ParsedCLIRequest(request: .rpcStatus, kind: .generic)
 
         case "agent":
             var message: String?
@@ -161,7 +184,9 @@ struct ClawdisCLI {
             }
 
             guard let message else { throw CLIError.help }
-            return .agent(message: message, thinking: thinking, session: session, deliver: deliver, to: to)
+            return ParsedCLIRequest(
+                request: .agent(message: message, thinking: thinking, session: session, deliver: deliver, to: to),
+                kind: .generic)
 
         case "node":
             guard let sub = args.first else { throw CLIError.help }
@@ -169,7 +194,7 @@ struct ClawdisCLI {
 
             switch sub {
             case "list":
-                return .nodeList
+                return ParsedCLIRequest(request: .nodeList, kind: .generic)
 
             case "invoke":
                 var nodeId: String?
@@ -185,7 +210,9 @@ struct ClawdisCLI {
                     }
                 }
                 guard let nodeId, let command else { throw CLIError.help }
-                return .nodeInvoke(nodeId: nodeId, command: command, paramsJSON: paramsJSON)
+                return ParsedCLIRequest(
+                    request: .nodeInvoke(nodeId: nodeId, command: command, paramsJSON: paramsJSON),
+                    kind: .generic)
 
             default:
                 throw CLIError.help
@@ -218,7 +245,9 @@ struct ClawdisCLI {
                 let placement = (x != nil || y != nil || width != nil || height != nil)
                     ? CanvasPlacement(x: x, y: y, width: width, height: height)
                     : nil
-                return .canvasShow(session: session, path: path, placement: placement)
+                return ParsedCLIRequest(
+                    request: .canvasShow(session: session, path: path, placement: placement),
+                    kind: .generic)
 
             case "hide":
                 var session = "main"
@@ -229,7 +258,7 @@ struct ClawdisCLI {
                     default: break
                     }
                 }
-                return .canvasHide(session: session)
+                return ParsedCLIRequest(request: .canvasHide(session: session), kind: .generic)
 
             case "goto":
                 var session = "main"
@@ -254,7 +283,9 @@ struct ClawdisCLI {
                 let placement = (x != nil || y != nil || width != nil || height != nil)
                     ? CanvasPlacement(x: x, y: y, width: width, height: height)
                     : nil
-                return .canvasGoto(session: session, path: path, placement: placement)
+                return ParsedCLIRequest(
+                    request: .canvasGoto(session: session, path: path, placement: placement),
+                    kind: .generic)
 
             case "eval":
                 var session = "main"
@@ -268,7 +299,7 @@ struct ClawdisCLI {
                     }
                 }
                 guard let js else { throw CLIError.help }
-                return .canvasEval(session: session, javaScript: js)
+                return ParsedCLIRequest(request: .canvasEval(session: session, javaScript: js), kind: .generic)
 
             case "snapshot":
                 var session = "main"
@@ -281,7 +312,7 @@ struct ClawdisCLI {
                     default: break
                     }
                 }
-                return .canvasSnapshot(session: session, outPath: outPath)
+                return ParsedCLIRequest(request: .canvasSnapshot(session: session, outPath: outPath), kind: .generic)
 
             default:
                 throw CLIError.help
@@ -294,16 +325,114 @@ struct ClawdisCLI {
 
     // swiftlint:enable cyclomatic_complexity
 
+    private static func printText(parsed: ParsedCLIRequest, response: Response) throws {
+        guard response.ok else {
+            let msg = response.message ?? "failed"
+            fputs("\(msg)\n", stderr)
+            return
+        }
+
+        switch parsed.kind {
+        case let .screenshot(outPath):
+            let path = try self.writeScreenshotPayloadToFile(payload: response.payload, outPath: outPath)
+            FileHandle.standardOutput.write(Data((path + "\n").utf8))
+
+        case .uiScreens:
+            let screens = try self.decodePayload([UIScreenInfo].self, payload: response.payload)
+            if screens.isEmpty {
+                FileHandle.standardOutput.write(Data("No screens\n".utf8))
+                return
+            }
+            for s in screens {
+                let primary = s.isPrimary ? " (primary)" : ""
+                let size = "\(Int(s.frame.width))×\(Int(s.frame.height))"
+                let scale = String(format: "%.1f", Double(s.scaleFactor))
+                let line = "Display \(s.index + 1)\(primary): \(s.name) \(size) @\(scale)x (id \(s.displayID))\n"
+                FileHandle.standardOutput.write(Data(line.utf8))
+            }
+
+        case .generic:
+            if let payload = response.payload, let text = String(data: payload, encoding: .utf8), !text.isEmpty {
+                FileHandle.standardOutput.write(payload)
+                if !text.hasSuffix("\n") { FileHandle.standardOutput.write(Data([0x0A])) }
+                return
+            }
+            if let message = response.message, !message.isEmpty {
+                FileHandle.standardOutput.write(Data((message + "\n").utf8))
+            }
+        }
+    }
+
+    private static func printJSON(parsed: ParsedCLIRequest, response: Response) throws {
+        var output: [String: Any] = [
+            "ok": response.ok,
+            "message": response.message ?? "",
+        ]
+
+        switch parsed.kind {
+        case let .screenshot(outPath):
+            if response.ok {
+                let path = try self.writeScreenshotPayloadToFile(payload: response.payload, outPath: outPath)
+                output["result"] = ["path": path]
+            } else {
+                output["result"] = NSNull()
+            }
+
+        case .uiScreens:
+            if let payload = response.payload,
+               let obj = try? JSONSerialization.jsonObject(with: payload) {
+                output["result"] = obj
+            } else {
+                output["result"] = []
+            }
+
+        case .generic:
+            if let payload = response.payload, !payload.isEmpty {
+                if let obj = try? JSONSerialization.jsonObject(with: payload) {
+                    output["result"] = obj
+                } else if let text = String(data: payload, encoding: .utf8) {
+                    output["payload"] = text
+                }
+            }
+        }
+
+        let json = try JSONSerialization.data(withJSONObject: output, options: [.prettyPrinted])
+        FileHandle.standardOutput.write(json)
+        FileHandle.standardOutput.write(Data([0x0A]))
+    }
+
+    private static func decodePayload<T: Decodable>(_ type: T.Type, payload: Data?) throws -> T {
+        guard let payload else { throw POSIXError(.EINVAL) }
+        return try JSONDecoder().decode(T.self, from: payload)
+    }
+
+    private static func writeScreenshotPayloadToFile(payload: Data?, outPath: String?) throws -> String {
+        guard let payload, !payload.isEmpty else { throw POSIXError(.EINVAL) }
+        let url: URL
+        if let outPath, !outPath.isEmpty {
+            url = URL(fileURLWithPath: outPath).resolvingSymlinksInPath()
+        } else {
+            let dir = FileManager.default.temporaryDirectory.appendingPathComponent("clawdis-mac", isDirectory: true)
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            let name = "screenshot-\(Int(Date().timeIntervalSince1970 * 1000)).png"
+            url = dir.appendingPathComponent(name)
+        }
+        try payload.write(to: url)
+        return url.path
+    }
+
     private static func printHelp() {
         let usage = """
         clawdis-mac — talk to the running Clawdis.app XPC service
 
         Usage:
+          clawdis-mac [--json] <command> ...
           clawdis-mac notify --title <t> --body <b> [--sound <name>] [--priority <passive|active|timeSensitive>] [--delivery <system|overlay|auto>]
           clawdis-mac ensure-permissions
             [--cap <notifications|accessibility|screenRecording|microphone|speechRecognition>]
             [--interactive]
-          clawdis-mac screenshot [--display-id <u32>] [--window-id <u32>]
+          clawdis-mac screenshot [--display-id <u32>] [--window-id <u32>] [--out <path>]
+          clawdis-mac ui screens
           clawdis-mac run [--cwd <path>] [--env KEY=VAL] [--timeout <sec>] [--needs-screen-recording] <command ...>
           clawdis-mac status
           clawdis-mac rpc-status
@@ -320,8 +449,7 @@ struct ClawdisCLI {
           clawdis-mac canvas snapshot [--out <path>] [--session <key>]
           clawdis-mac --help
 
-        Returns JSON to stdout:
-          {"ok":<bool>,"message":"...","payload":"..."}
+        Default output is text. Use --json for machine-readable output.
         """
         print(usage)
     }

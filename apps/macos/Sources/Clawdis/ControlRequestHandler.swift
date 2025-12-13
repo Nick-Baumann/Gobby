@@ -67,6 +67,11 @@ enum ControlRequestHandler {
             }
             return Response(ok: false, message: "screenshot failed")
 
+        case .uiListScreens:
+            let screens = await MainActor.run { UIScreenService.listScreens() }
+            let payload = try JSONEncoder().encode(screens)
+            return Response(ok: true, payload: payload)
+
         case let .runShell(command, cwd, env, timeoutSec, needsSR):
             if needsSR {
                 let authorized = await PermissionManager
