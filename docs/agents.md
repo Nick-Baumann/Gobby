@@ -90,6 +90,8 @@ RPC mode emits structured tool lifecycle events (start/result) and assistant out
 
 If you enable the clawd-managed browser (default on), the agent can use:
 - `clawdis browser status` / `tabs` / `open <url>` / `screenshot [targetId]`
+- `clawdis browser snapshot --format ai` (returns an AI snapshot with `[ref=…]` ids)
+- `clawdis browser click <ref>` (click by ref from an AI snapshot)
 
 This uses a dedicated Chrome/Chromium profile (lobster-orange by default) so it doesn’t interfere with your daily browser.
 
