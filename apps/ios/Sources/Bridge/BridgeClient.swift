@@ -9,11 +9,7 @@ actor BridgeClient {
 
     func pairAndHello(
         endpoint: NWEndpoint,
-        nodeId: String,
-        displayName: String?,
-        platform: String,
-        version: String,
-        existingToken: String?,
+        hello: BridgeHello,
         onStatus: (@Sendable (String) -> Void)? = nil) async throws -> String
     {
         self.lineBuffer = Data()
@@ -25,14 +21,7 @@ actor BridgeClient {
         }
 
         onStatus?("Authenticating…")
-        try await self.send(
-            BridgeHello(
-                nodeId: nodeId,
-                displayName: displayName,
-                token: existingToken,
-                platform: platform,
-                version: version),
-            over: connection)
+        try await self.send(hello, over: connection)
 
         let first = try await self.withTimeout(seconds: 10, purpose: "hello") { () -> ReceivedFrame in
             guard let frame = try await self.receiveFrame(over: connection) else {
@@ -46,7 +35,7 @@ actor BridgeClient {
         switch first.base.type {
         case "hello-ok":
             // We only return a token if we have one; callers should treat empty as "no token yet".
-            return existingToken ?? ""
+            return hello.token ?? ""
 
         case "error":
             let err = try self.decoder.decode(BridgeErrorFrame.self, from: first.data)
@@ -59,10 +48,11 @@ actor BridgeClient {
             onStatus?("Requesting approval…")
             try await self.send(
                 BridgePairRequest(
-                    nodeId: nodeId,
-                    displayName: displayName,
-                    platform: platform,
-                    version: version),
+                    nodeId: hello.nodeId,
+                    displayName: hello.displayName,
+                    platform: hello.platform,
+                    version: hello.version
+                ),
                 over: connection)
 
             onStatus?("Waiting for approval…")
@@ -155,7 +145,9 @@ actor BridgeClient {
 
         var errorDescription: String? {
             if self.purpose == "pairing approval" {
-                return "Timed out waiting for approval (\(self.seconds)s). Approve the node on your gateway and try again."
+                return
+                    "Timed out waiting for approval (\(self.seconds)s). " +
+                    "Approve the node on your gateway and try again."
             }
             return "Timed out during \(self.purpose) (\(self.seconds)s)."
         }
