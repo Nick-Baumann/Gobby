@@ -37,8 +37,8 @@ struct ClawdisCLI {
         var kind: Kind
 
         enum Kind {
-            case screenshot(outPath: String?)
             case uiScreens
+            case uiScreenshot
             case generic
         }
     }
@@ -95,23 +95,6 @@ struct ClawdisCLI {
             if caps.isEmpty { caps = Capability.allCases }
             return ParsedCLIRequest(request: .ensurePermissions(caps, interactive: interactive), kind: .generic)
 
-        case "screenshot":
-            var displayID: UInt32?
-            var windowID: UInt32?
-            var outPath: String?
-            while !args.isEmpty {
-                let arg = args.removeFirst()
-                switch arg {
-                case "--display-id": if let val = args.popFirst(), let num = UInt32(val) { displayID = num }
-                case "--window-id": if let val = args.popFirst(), let num = UInt32(val) { windowID = num }
-                case "--out": outPath = args.popFirst()
-                default: break
-                }
-            }
-            return ParsedCLIRequest(
-                request: .screenshot(displayID: displayID, windowID: windowID, format: "png"),
-                kind: .screenshot(outPath: outPath))
-
         case "ui":
             guard let sub = args.first else { throw CLIError.help }
             args = Array(args.dropFirst())
@@ -119,6 +102,18 @@ struct ClawdisCLI {
             switch sub {
             case "screens":
                 return ParsedCLIRequest(request: .uiListScreens, kind: .uiScreens)
+            case "screenshot":
+                var screenIndex: Int?
+                var windowID: UInt32?
+                while !args.isEmpty {
+                    let arg = args.removeFirst()
+                    switch arg {
+                    case "--screen-index": screenIndex = args.popFirst().flatMap(Int.init)
+                    case "--window-id": windowID = args.popFirst().flatMap(UInt32.init)
+                    default: break
+                    }
+                }
+                return ParsedCLIRequest(request: .uiScreenshot(screenIndex: screenIndex, windowID: windowID), kind: .uiScreenshot)
             default:
                 throw CLIError.help
             }
@@ -333,10 +328,6 @@ struct ClawdisCLI {
         }
 
         switch parsed.kind {
-        case let .screenshot(outPath):
-            let path = try self.writeScreenshotPayloadToFile(payload: response.payload, outPath: outPath)
-            FileHandle.standardOutput.write(Data((path + "\n").utf8))
-
         case .uiScreens:
             let screens = try self.decodePayload([UIScreenInfo].self, payload: response.payload)
             if screens.isEmpty {
@@ -350,6 +341,10 @@ struct ClawdisCLI {
                 let line = "Display \(s.index + 1)\(primary): \(s.name) \(size) @\(scale)x (id \(s.displayID))\n"
                 FileHandle.standardOutput.write(Data(line.utf8))
             }
+
+        case .uiScreenshot:
+            let result = try self.decodePayload(UIScreenshotResult.self, payload: response.payload)
+            FileHandle.standardOutput.write(Data((result.path + "\n").utf8))
 
         case .generic:
             if let payload = response.payload, let text = String(data: payload, encoding: .utf8), !text.isEmpty {
@@ -370,20 +365,20 @@ struct ClawdisCLI {
         ]
 
         switch parsed.kind {
-        case let .screenshot(outPath):
-            if response.ok {
-                let path = try self.writeScreenshotPayloadToFile(payload: response.payload, outPath: outPath)
-                output["result"] = ["path": path]
-            } else {
-                output["result"] = NSNull()
-            }
-
         case .uiScreens:
             if let payload = response.payload,
                let obj = try? JSONSerialization.jsonObject(with: payload) {
                 output["result"] = obj
             } else {
                 output["result"] = []
+            }
+
+        case .uiScreenshot:
+            if let payload = response.payload,
+               let obj = try? JSONSerialization.jsonObject(with: payload) {
+                output["result"] = obj
+            } else {
+                output["result"] = NSNull()
             }
 
         case .generic:
@@ -406,21 +401,6 @@ struct ClawdisCLI {
         return try JSONDecoder().decode(T.self, from: payload)
     }
 
-    private static func writeScreenshotPayloadToFile(payload: Data?, outPath: String?) throws -> String {
-        guard let payload, !payload.isEmpty else { throw POSIXError(.EINVAL) }
-        let url: URL
-        if let outPath, !outPath.isEmpty {
-            url = URL(fileURLWithPath: outPath).resolvingSymlinksInPath()
-        } else {
-            let dir = FileManager.default.temporaryDirectory.appendingPathComponent("clawdis-mac", isDirectory: true)
-            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            let name = "screenshot-\(Int(Date().timeIntervalSince1970 * 1000)).png"
-            url = dir.appendingPathComponent(name)
-        }
-        try payload.write(to: url)
-        return url.path
-    }
-
     private static func printHelp() {
         let usage = """
         clawdis-mac — talk to the running Clawdis.app XPC service
@@ -431,8 +411,8 @@ struct ClawdisCLI {
           clawdis-mac ensure-permissions
             [--cap <notifications|accessibility|screenRecording|microphone|speechRecognition>]
             [--interactive]
-          clawdis-mac screenshot [--display-id <u32>] [--window-id <u32>] [--out <path>]
           clawdis-mac ui screens
+          clawdis-mac ui screenshot [--screen-index <n>] [--window-id <u32>]
           clawdis-mac run [--cwd <path>] [--env KEY=VAL] [--timeout <sec>] [--needs-screen-recording] <command ...>
           clawdis-mac status
           clawdis-mac rpc-status

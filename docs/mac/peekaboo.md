@@ -106,14 +106,14 @@ Current state:
 The visualizer is intentionally display-only (no clickable overlays needed).
 
 ## Screenshots (legacy → Peekaboo takeover)
-Clawdis currently has a legacy `screenshot` request returning raw PNG bytes in `Response.payload`.
+Clawdis uses `clawdis-mac ui screenshot` and returns a file path (default location: temp directory) instead of raw image bytes.
 
 Migration plan:
 - Replace capture implementation with PeekabooAutomationKit’s capture service so we share:
   - per-screen mapping
   - window/app targeting
   - visual feedback (flash / watch HUD) when enabled
-- Prefer writing images to a file path on the app side and returning the path (text-friendly), with `--json` providing the structured metadata.
+- Keep writing images to a file path on the app side and returning the path (text-friendly), with `--json` providing the structured metadata.
 - No aliases: remove the old `Request.screenshot` and introduce a new `Request.uiScreenshot` (or similar) so the new behavior is explicit and there’s no “legacy mode” to maintain.
 
 ## Permissions behavior

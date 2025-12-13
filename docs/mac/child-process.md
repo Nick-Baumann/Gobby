@@ -23,7 +23,7 @@ Run the Node-based Clawdis/clawdis gateway as a direct child of the LSUIElement 
 ## TCC guardrails (must keep)
 - Screen Recording, Accessibility, mic, and speech prompts must originate from the Swift app/XPC. The Node child should never call these APIs directly; use the existing XPC/CLI broker (`clawdis-mac`) for:
   - `ensure-permissions`
-  - `screenshot` / ScreenCaptureKit work
+  - `ui screenshot` / ScreenCaptureKit work
   - mic/speech permission checks
   - notifications
   - shell runs that need `needs-screen-recording`

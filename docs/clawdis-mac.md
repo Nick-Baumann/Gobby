@@ -36,7 +36,7 @@ enum Capability { notifications, accessibility, screenRecording, appleScript, mi
 enum Request {
   notify(title, body, sound?)
   ensurePermissions([Capability], interactive: Bool)
-  screenshot(displayID?, windowID?, format="png")
+  uiScreenshot(screenIndex?, windowID?)
   runShell(command:[String], cwd?, env?, timeoutSec?, needsScreenRecording: Bool)
   status
 }
@@ -66,8 +66,8 @@ struct Response { ok: Bool; message?: String; payload?: Data }
 - Subcommands (text by default; `--json` for machine output; non-zero exit on failure):
   - `notify --title --body [--sound] [--priority passive|active|timeSensitive] [--delivery system|overlay|auto]`
   - `ensure-permissions --cap accessibility --cap screenRecording [--interactive]`
-  - `screenshot [--display-id N | --window-id N] [--out path]`
   - `ui screens`
+  - `ui screenshot [--screen-index N] [--window-id N]`
   - `run -- cmd args... [--cwd] [--env KEY=VAL] [--timeout 30] [--needs-screen-recording]`
   - `status`
 - Sounds: supply any macOS alert name with `--sound` per notification; omit the flag to use the system default. There is no longer a persisted “default sound” in the app UI.

@@ -83,6 +83,31 @@ public struct UIScreenInfo: Codable, Sendable {
     }
 }
 
+public struct UIScreenshotResult: Codable, Sendable {
+    public let path: String
+    public let width: Int
+    public let height: Int
+    public let screenIndex: Int?
+    public let displayID: UInt32?
+    public let windowID: UInt32?
+
+    public init(
+        path: String,
+        width: Int,
+        height: Int,
+        screenIndex: Int? = nil,
+        displayID: UInt32? = nil,
+        windowID: UInt32? = nil)
+    {
+        self.path = path
+        self.width = width
+        self.height = height
+        self.screenIndex = screenIndex
+        self.displayID = displayID
+        self.windowID = windowID
+    }
+}
+
 public enum Request: Sendable {
     case notify(
         title: String,
@@ -91,8 +116,8 @@ public enum Request: Sendable {
         priority: NotificationPriority?,
         delivery: NotificationDelivery?)
     case ensurePermissions([Capability], interactive: Bool)
-    case screenshot(displayID: UInt32?, windowID: UInt32?, format: String)
     case uiListScreens
+    case uiScreenshot(screenIndex: Int?, windowID: UInt32?)
     case runShell(
         command: [String],
         cwd: String?,
@@ -133,7 +158,7 @@ extension Request: Codable {
         case type
         case title, body, sound, priority, delivery
         case caps, interactive
-        case displayID, windowID, format
+        case screenIndex, windowID
         case command, cwd, env, timeoutSec, needsScreenRecording
         case message, thinking, session, deliver, to
         case rpcStatus
@@ -149,8 +174,8 @@ extension Request: Codable {
     private enum Kind: String, Codable {
         case notify
         case ensurePermissions
-        case screenshot
         case uiListScreens
+        case uiScreenshot
         case runShell
         case status
         case agent
@@ -180,14 +205,13 @@ extension Request: Codable {
             try container.encode(caps, forKey: .caps)
             try container.encode(interactive, forKey: .interactive)
 
-        case let .screenshot(displayID, windowID, format):
-            try container.encode(Kind.screenshot, forKey: .type)
-            try container.encodeIfPresent(displayID, forKey: .displayID)
-            try container.encodeIfPresent(windowID, forKey: .windowID)
-            try container.encode(format, forKey: .format)
-
         case .uiListScreens:
             try container.encode(Kind.uiListScreens, forKey: .type)
+
+        case let .uiScreenshot(screenIndex, windowID):
+            try container.encode(Kind.uiScreenshot, forKey: .type)
+            try container.encodeIfPresent(screenIndex, forKey: .screenIndex)
+            try container.encodeIfPresent(windowID, forKey: .windowID)
 
         case let .runShell(command, cwd, env, timeoutSec, needsSR):
             try container.encode(Kind.runShell, forKey: .type)
@@ -265,14 +289,13 @@ extension Request: Codable {
             let interactive = try container.decode(Bool.self, forKey: .interactive)
             self = .ensurePermissions(caps, interactive: interactive)
 
-        case .screenshot:
-            let displayID = try container.decodeIfPresent(UInt32.self, forKey: .displayID)
-            let windowID = try container.decodeIfPresent(UInt32.self, forKey: .windowID)
-            let format = try container.decode(String.self, forKey: .format)
-            self = .screenshot(displayID: displayID, windowID: windowID, format: format)
-
         case .uiListScreens:
             self = .uiListScreens
+
+        case .uiScreenshot:
+            let screenIndex = try container.decodeIfPresent(Int.self, forKey: .screenIndex)
+            let windowID = try container.decodeIfPresent(UInt32.self, forKey: .windowID)
+            self = .uiScreenshot(screenIndex: screenIndex, windowID: windowID)
 
         case .runShell:
             let command = try container.decode([String].self, forKey: .command)
