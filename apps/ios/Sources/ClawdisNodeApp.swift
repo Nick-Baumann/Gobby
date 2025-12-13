@@ -7,7 +7,7 @@ struct ClawdisNodeApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootTabs()
+            RootCanvas()
                 .environmentObject(self.appModel)
                 .environmentObject(self.appModel.voiceWake)
                 .onChange(of: self.scenePhase) { _, newValue in

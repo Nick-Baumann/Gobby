@@ -6,14 +6,15 @@ import WebKit
 final class ScreenController: ObservableObject {
     let webView: WKWebView
 
-    @Published var mode: ClawdisScreenMode = .web
-    @Published var urlString: String = "https://example.com"
+    @Published var mode: ClawdisScreenMode = .canvas
+    @Published var urlString: String = ""
     @Published var errorText: String?
 
     init() {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
         self.webView = WKWebView(frame: .zero, configuration: config)
+        self.reload()
     }
 
     func setMode(_ mode: ClawdisScreenMode) {
@@ -91,29 +92,37 @@ final class ScreenController: ObservableObject {
           :root { color-scheme: dark; }
           html,body { height:100%; margin:0; }
           body {
-            font: 13px -apple-system, system-ui;
-            display:flex;
-            align-items:center;
-            justify-content:center;
-            background:#0b1020;
-            color:#e5e7eb;
+            background:#000;
           }
-          .card {
-            max-width: 520px;
-            padding: 18px;
-            border-radius: 14px;
-            border: 1px solid rgba(255,255,255,.10);
-            background: rgba(255,255,255,.06);
-            box-shadow: 0 18px 60px rgba(0,0,0,.35);
+          canvas {
+            display:block;
+            width:100vw;
+            height:100vh;
           }
-          .muted { color: rgba(229,231,235,.75); margin-top: 8px; }
         </style>
       </head>
       <body>
-        <div class="card">
-          <div style="font-weight:600; font-size:14px;">Canvas scaffold</div>
-          <div class="muted">Next: agent-driven on-disk workspace.</div>
-        </div>
+        <canvas id="clawdis-canvas"></canvas>
+        <script>
+          (() => {
+            const canvas = document.getElementById('clawdis-canvas');
+            const ctx = canvas.getContext('2d');
+
+            function resize() {
+              const dpr = window.devicePixelRatio || 1;
+              const w = Math.max(1, Math.floor(window.innerWidth * dpr));
+              const h = Math.max(1, Math.floor(window.innerHeight * dpr));
+              canvas.width = w;
+              canvas.height = h;
+              ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            }
+
+            window.addEventListener('resize', resize);
+            resize();
+
+            window.__clawdis = { canvas, ctx };
+          })();
+        </script>
       </body>
     </html>
     """
