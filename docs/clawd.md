@@ -94,6 +94,8 @@ Pi (the bundled coding agent) will read operating instructions and “memory” 
 
 By default, Clawdis uses `~/.clawdis/workspace` as the agent workspace, and will create it (plus a starter `AGENTS.md`) automatically on first agent run.
 
+Tip: treat this folder like Clawd’s “memory” and make it a git repo (ideally private) so your `AGENTS.md` + memory files are backed up.
+
 From the CLAWDIS repo:
 
 ```bash

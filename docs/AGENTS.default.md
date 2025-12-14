@@ -37,6 +37,17 @@ cp docs/AGENTS.default.md ~/.clawdis/workspace/AGENTS.md
 - Don’t run destructive commands unless explicitly asked.
 - Don’t send partial/streaming replies to external messaging surfaces (only final replies).
 
+## Backup tip (recommended)
+If you treat this workspace as Clawd’s “memory”, make it a git repo (ideally private) so `AGENTS.md` and your memory files are backed up.
+
+```bash
+cd ~/.clawdis/workspace
+git init
+git add AGENTS.md
+git commit -m "Add Clawd workspace"
+# Optional: add a private remote + push
+```
+
 ## What Clawdis Does
 - Runs WhatsApp gateway + Pi coding agent so the assistant can read/write chats, fetch context, and run tools via the host Mac.
 - macOS app manages permissions (screen recording, notifications, microphone) and exposes a CLI helper `clawdis-mac` for scripts.

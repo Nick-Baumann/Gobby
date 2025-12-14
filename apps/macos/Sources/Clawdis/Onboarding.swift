@@ -503,7 +503,9 @@ struct OnboardingView: View {
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
                     } else {
-                        Text("Tip: edit AGENTS.md in this folder to shape the assistant’s behavior.")
+                        Text(
+                            "Tip: edit AGENTS.md in this folder to shape the assistant’s behavior. " +
+                                "For backup, make the workspace a (private) git repo so Clawd’s “memory” is versioned.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
