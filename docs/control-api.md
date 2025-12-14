@@ -5,9 +5,10 @@ read_when:
 ---
 # Control channel API (newline-delimited JSON)
 
-**Deprecated:** superseded by the WebSocket Gateway protocol (`clawdis gateway`, see `docs/architecture.md` and `docs/gateway.md`). Use only for legacy builds predating the Gateway rollout.
+**Deprecated (historical):** superseded by the WebSocket Gateway protocol (`clawdis gateway`, see `docs/architecture.md` and `docs/gateway.md`).
+Current builds use a WebSocket server on `ws://127.0.0.1:18789` and do **not** expose this TCP control channel.
 
-Endpoint: `127.0.0.1:18789` (TCP, localhost only). Clients reach it via SSH port forward in remote mode.
+Legacy endpoint (if present in an older build): `127.0.0.1:18789` (TCP, localhost only), typically reached via SSH port forward in remote mode.
 
 ## Frame format
 Each line is a JSON object. Two shapes exist:
@@ -45,4 +46,4 @@ Each line is a JSON object. Two shapes exist:
 4) For user toggles, send `set-heartbeats` and await response.
 
 ## Backward compatibility
-- If the control port is unavailable (older gateway), the client may fall back to the legacy CLI path, but the intended path is to rely solely on this API.
+- If the control channel is unavailable: that’s expected on modern builds. Use the Gateway WS protocol instead.
