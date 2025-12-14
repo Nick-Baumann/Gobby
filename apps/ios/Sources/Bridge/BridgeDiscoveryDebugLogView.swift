@@ -66,4 +66,3 @@ struct BridgeDiscoveryDebugLogView: View {
         self.isoFormatter.string(from: date)
     }
 }
-
