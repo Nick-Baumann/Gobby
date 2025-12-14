@@ -1,5 +1,8 @@
 import os from "node:os";
 
+import { logDebug, logWarn } from "../logger.js";
+import { getLogger } from "../logging.js";
+
 export type GatewayBonjourAdvertiser = {
   stop: () => Promise<void>;
 };
@@ -32,7 +35,44 @@ function prettifyInstanceName(name: string) {
 type BonjourService = {
   advertise: () => Promise<void>;
   destroy: () => Promise<void>;
+  getFQDN: () => string;
+  getHostname: () => string;
+  getPort: () => number;
+  on: (event: string, listener: (...args: unknown[]) => void) => unknown;
+  serviceState: string;
 };
+
+function formatBonjourError(err: unknown): string {
+  if (err instanceof Error) {
+    const msg = err.message || String(err);
+    return err.name && err.name !== "Error" ? `${err.name}: ${msg}` : msg;
+  }
+  return String(err);
+}
+
+function serviceSummary(label: string, svc: BonjourService): string {
+  let fqdn = "unknown";
+  let hostname = "unknown";
+  let port = -1;
+  try {
+    fqdn = svc.getFQDN();
+  } catch {
+    // ignore
+  }
+  try {
+    hostname = svc.getHostname();
+  } catch {
+    // ignore
+  }
+  try {
+    port = svc.getPort();
+  } catch {
+    // ignore
+  }
+  const state =
+    typeof svc.serviceState === "string" ? svc.serviceState : "unknown";
+  return `${label} fqdn=${fqdn} host=${hostname} port=${port} state=${state}`;
+}
 
 export async function startGatewayBonjourAdvertiser(
   opts: GatewayBonjourAdvertiseOpts,
@@ -72,7 +112,7 @@ export async function startGatewayBonjourAdvertiser(
     txtBase.tailnetDns = opts.tailnetDns.trim();
   }
 
-  const services: BonjourService[] = [];
+  const services: Array<{ label: string; svc: BonjourService }> = [];
 
   // Master beacon: used for discovery (auto-fill SSH/direct targets).
   // We advertise a TCP service so clients can resolve the host; the port itself is informational.
@@ -88,7 +128,10 @@ export async function startGatewayBonjourAdvertiser(
       sshPort: String(opts.sshPort ?? 22),
     },
   });
-  services.push(master);
+  services.push({
+    label: "master",
+    svc: master as unknown as BonjourService,
+  });
 
   // Optional bridge beacon (same type used by Iris/iOS today).
   if (typeof opts.bridgePort === "number" && opts.bridgePort > 0) {
@@ -104,21 +147,113 @@ export async function startGatewayBonjourAdvertiser(
         transport: "bridge",
       },
     });
-    services.push(bridge);
+    services.push({
+      label: "bridge",
+      svc: bridge as unknown as BonjourService,
+    });
+  }
+
+  logDebug(
+    `bonjour: starting (hostname=${hostname}, instance=${JSON.stringify(
+      safeServiceName(instanceName),
+    )}, gatewayPort=${opts.gatewayPort}, bridgePort=${opts.bridgePort ?? 0}, sshPort=${
+      opts.sshPort ?? 22
+    })`,
+  );
+
+  for (const { label, svc } of services) {
+    try {
+      svc.on("name-change", (name: unknown) => {
+        const next = typeof name === "string" ? name : String(name);
+        logWarn(
+          `bonjour: ${label} name conflict resolved; newName=${JSON.stringify(next)}`,
+        );
+      });
+      svc.on("hostname-change", (nextHostname: unknown) => {
+        const next =
+          typeof nextHostname === "string"
+            ? nextHostname
+            : String(nextHostname);
+        logWarn(
+          `bonjour: ${label} hostname conflict resolved; newHostname=${JSON.stringify(next)}`,
+        );
+      });
+    } catch (err) {
+      logDebug(
+        `bonjour: failed to attach listeners for ${label}: ${String(err)}`,
+      );
+    }
   }
 
   // Do not block gateway startup on mDNS probing/announce. Advertising can take
   // multiple seconds depending on network state; the gateway should come up even
   // if Bonjour is slow or fails.
-  for (const svc of services) {
-    void svc.advertise().catch(() => {
-      /* ignore */
-    });
+  for (const { label, svc } of services) {
+    try {
+      void svc
+        .advertise()
+        .then(() => {
+          // Keep this out of stdout/stderr (menubar + tests) but capture in the rolling log.
+          getLogger().info(`bonjour: advertised ${serviceSummary(label, svc)}`);
+        })
+        .catch((err) => {
+          logWarn(
+            `bonjour: advertise failed (${serviceSummary(label, svc)}): ${formatBonjourError(err)}`,
+          );
+        });
+    } catch (err) {
+      logWarn(
+        `bonjour: advertise threw (${serviceSummary(label, svc)}): ${formatBonjourError(err)}`,
+      );
+    }
   }
+
+  // Watchdog: if we ever end up in an unannounced state (e.g. after sleep/wake or
+  // interface churn), try to re-advertise instead of requiring a full gateway restart.
+  const lastRepairAttempt = new Map<string, number>();
+  const watchdog = setInterval(() => {
+    for (const { label, svc } of services) {
+      const stateUnknown = (svc as { serviceState?: unknown }).serviceState;
+      if (typeof stateUnknown !== "string") continue;
+      if (stateUnknown === "announced" || stateUnknown === "announcing")
+        continue;
+
+      let key = label;
+      try {
+        key = `${label}:${svc.getFQDN()}`;
+      } catch {
+        // ignore
+      }
+      const now = Date.now();
+      const last = lastRepairAttempt.get(key) ?? 0;
+      if (now - last < 30_000) continue;
+      lastRepairAttempt.set(key, now);
+
+      logWarn(
+        `bonjour: watchdog detected non-announced service; attempting re-advertise (${serviceSummary(
+          label,
+          svc,
+        )})`,
+      );
+      try {
+        void svc.advertise().catch((err) => {
+          logWarn(
+            `bonjour: watchdog advertise failed (${serviceSummary(label, svc)}): ${formatBonjourError(err)}`,
+          );
+        });
+      } catch (err) {
+        logWarn(
+          `bonjour: watchdog advertise threw (${serviceSummary(label, svc)}): ${formatBonjourError(err)}`,
+        );
+      }
+    }
+  }, 60_000);
+  watchdog.unref?.();
 
   return {
     stop: async () => {
-      for (const svc of services) {
+      clearInterval(watchdog);
+      for (const { svc } of services) {
         try {
           await svc.destroy();
         } catch {
