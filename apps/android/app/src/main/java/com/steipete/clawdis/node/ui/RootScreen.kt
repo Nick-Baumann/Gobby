@@ -60,12 +60,13 @@ fun RootScreen(viewModel: MainViewModel) {
     }
   }
 
-  if (sheet != null) {
+  val currentSheet = sheet
+  if (currentSheet != null) {
     ModalBottomSheet(
       onDismissRequest = { sheet = null },
       sheetState = sheetState,
     ) {
-      when (sheet) {
+      when (currentSheet) {
         Sheet.Chat -> ChatSheet(viewModel = viewModel)
         Sheet.Settings -> SettingsSheet(viewModel = viewModel)
       }
