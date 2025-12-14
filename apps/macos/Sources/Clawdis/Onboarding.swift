@@ -398,12 +398,6 @@ struct OnboardingView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(self.anthropicAuthBusy)
-
-                    Button("Skip for now") {
-                        self.anthropicAuthStatus = "Skipped. Pi may not respond until you connect Claude."
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(self.anthropicAuthBusy)
                 }
 
                 if self.anthropicAuthPKCE != nil {
