@@ -66,6 +66,7 @@ actor CameraController {
 
         session.startRunning()
         defer { session.stopRunning() }
+        await Self.warmUpCaptureSession()
 
         let settings: AVCapturePhotoSettings = {
             if output.availablePhotoCodecTypes.contains(.jpeg) {
@@ -144,6 +145,7 @@ actor CameraController {
 
         session.startRunning()
         defer { session.stopRunning() }
+        await Self.warmUpCaptureSession()
 
         let movURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("clawdis-camera-\(UUID().uuidString).mov")
@@ -217,7 +219,7 @@ actor CameraController {
 
     private nonisolated static func exportToMP4(inputURL: URL, outputURL: URL) async throws {
         let asset = AVURLAsset(url: inputURL)
-        guard let exporter = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else {
+        guard let exporter = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetMediumQuality) else {
             throw CameraError.exportFailed("Failed to create export session")
         }
         exporter.shouldOptimizeForNetworkUse = true
@@ -233,21 +235,28 @@ actor CameraController {
             exporter.outputURL = outputURL
             exporter.outputFileType = .mp4
 
-            try await withCheckedThrowingContinuation(isolation: nil) { cont in
+            try await withCheckedThrowingContinuation(isolation: nil) { (cont: CheckedContinuation<Void, Error>) in
                 exporter.exportAsynchronously {
-                    switch exporter.status {
-                    case .completed:
-                        cont.resume(returning: ())
-                    case .failed:
-                        cont.resume(throwing: exporter.error ?? CameraError.exportFailed("Export failed"))
-                    case .cancelled:
-                        cont.resume(throwing: CameraError.exportFailed("Export cancelled"))
-                    default:
-                        cont.resume(throwing: CameraError.exportFailed("Export did not complete"))
-                    }
+                    cont.resume(returning: ())
                 }
             }
+
+            switch exporter.status {
+            case .completed:
+                return
+            case .failed:
+                throw CameraError.exportFailed(exporter.error?.localizedDescription ?? "export failed")
+            case .cancelled:
+                throw CameraError.exportFailed("export cancelled")
+            default:
+                throw CameraError.exportFailed("export did not complete")
+            }
         }
+    }
+
+    private nonisolated static func warmUpCaptureSession() async {
+        // A short delay after `startRunning()` significantly reduces "blank first frame" captures on some devices.
+        try? await Task.sleep(nanoseconds: 150_000_000) // 150ms
     }
 }
 
@@ -275,6 +284,13 @@ private final class PhotoCaptureDelegate: NSObject, AVCapturePhotoCaptureDelegat
             self.continuation.resume(
                 throwing: NSError(domain: "Camera", code: 1, userInfo: [
                     NSLocalizedDescriptionKey: "photo data missing",
+                ]))
+            return
+        }
+        if data.isEmpty {
+            self.continuation.resume(
+                throwing: NSError(domain: "Camera", code: 2, userInfo: [
+                    NSLocalizedDescriptionKey: "photo data empty",
                 ]))
             return
         }
@@ -311,6 +327,13 @@ private final class MovieFileDelegate: NSObject, AVCaptureFileOutputRecordingDel
         self.didResume = true
 
         if let error {
+            let ns = error as NSError
+            if ns.domain == AVFoundationErrorDomain,
+               ns.code == AVError.maximumDurationReached.rawValue
+            {
+                self.continuation.resume(returning: outputFileURL)
+                return
+            }
             self.continuation.resume(throwing: error)
             return
         }
