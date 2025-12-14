@@ -212,8 +212,8 @@ struct OnboardingView: View {
                 Text("Welcome to Clawdis")
                     .font(.largeTitle.weight(.semibold))
                 Text(
-                    "Your macOS menu bar companion for notifications, screenshots, and agent automation — " +
-                        "setup takes just a few minutes.")
+                    "Your macOS menu bar companion for notifications, screenshots, and agent automation. " +
+                        "Setup takes a few minutes.")
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -255,8 +255,8 @@ struct OnboardingView: View {
             Text("Where Clawdis runs")
                 .font(.largeTitle.weight(.semibold))
             Text(
-                "Clawdis has one primary Gateway (“master”) that runs continuously. " +
-                    "Connect locally or over SSH/Tailscale so the agent can work on any Mac.")
+                "Clawdis uses a single Gateway (“master”) that stays running. Run it on this Mac, " +
+                    "or connect to one on another Mac over SSH/Tailscale.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -265,9 +265,9 @@ struct OnboardingView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             self.onboardingCard(spacing: 12, padding: 14) {
-                Picker("Clawdis runs", selection: self.$state.connectionMode) {
-                    Text("Local (this Mac)").tag(AppState.ConnectionMode.local)
-                    Text("Remote over SSH").tag(AppState.ConnectionMode.remote)
+                Picker("Gateway runs", selection: self.$state.connectionMode) {
+                    Text("This Mac").tag(AppState.ConnectionMode.local)
+                    Text("Remote (SSH)").tag(AppState.ConnectionMode.remote)
                 }
                 .pickerStyle(.segmented)
                 .frame(width: 360)
@@ -282,7 +282,7 @@ struct OnboardingView: View {
                             Text("SSH target")
                                 .font(.callout.weight(.semibold))
                                 .frame(width: labelWidth, alignment: .leading)
-                            TextField("user@host[:22]", text: self.$state.remoteTarget)
+                            TextField("user@host[:port]", text: self.$state.remoteTarget)
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: fieldWidth)
                         }
@@ -312,7 +312,7 @@ struct OnboardingView: View {
                             .padding(.top, 4)
                         }
 
-                        Text("Tip: enable Tailscale so your remote Clawdis stays reachable.")
+                        Text("Tip: keep Tailscale enabled so your gateway stays reachable.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -345,7 +345,7 @@ struct OnboardingView: View {
                     Circle()
                         .fill(self.anthropicAuthConnected ? Color.green : Color.orange)
                         .frame(width: 10, height: 10)
-                    Text(self.anthropicAuthConnected ? "Anthropic OAuth connected" : "Not connected yet")
+                    Text(self.anthropicAuthConnected ? "Claude connected (OAuth)" : "Not connected yet")
                         .font(.headline)
                     Spacer()
                 }
@@ -358,7 +358,7 @@ struct OnboardingView: View {
                 }
 
                 Text(
-                    "This writes Pi-compatible credentials to `~/.pi/agent/oauth.json` (owner-only). " +
+                    "This lets Pi use Claude immediately. Credentials are stored at `~/.pi/agent/oauth.json` (owner-only). " +
                         "You can redo this anytime.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -393,14 +393,14 @@ struct OnboardingView: View {
                         if self.anthropicAuthBusy {
                             ProgressView()
                         } else {
-                            Text("Open Claude login (OAuth)")
+                            Text("Open Claude sign-in (OAuth)")
                         }
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(self.anthropicAuthBusy)
 
                     Button("Skip for now") {
-                        self.anthropicAuthStatus = "Skipped. The agent may not respond until you authenticate."
+                        self.anthropicAuthStatus = "Skipped. Pi may not respond until you connect Claude."
                     }
                     .buttonStyle(.bordered)
                     .disabled(self.anthropicAuthBusy)
@@ -408,12 +408,12 @@ struct OnboardingView: View {
 
                 if self.anthropicAuthPKCE != nil {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Paste `code#state`")
+                        Text("Paste the `code#state` value")
                             .font(.headline)
                         TextField("code#state", text: self.$anthropicAuthCode)
                             .textFieldStyle(.roundedBorder)
 
-                        Button("Finish connection") {
+                        Button("Connect") {
                             Task { await self.finishAnthropicOAuth() }
                         }
                         .buttonStyle(.bordered)
@@ -427,8 +427,8 @@ struct OnboardingView: View {
                     Text("API key (advanced)")
                         .font(.headline)
                     Text(
-                        "You can also use an Anthropic API key, but this is instructions-only for now " +
-                            "(GUI-launched processes don’t automatically inherit your shell env vars).")
+                        "You can also use an Anthropic API key, but this UI is instructions-only for now " +
+                            "(GUI apps don’t automatically inherit your shell env vars).")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -456,7 +456,7 @@ struct OnboardingView: View {
             self.anthropicAuthPKCE = pkce
             let url = AnthropicOAuth.buildAuthorizeURL(pkce: pkce)
             NSWorkspace.shared.open(url)
-            self.anthropicAuthStatus = "Opened browser. After approving, paste the `code#state` here."
+            self.anthropicAuthStatus = "Browser opened. After approving, paste the `code#state` value here."
         } catch {
             self.anthropicAuthStatus = "Failed to start OAuth: \(error.localizedDescription)"
         }
@@ -478,7 +478,7 @@ struct OnboardingView: View {
             let creds = try await AnthropicOAuth.exchangeCode(code: code, state: state, verifier: pkce.verifier)
             try PiOAuthStore.saveAnthropicOAuth(creds)
             self.refreshAnthropicOAuthStatus()
-            self.anthropicAuthStatus = "Connected. Pi can now use Claude via Anthropic OAuth."
+            self.anthropicAuthStatus = "Connected. Pi can now use Claude."
         } catch {
             self.anthropicAuthStatus = "OAuth failed: \(error.localizedDescription)"
         }
@@ -494,7 +494,7 @@ struct OnboardingView: View {
         self.onboardingPage {
             Text("Identity")
                 .font(.largeTitle.weight(.semibold))
-            Text("Name your agent, pick a theme, and we’ll suggest an emoji.")
+            Text("Name your agent, pick a vibe, and choose an emoji.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -568,8 +568,7 @@ struct OnboardingView: View {
                 Text(
                     "This writes your identity to `~/.clawdis/clawdis.json` and into `AGENTS.md` " +
                         "inside the workspace. " +
-                        "Treat that workspace as the agent’s “memory” and consider making it a (private) git " +
-                        "repo.")
+                        "Treat that workspace as the agent’s “memory” and consider making it a private git repo.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -589,10 +588,8 @@ struct OnboardingView: View {
             Text("Install the gateway")
                 .font(.largeTitle.weight(.semibold))
             Text(
-                """
-                Clawdis now runs the WebSocket gateway from the global "clawdis" package.
-                Install/update it here and we’ll check Node for you.
-                """)
+                "The Gateway is the WebSocket service that keeps Clawdis connected. " +
+                    "We’ll install/update the `clawdis` npm package and verify Node is available.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -636,7 +633,7 @@ struct OnboardingView: View {
                             if self.gatewayInstalling {
                                 ProgressView()
                             } else {
-                                Text("Install / Update gateway")
+                                Text("Install or update gateway")
                             }
                         }
                         .buttonStyle(.borderedProminent)
@@ -654,8 +651,8 @@ struct OnboardingView: View {
                             .lineLimit(2)
                     } else {
                         Text(
-                            "Uses \"npm install -g clawdis@<version>\" on your PATH. " +
-                                "We keep the gateway on port 18789.")
+                            "Runs `npm install -g clawdis@<version>` on your PATH. " +
+                                "The gateway listens on port 18789.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
@@ -681,7 +678,7 @@ struct OnboardingView: View {
         self.onboardingPage {
             Text("Grant permissions")
                 .font(.largeTitle.weight(.semibold))
-            Text("Approve these once and the helper CLI reuses the same grants.")
+            Text("These macOS permissions let Clawdis automate apps and capture context on this Mac.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -718,7 +715,7 @@ struct OnboardingView: View {
         self.onboardingPage {
             Text("Install the helper CLI")
                 .font(.largeTitle.weight(.semibold))
-            Text("Link `clawdis-mac` so scripts and the agent can talk to this app.")
+            Text("Optional, but recommended: link `clawdis-mac` so scripts can talk to this app.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -773,10 +770,8 @@ struct OnboardingView: View {
             Text("Agent workspace")
                 .font(.largeTitle.weight(.semibold))
             Text(
-                """
-                Clawdis runs the agent from a dedicated workspace so it can load AGENTS.md
-                and write files without touching your other folders.
-                """)
+                "Clawdis runs the agent from a dedicated workspace so it can load `AGENTS.md` " +
+                    "and write files there without mixing into your other projects.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -844,7 +839,7 @@ struct OnboardingView: View {
                     } else {
                         Text(
                             "Tip: edit AGENTS.md in this folder to shape the assistant’s behavior. " +
-                                "For backup, make the workspace a (private) git repo so Clawd’s “memory” is versioned.")
+                                "For backup, make the workspace a private git repo so your agent’s “memory” is versioned.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
@@ -856,13 +851,11 @@ struct OnboardingView: View {
 
     private func whatsappPage() -> some View {
         self.onboardingPage {
-            Text("Link WhatsApp or Telegram")
+            Text("Connect WhatsApp or Telegram")
                 .font(.largeTitle.weight(.semibold))
             Text(
-                """
-                WhatsApp uses a QR login for your personal account. Telegram uses a bot token.
-                Either (or both) is fine; configure them where the gateway runs.
-                """)
+                "Optional: WhatsApp uses a QR login for your personal account. Telegram uses a bot token. " +
+                    "Configure them on the machine where the gateway runs.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -872,7 +865,7 @@ struct OnboardingView: View {
             self.onboardingCard {
                 self.featureRow(
                     title: "Open a terminal",
-                    subtitle: "Use the same host selected above. If remote, SSH in first.",
+                    subtitle: "Use the machine where the gateway runs. If remote, SSH in first.",
                     systemImage: "terminal")
 
                 Text("WhatsApp")
@@ -881,7 +874,7 @@ struct OnboardingView: View {
                     title: "Run `clawdis login --verbose`",
                     subtitle: """
                     Scan the QR code with WhatsApp on your phone.
-                    We only use your personal session; no cloud gateway involved.
+                    This links your personal session; no cloud gateway involved.
                     """,
                     systemImage: "qrcode.viewfinder")
                 self.featureRow(
@@ -900,7 +893,7 @@ struct OnboardingView: View {
                 self.featureRow(
                     title: "Set `TELEGRAM_BOT_TOKEN`",
                     subtitle: """
-                    Create a bot with @BotFather and set the token as an env var
+                    Create a bot with @BotFather and set the token as an env var,
                     (or `telegram.botToken` in `~/.clawdis/clawdis.json`).
                     """,
                     systemImage: "key")
@@ -917,13 +910,21 @@ struct OnboardingView: View {
             Text("All set")
                 .font(.largeTitle.weight(.semibold))
             self.onboardingCard {
+                if self.state.connectionMode == .remote {
+                    self.featureRow(
+                        title: "Remote gateway checklist",
+                        subtitle: """
+                        On your gateway host: install/update the `clawdis` package and make sure Pi has credentials
+                        (typically `~/.pi/agent/oauth.json`). Then connect again if needed.
+                        """,
+                        systemImage: "network")
+                    Divider()
+                        .padding(.vertical, 6)
+                }
                 self.featureRow(
-                    title: "Run the dashboard",
-                    subtitle: """
-                    Use the CLI helper from your scripts, and reopen onboarding from Settings
-                    if you add a new user.
-                    """,
-                    systemImage: "checkmark.seal")
+                    title: "Open the menu bar panel",
+                    subtitle: "Click the Clawdis menu bar icon for quick chat and status.",
+                    systemImage: "bubble.left.and.bubble.right")
                 self.featureRow(
                     title: "Try Voice Wake",
                     subtitle: "Enable Voice Wake in Settings for hands-free commands with a live transcript overlay.",

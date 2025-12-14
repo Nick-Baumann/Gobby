@@ -20,7 +20,7 @@ struct MasterDiscoveryInlineList: View {
             }
 
             if self.discovery.masters.isEmpty {
-                Text("No masters found yet.")
+                Text("No gateways found yet.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
@@ -86,7 +86,7 @@ struct MasterDiscoveryInlineList: View {
                         .fill(Color(NSColor.controlBackgroundColor)))
             }
         }
-        .help("Click a discovered master to fill the SSH target.")
+        .help("Click a discovered gateway to fill the SSH target.")
     }
 
     private func suggestedSSHTarget(_ gateway: MasterDiscoveryModel.DiscoveredMaster) -> String? {
