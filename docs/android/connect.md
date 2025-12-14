@@ -43,6 +43,7 @@ More debugging notes: `docs/bonjour.md`.
 
 In the Android app:
 
+- The app keeps its bridge connection alive via a **foreground service** (persistent notification).
 - Open **Settings**.
 - Under **Discovered Bridges**, select your gateway and hit **Connect**.
 - If mDNS is blocked, use **Advanced → Manual Bridge** (host + port) and **Connect (Manual)**.
@@ -91,4 +92,3 @@ Camera commands (foreground only; permission-gated):
 - `camera.clip` (mp4)
 
 See `docs/camera.md` for parameters and CLI helpers.
-

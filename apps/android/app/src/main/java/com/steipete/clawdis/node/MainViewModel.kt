@@ -2,402 +2,77 @@ package com.steipete.clawdis.node
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.viewModelScope
-import com.steipete.clawdis.node.bridge.BridgeDiscovery
 import com.steipete.clawdis.node.bridge.BridgeEndpoint
-import com.steipete.clawdis.node.bridge.BridgePairingClient
-import com.steipete.clawdis.node.bridge.BridgeSession
 import com.steipete.clawdis.node.node.CameraCaptureManager
 import com.steipete.clawdis.node.node.CanvasController
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.launch
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
-  private val prefs = SecurePrefs(app)
+  private val runtime: NodeRuntime = (app as NodeApp).runtime
 
-  val canvas = CanvasController()
-  val camera = CameraCaptureManager(app)
-  private val json = Json { ignoreUnknownKeys = true }
+  val canvas: CanvasController = runtime.canvas
+  val camera: CameraCaptureManager = runtime.camera
 
-  private val discovery = BridgeDiscovery(app)
-  val bridges: StateFlow<List<BridgeEndpoint>> = discovery.bridges
+  val bridges: StateFlow<List<BridgeEndpoint>> = runtime.bridges
 
-  private val _isConnected = MutableStateFlow(false)
-  val isConnected: StateFlow<Boolean> = _isConnected.asStateFlow()
+  val isConnected: StateFlow<Boolean> = runtime.isConnected
+  val statusText: StateFlow<String> = runtime.statusText
+  val serverName: StateFlow<String?> = runtime.serverName
+  val remoteAddress: StateFlow<String?> = runtime.remoteAddress
 
-  private val _statusText = MutableStateFlow("Not connected")
-  val statusText: StateFlow<String> = _statusText.asStateFlow()
+  val instanceId: StateFlow<String> = runtime.instanceId
+  val displayName: StateFlow<String> = runtime.displayName
+  val cameraEnabled: StateFlow<Boolean> = runtime.cameraEnabled
+  val manualEnabled: StateFlow<Boolean> = runtime.manualEnabled
+  val manualHost: StateFlow<String> = runtime.manualHost
+  val manualPort: StateFlow<Int> = runtime.manualPort
 
-  private val _serverName = MutableStateFlow<String?>(null)
-  val serverName: StateFlow<String?> = _serverName.asStateFlow()
-
-  private val _remoteAddress = MutableStateFlow<String?>(null)
-  val remoteAddress: StateFlow<String?> = _remoteAddress.asStateFlow()
-
-  private val _isForeground = MutableStateFlow(true)
-  val isForeground: StateFlow<Boolean> = _isForeground.asStateFlow()
-
-  private val session =
-    BridgeSession(
-      scope = viewModelScope,
-      onConnected = { name, remote ->
-        _statusText.value = "Connected"
-        _serverName.value = name
-        _remoteAddress.value = remote
-        _isConnected.value = true
-      },
-      onDisconnected = { message ->
-        _statusText.value = message
-        _serverName.value = null
-        _remoteAddress.value = null
-        _isConnected.value = false
-      },
-      onEvent = { event, payloadJson ->
-        handleBridgeEvent(event, payloadJson)
-      },
-      onInvoke = { req ->
-        handleInvoke(req.command, req.paramsJson)
-      },
-    )
-
-  val instanceId: StateFlow<String> = prefs.instanceId
-  val displayName: StateFlow<String> = prefs.displayName
-  val cameraEnabled: StateFlow<Boolean> = prefs.cameraEnabled
-  val manualEnabled: StateFlow<Boolean> = prefs.manualEnabled
-  val manualHost: StateFlow<String> = prefs.manualHost
-  val manualPort: StateFlow<Int> = prefs.manualPort
-  val lastDiscoveredStableId: StateFlow<String> = prefs.lastDiscoveredStableId
-
-  private var didAutoConnect = false
-
-  init {
-    viewModelScope.launch(Dispatchers.Default) {
-      bridges.collect { list ->
-        if (list.isNotEmpty()) {
-          // Persist the last discovered bridge (best-effort UX parity with iOS).
-          prefs.setLastDiscoveredStableId(list.last().stableId)
-        }
-
-        if (didAutoConnect) return@collect
-        if (_isConnected.value) return@collect
-
-        val token = prefs.loadBridgeToken()
-        if (token.isNullOrBlank()) return@collect
-
-        if (manualEnabled.value) {
-          val host = manualHost.value.trim()
-          val port = manualPort.value
-          if (host.isNotEmpty() && port in 1..65535) {
-            didAutoConnect = true
-            connect(BridgeEndpoint.manual(host = host, port = port))
-          }
-          return@collect
-        }
-
-        val targetStableId = lastDiscoveredStableId.value.trim()
-        if (targetStableId.isEmpty()) return@collect
-        val target = list.firstOrNull { it.stableId == targetStableId } ?: return@collect
-        didAutoConnect = true
-        connect(target)
-      }
-    }
-  }
+  val chatMessages: StateFlow<List<NodeRuntime.ChatMessage>> = runtime.chatMessages
+  val chatError: StateFlow<String?> = runtime.chatError
+  val pendingRunCount: StateFlow<Int> = runtime.pendingRunCount
 
   fun setForeground(value: Boolean) {
-    _isForeground.value = value
+    runtime.setForeground(value)
   }
 
   fun setDisplayName(value: String) {
-    prefs.setDisplayName(value)
+    runtime.setDisplayName(value)
   }
 
   fun setCameraEnabled(value: Boolean) {
-    prefs.setCameraEnabled(value)
+    runtime.setCameraEnabled(value)
   }
 
   fun setManualEnabled(value: Boolean) {
-    prefs.setManualEnabled(value)
+    runtime.setManualEnabled(value)
   }
 
   fun setManualHost(value: String) {
-    prefs.setManualHost(value)
+    runtime.setManualHost(value)
   }
 
   fun setManualPort(value: Int) {
-    prefs.setManualPort(value)
+    runtime.setManualPort(value)
   }
 
   fun connect(endpoint: BridgeEndpoint) {
-    viewModelScope.launch(Dispatchers.IO) {
-      _statusText.value = "Connecting…"
-      val token = prefs.loadBridgeToken()
-      val resolved =
-        if (token.isNullOrBlank()) {
-          _statusText.value = "Pairing…"
-          BridgePairingClient().pairAndHello(
-            endpoint = endpoint,
-            hello = BridgePairingClient.Hello(
-              nodeId = instanceId.value,
-              displayName = displayName.value,
-              token = null,
-              platform = "Android",
-              version = "dev",
-            ),
-          )
-        } else {
-          BridgePairingClient.PairResult(ok = true, token = token.trim())
-        }
-
-      if (!resolved.ok || resolved.token.isNullOrBlank()) {
-        _statusText.value = "Failed: pairing required"
-        return@launch
-      }
-
-      prefs.saveBridgeToken(resolved.token!!)
-      session.connect(
-        endpoint = endpoint,
-        hello = BridgeSession.Hello(
-          nodeId = instanceId.value,
-          displayName = displayName.value,
-          token = resolved.token,
-          platform = "Android",
-          version = "dev",
-        ),
-      )
-    }
+    runtime.connect(endpoint)
   }
 
   fun connectManual() {
-    val host = manualHost.value.trim()
-    val port = manualPort.value
-    if (host.isEmpty() || port <= 0 || port > 65535) {
-      _statusText.value = "Failed: invalid manual host/port"
-      return
-    }
-    connect(BridgeEndpoint.manual(host = host, port = port))
+    runtime.connectManual()
   }
 
   fun disconnect() {
-    session.disconnect()
+    runtime.disconnect()
   }
-
-  data class ChatMessage(val id: String, val role: String, val text: String, val timestampMs: Long?)
-
-  private val _chatMessages = MutableStateFlow<List<ChatMessage>>(emptyList())
-  val chatMessages: StateFlow<List<ChatMessage>> = _chatMessages.asStateFlow()
-
-  private val _chatError = MutableStateFlow<String?>(null)
-  val chatError: StateFlow<String?> = _chatError.asStateFlow()
-
-  private val pendingRuns = mutableSetOf<String>()
-  private val _pendingRunCount = MutableStateFlow(0)
-  val pendingRunCount: StateFlow<Int> = _pendingRunCount.asStateFlow()
 
   fun loadChat(sessionKey: String = "main") {
-    viewModelScope.launch(Dispatchers.IO) {
-      _chatError.value = null
-      try {
-        // Best-effort; push events are optional, but improve latency.
-        session.sendEvent("chat.subscribe", """{"sessionKey":"$sessionKey"}""")
-      } catch (_: Throwable) {
-        // ignore
-      }
-
-      try {
-        val res = session.request("chat.history", """{"sessionKey":"$sessionKey"}""")
-        _chatMessages.value = parseHistory(res)
-      } catch (e: Exception) {
-        _chatError.value = e.message
-      }
-    }
+    runtime.loadChat(sessionKey)
   }
 
-  fun sendChat(sessionKey: String = "main", message: String, thinking: String = "off") {
-    val trimmed = message.trim()
-    if (trimmed.isEmpty()) return
-    viewModelScope.launch(Dispatchers.IO) {
-      _chatError.value = null
-      val idem = java.util.UUID.randomUUID().toString()
-
-      _chatMessages.value =
-        _chatMessages.value +
-          ChatMessage(
-            id = java.util.UUID.randomUUID().toString(),
-            role = "user",
-            text = trimmed,
-            timestampMs = System.currentTimeMillis(),
-          )
-
-      try {
-        val params =
-          """{"sessionKey":"$sessionKey","message":${trimmed.toJsonString()},"thinking":"$thinking","timeoutMs":30000,"idempotencyKey":"$idem"}"""
-        val res = session.request("chat.send", params)
-        val runId = parseRunId(res) ?: idem
-        pendingRuns.add(runId)
-        _pendingRunCount.value = pendingRuns.size
-      } catch (e: Exception) {
-        _chatError.value = e.message
-      }
-    }
-  }
-
-  private fun handleBridgeEvent(event: String, payloadJson: String?) {
-    if (event != "chat" || payloadJson.isNullOrBlank()) return
-    try {
-      val payload = json.parseToJsonElement(payloadJson).asObjectOrNull() ?: return
-      val state = payload["state"].asStringOrNull()
-      val runId = payload["runId"].asStringOrNull()
-      if (!runId.isNullOrBlank()) {
-        pendingRuns.remove(runId)
-        _pendingRunCount.value = pendingRuns.size
-      }
-
-      when (state) {
-        "final" -> {
-          val msgObj = payload["message"].asObjectOrNull()
-          val role = msgObj?.get("role").asStringOrNull() ?: "assistant"
-          val text = extractTextFromMessage(msgObj)
-          if (!text.isNullOrBlank()) {
-            _chatMessages.value =
-              _chatMessages.value +
-                ChatMessage(
-                  id = java.util.UUID.randomUUID().toString(),
-                  role = role,
-                  text = text,
-                  timestampMs = System.currentTimeMillis(),
-                )
-          }
-        }
-        "error" -> {
-          _chatError.value = payload["errorMessage"].asStringOrNull() ?: "Chat failed"
-        }
-      }
-    } catch (_: Throwable) {
-      // ignore
-    }
-  }
-
-  private fun parseHistory(historyJson: String): List<ChatMessage> {
-    val root = json.parseToJsonElement(historyJson).asObjectOrNull() ?: return emptyList()
-    val raw = root["messages"] ?: return emptyList()
-    val array = raw as? JsonArray ?: return emptyList()
-    return array.mapNotNull { item ->
-      val obj = item as? JsonObject ?: return@mapNotNull null
-      val role = obj["role"].asStringOrNull() ?: return@mapNotNull null
-      val text = extractTextFromMessage(obj) ?: return@mapNotNull null
-      ChatMessage(
-        id = java.util.UUID.randomUUID().toString(),
-        role = role,
-        text = text,
-        timestampMs = null,
-      )
-    }
-  }
-
-  private fun extractTextFromMessage(msgObj: JsonObject?): String? {
-    if (msgObj == null) return null
-    val content = msgObj["content"] ?: return null
-    return when (content) {
-      is JsonPrimitive -> content.asStringOrNull()
-      else -> {
-        val arr = (content as? JsonArray) ?: return null
-        arr.mapNotNull { part ->
-          val p = part as? JsonObject ?: return@mapNotNull null
-          p["text"].asStringOrNull()
-        }.joinToString("\n").trim().ifBlank { null }
-      }
-    }
-  }
-
-  private fun parseRunId(resJson: String): String? {
-    return try {
-      json.parseToJsonElement(resJson).asObjectOrNull()?.get("runId").asStringOrNull()
-    } catch (_: Throwable) {
-      null
-    }
-  }
-
-  private suspend fun handleInvoke(command: String, paramsJson: String?): BridgeSession.InvokeResult {
-    if ((command.startsWith("screen.") || command.startsWith("camera.")) && !isForeground.value) {
-      return BridgeSession.InvokeResult.error(
-        code = "NODE_BACKGROUND_UNAVAILABLE",
-        message = "NODE_BACKGROUND_UNAVAILABLE: screen/camera commands require foreground",
-      )
-    }
-    if (command.startsWith("camera.") && !cameraEnabled.value) {
-      return BridgeSession.InvokeResult.error(
-        code = "CAMERA_DISABLED",
-        message = "CAMERA_DISABLED: enable Camera in Settings",
-      )
-    }
-
-    return when (command) {
-      "screen.show" -> BridgeSession.InvokeResult.ok(null)
-      "screen.hide" -> BridgeSession.InvokeResult.ok(null)
-      "screen.setMode" -> {
-        val mode = CanvasController.parseMode(paramsJson)
-        canvas.setMode(mode)
-        BridgeSession.InvokeResult.ok(null)
-      }
-      "screen.navigate" -> {
-        val url = CanvasController.parseNavigateUrl(paramsJson)
-        if (url != null) canvas.navigate(url)
-        BridgeSession.InvokeResult.ok(null)
-      }
-      "screen.eval" -> {
-        val js = CanvasController.parseEvalJs(paramsJson) ?: return BridgeSession.InvokeResult.error(
-          code = "INVALID_REQUEST",
-          message = "INVALID_REQUEST: javaScript required",
-        )
-        val result = canvas.eval(js)
-        BridgeSession.InvokeResult.ok("""{"result":${result.toJsonString()}}""")
-      }
-      "screen.snapshot" -> {
-        val maxWidth = CanvasController.parseSnapshotMaxWidth(paramsJson)
-        val base64 = canvas.snapshotPngBase64(maxWidth = maxWidth)
-        BridgeSession.InvokeResult.ok("""{"format":"png","base64":"$base64"}""")
-      }
-      "camera.snap" -> {
-        val res = camera.snap(paramsJson)
-        BridgeSession.InvokeResult.ok(res.payloadJson)
-      }
-      "camera.clip" -> {
-        val res = camera.clip(paramsJson)
-        BridgeSession.InvokeResult.ok(res.payloadJson)
-      }
-      else ->
-        BridgeSession.InvokeResult.error(
-          code = "INVALID_REQUEST",
-          message = "INVALID_REQUEST: unknown command",
-        )
-    }
+  fun sendChat(sessionKey: String = "main", message: String) {
+    runtime.sendChat(sessionKey, message)
   }
 }
 
-private fun JsonElement?.asObjectOrNull(): JsonObject? = this as? JsonObject
-
-private fun JsonElement?.asStringOrNull(): String? =
-  when (this) {
-    is JsonNull -> null
-    is JsonPrimitive -> content
-    else -> null
-  }
-
-private fun String.toJsonString(): String {
-  val escaped =
-    this.replace("\\", "\\\\")
-      .replace("\"", "\\\"")
-      .replace("\n", "\\n")
-      .replace("\r", "\\r")
-  return "\"$escaped\""
-}

@@ -18,6 +18,8 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     requestDiscoveryPermissionsIfNeeded()
+    requestNotificationPermissionIfNeeded()
+    NodeForegroundService.start(this)
     viewModel.camera.attachLifecycleOwner(this)
     setContent {
       MaterialTheme {
@@ -57,6 +59,18 @@ class MainActivity : ComponentActivity() {
       if (!ok) {
         requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 101)
       }
+    }
+  }
+
+  private fun requestNotificationPermissionIfNeeded() {
+    if (Build.VERSION.SDK_INT < 33) return
+    val ok =
+      ContextCompat.checkSelfPermission(
+        this,
+        Manifest.permission.POST_NOTIFICATIONS,
+      ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    if (!ok) {
+      requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 102)
     }
   }
 }

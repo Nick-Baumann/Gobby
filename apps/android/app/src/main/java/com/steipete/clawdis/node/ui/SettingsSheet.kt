@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.steipete.clawdis.node.MainViewModel
+import com.steipete.clawdis.node.NodeForegroundService
 
 @Composable
 fun SettingsSheet(viewModel: MainViewModel) {
@@ -57,7 +58,7 @@ fun SettingsSheet(viewModel: MainViewModel) {
     )
     Text("Instance ID: $instanceId")
 
-    Divider()
+    HorizontalDivider()
 
     Text("Camera")
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
@@ -83,7 +84,7 @@ fun SettingsSheet(viewModel: MainViewModel) {
     }
     Text("Tip: grant Microphone permission for video clips with audio.")
 
-    Divider()
+    HorizontalDivider()
 
     Text("Bridge")
     Text("Status: $statusText")
@@ -91,10 +92,17 @@ fun SettingsSheet(viewModel: MainViewModel) {
     if (remoteAddress != null) Text("Address: $remoteAddress")
 
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-      Button(onClick = viewModel::disconnect) { Text("Disconnect") }
+      Button(
+        onClick = {
+          viewModel.disconnect()
+          NodeForegroundService.stop(context)
+        },
+      ) {
+        Text("Disconnect")
+      }
     }
 
-    Divider()
+    HorizontalDivider()
 
     Text("Advanced")
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
@@ -115,9 +123,17 @@ fun SettingsSheet(viewModel: MainViewModel) {
       modifier = Modifier.fillMaxWidth(),
       enabled = manualEnabled,
     )
-    Button(onClick = viewModel::connectManual, enabled = manualEnabled) { Text("Connect (Manual)") }
+    Button(
+      onClick = {
+        NodeForegroundService.start(context)
+        viewModel.connectManual()
+      },
+      enabled = manualEnabled,
+    ) {
+      Text("Connect (Manual)")
+    }
 
-    Divider()
+    HorizontalDivider()
 
     Text("Discovered Bridges")
     if (bridges.isEmpty()) {
@@ -134,9 +150,16 @@ fun SettingsSheet(viewModel: MainViewModel) {
               Text("${bridge.host}:${bridge.port}")
             }
             Spacer(modifier = Modifier.padding(4.dp))
-            Button(onClick = { viewModel.connect(bridge) }) { Text("Connect") }
+            Button(
+              onClick = {
+                NodeForegroundService.start(context)
+                viewModel.connect(bridge)
+              },
+            ) {
+              Text("Connect")
+            }
           }
-          Divider()
+          HorizontalDivider()
         }
       }
     }
