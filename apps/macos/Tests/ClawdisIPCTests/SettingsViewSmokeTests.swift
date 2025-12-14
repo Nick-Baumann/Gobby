@@ -84,6 +84,58 @@ struct SettingsViewSmokeTests {
         _ = view.body
     }
 
+    @Test func generalSettingsBuildsBody() {
+        let state = AppState(preview: true)
+        let view = GeneralSettings(state: state)
+        _ = view.body
+    }
+
+    @Test func sessionsSettingsBuildsBody() {
+        let view = SessionsSettings(rows: SessionRow.previewRows, isPreview: true)
+        _ = view.body
+    }
+
+    @Test func instancesSettingsBuildsBody() {
+        let store = InstancesStore(isPreview: true)
+        store.instances = [
+            InstanceInfo(
+                id: "local",
+                host: "this-mac",
+                ip: "127.0.0.1",
+                version: "1.0",
+                platform: "macos 15.0",
+                lastInputSeconds: 12,
+                mode: "local",
+                reason: "test",
+                text: "test instance",
+                ts: Date().timeIntervalSince1970 * 1000),
+        ]
+        let view = InstancesSettings(store: store)
+        _ = view.body
+    }
+
+    @Test func permissionsSettingsBuildsBody() {
+        let view = PermissionsSettings(
+            status: [
+                .notifications: true,
+                .screenRecording: false,
+            ],
+            refresh: {},
+            showOnboarding: {})
+        _ = view.body
+    }
+
+    @Test func settingsRootViewBuildsBody() {
+        let state = AppState(preview: true)
+        let view = SettingsRootView(state: state, updater: nil, initialTab: .general)
+        _ = view.body
+    }
+
+    @Test func aboutSettingsBuildsBody() {
+        let view = AboutSettings(updater: nil)
+        _ = view.body
+    }
+
     @Test func voiceWakeSettingsBuildsBody() {
         let state = AppState(preview: true)
         let view = VoiceWakeSettings(state: state)
@@ -95,4 +147,3 @@ struct SettingsViewSmokeTests {
         _ = view.body
     }
 }
-
