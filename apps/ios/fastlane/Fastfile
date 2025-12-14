@@ -1,0 +1,54 @@
+default_platform(:ios)
+
+platform :ios do
+  private_lane :asc_api_key do
+    key_path = ENV["APP_STORE_CONNECT_API_KEY_PATH"]
+    if key_path && !key_path.strip.empty?
+      return app_store_connect_api_key(path: key_path)
+    end
+
+    key_id = ENV["ASC_KEY_ID"]
+    issuer_id = ENV["ASC_ISSUER_ID"]
+    key_content = ENV["ASC_KEY_CONTENT"]
+
+    UI.user_error!("Missing App Store Connect API key. Set APP_STORE_CONNECT_API_KEY_PATH or ASC_KEY_ID/ASC_ISSUER_ID/ASC_KEY_CONTENT.") if [key_id, issuer_id, key_content].any? { |v| v.nil? || v.strip.empty? }
+
+    is_base64 = key_content.include?("BEGIN PRIVATE KEY") ? false : true
+
+    app_store_connect_api_key(
+      key_id: key_id,
+      issuer_id: issuer_id,
+      key_content: key_content,
+      is_key_content_base64: is_base64
+    )
+  end
+
+  desc "Build + upload to TestFlight"
+  lane :beta do
+    api_key = asc_api_key
+
+    build_app(
+      project: "Clawdis.xcodeproj",
+      scheme: "Clawdis",
+      export_method: "app-store",
+      clean: true
+    )
+
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: true
+    )
+  end
+
+  desc "Upload App Store metadata (and optionally screenshots)"
+  lane :metadata do
+    api_key = asc_api_key
+
+    deliver(
+      api_key: api_key,
+      force: true,
+      skip_screenshots: ENV["DELIVER_SCREENSHOTS"] != "1",
+      skip_metadata: ENV["DELIVER_METADATA"] != "1"
+    )
+  end
+end

@@ -16,3 +16,13 @@ open Clawdis.xcodeproj
 
 ## Shared packages
 - `../shared/ClawdisKit` — shared types/constants used by iOS (and later macOS bridge + gateway routing).
+
+## fastlane
+```bash
+brew install fastlane
+
+cd apps/ios
+fastlane lanes
+```
+
+See `apps/ios/fastlane/README.md` for App Store Connect auth + upload lanes.
