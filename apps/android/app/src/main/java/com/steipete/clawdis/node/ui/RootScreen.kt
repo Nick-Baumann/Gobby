@@ -4,8 +4,13 @@ import android.annotation.SuppressLint
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
@@ -21,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.zIndex
 import com.steipete.clawdis.node.MainViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -28,15 +34,16 @@ import com.steipete.clawdis.node.MainViewModel
 fun RootScreen(viewModel: MainViewModel) {
   var sheet by remember { mutableStateOf<Sheet?>(null) }
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+  val safeButtonInsets = WindowInsets.statusBars.only(WindowInsetsSides.Top)
 
   Box(modifier = Modifier.fillMaxSize()) {
-    CanvasView(viewModel = viewModel)
+    CanvasView(viewModel = viewModel, modifier = Modifier.fillMaxSize().zIndex(0f))
 
-    Box(modifier = Modifier.align(Alignment.TopEnd).padding(12.dp)) {
+    Box(modifier = Modifier.align(Alignment.TopEnd).zIndex(1f).windowInsetsPadding(safeButtonInsets).padding(12.dp)) {
       Button(onClick = { sheet = Sheet.Settings }) { Text("Settings") }
     }
 
-    Box(modifier = Modifier.align(Alignment.TopStart).padding(12.dp)) {
+    Box(modifier = Modifier.align(Alignment.TopStart).zIndex(1f).windowInsetsPadding(safeButtonInsets).padding(12.dp)) {
       Button(onClick = { sheet = Sheet.Chat }) { Text("Chat") }
     }
   }
@@ -62,10 +69,10 @@ private enum class Sheet {
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun CanvasView(viewModel: MainViewModel) {
+private fun CanvasView(viewModel: MainViewModel, modifier: Modifier = Modifier) {
   val context = LocalContext.current
   AndroidView(
-    modifier = Modifier.fillMaxSize(),
+    modifier = modifier,
     factory = {
       WebView(context).apply {
         settings.javaScriptEnabled = true
@@ -77,4 +84,3 @@ private fun CanvasView(viewModel: MainViewModel) {
     },
   )
 }
-
