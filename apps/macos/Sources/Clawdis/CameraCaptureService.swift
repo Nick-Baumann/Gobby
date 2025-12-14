@@ -61,6 +61,7 @@ actor CameraCaptureService {
 
         session.startRunning()
         defer { session.stopRunning() }
+        await Self.warmUpCaptureSession()
 
         let settings: AVCapturePhotoSettings = {
             if output.availablePhotoCodecTypes.contains(.jpeg) {
@@ -128,6 +129,7 @@ actor CameraCaptureService {
 
         session.startRunning()
         defer { session.stopRunning() }
+        await Self.warmUpCaptureSession()
 
         let tmpMovURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("clawdis-camera-\(UUID().uuidString).mov")
@@ -243,10 +245,16 @@ actor CameraCaptureService {
             }
         }
     }
+
+    private nonisolated static func warmUpCaptureSession() async {
+        // A short delay after `startRunning()` significantly reduces "blank first frame" captures on some devices.
+        try? await Task.sleep(nanoseconds: 150_000_000) // 150ms
+    }
 }
 
 private final class PhotoCaptureDelegate: NSObject, AVCapturePhotoCaptureDelegate {
     private var cont: CheckedContinuation<Data, Error>?
+    private var didResume = false
 
     init(_ cont: CheckedContinuation<Data, Error>) {
         self.cont = cont
@@ -257,7 +265,8 @@ private final class PhotoCaptureDelegate: NSObject, AVCapturePhotoCaptureDelegat
         didFinishProcessingPhoto photo: AVCapturePhoto,
         error: Error?)
     {
-        guard let cont else { return }
+        guard !self.didResume, let cont else { return }
+        self.didResume = true
         self.cont = nil
         if let error {
             cont.resume(throwing: error)
@@ -267,7 +276,23 @@ private final class PhotoCaptureDelegate: NSObject, AVCapturePhotoCaptureDelegat
             cont.resume(throwing: CameraCaptureService.CameraError.captureFailed("No photo data"))
             return
         }
+        if data.isEmpty {
+            cont.resume(throwing: CameraCaptureService.CameraError.captureFailed("Photo data empty"))
+            return
+        }
         cont.resume(returning: data)
+    }
+
+    func photoOutput(
+        _ output: AVCapturePhotoOutput,
+        didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings,
+        error: Error?)
+    {
+        guard let error else { return }
+        guard !self.didResume, let cont else { return }
+        self.didResume = true
+        self.cont = nil
+        cont.resume(throwing: error)
     }
 }
 
