@@ -4,7 +4,7 @@ import UIKit
 @testable import Clawdis
 
 @Suite struct SwiftUIRenderSmokeTests {
-    @MainActor private static func host<V: View>(_ view: V) -> UIWindow {
+    @MainActor private static func host(_ view: some View) -> UIWindow {
         let window = UIWindow(frame: UIScreen.main.bounds)
         window.rootViewController = UIHostingController(rootView: view)
         window.makeKeyAndVisible()

@@ -32,7 +32,8 @@ import Testing
     }
 
     @Test func parseAgentLinkParsesCommonFields() {
-        let url = URL(string: "clawdis://agent?message=Hello&deliver=1&sessionKey=node-iris&thinking=low&timeoutSeconds=30")!
+        let url =
+            URL(string: "clawdis://agent?message=Hello&deliver=1&sessionKey=node-iris&thinking=low&timeoutSeconds=30")!
         #expect(
             DeepLinkParser.parse(url) == .agent(
                 .init(
@@ -47,7 +48,9 @@ import Testing
     }
 
     @Test func parseAgentLinkParsesTargetRoutingFields() {
-        let url = URL(string: "clawdis://agent?message=Hello%20World&deliver=1&to=%2B15551234567&channel=whatsapp&key=secret")!
+        let url =
+            URL(
+                string: "clawdis://agent?message=Hello%20World&deliver=1&to=%2B15551234567&channel=whatsapp&key=secret")!
         #expect(
             DeepLinkParser.parse(url) == .agent(
                 .init(

@@ -82,11 +82,11 @@ struct OnboardingView: View {
     init(
         state: AppState = AppStateStore.shared,
         permissionMonitor: PermissionMonitor = .shared,
-        masterDiscovery: MasterDiscoveryModel = MasterDiscoveryModel())
+        discoveryModel: MasterDiscoveryModel = MasterDiscoveryModel())
     {
         self._state = ObservedObject(wrappedValue: state)
         self._permissionMonitor = ObservedObject(wrappedValue: permissionMonitor)
-        self._masterDiscovery = StateObject(wrappedValue: masterDiscovery)
+        self._masterDiscovery = StateObject(wrappedValue: discoveryModel)
     }
 
     var body: some View {

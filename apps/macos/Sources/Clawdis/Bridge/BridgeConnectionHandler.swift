@@ -34,6 +34,7 @@ actor BridgeConnectionHandler {
         case error(code: String, message: String)
     }
 
+    // swiftlint:disable:next cyclomatic_complexity
     func run(
         resolveAuth: @escaping @Sendable (BridgeHello) async -> AuthResult,
         handlePair: @escaping @Sendable (BridgePairRequest) async -> PairResult,

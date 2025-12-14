@@ -51,7 +51,7 @@ import Testing
             self.listener.cancel()
         }
 
-        func waitForConnection(timeoutMs: Int = 2_000) async throws -> NWConnection {
+        func waitForConnection(timeoutMs: Int = 2000) async throws -> NWConnection {
             let deadline = Date().addingTimeInterval(Double(timeoutMs) / 1000.0)
             while Date() < deadline {
                 if let connection = self.connection { return connection }
@@ -62,7 +62,7 @@ import Testing
             ])
         }
 
-        func receiveLine(timeoutMs: Int = 2_000) async throws -> Data? {
+        func receiveLine(timeoutMs: Int = 2000) async throws -> Data? {
             let connection = try await self.waitForConnection(timeoutMs: timeoutMs)
             let deadline = Date().addingTimeInterval(Double(timeoutMs) / 1000.0)
 
@@ -73,18 +73,22 @@ import Testing
                     return Data(line)
                 }
 
-                let chunk = try await withCheckedThrowingContinuation(isolation: nil) { (cont: CheckedContinuation<Data, Error>) in
-                    connection.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { data, _, isComplete, error in
-                        if let error {
-                            cont.resume(throwing: error)
-                            return
+                let chunk = try await withCheckedThrowingContinuation(isolation: nil) { (cont: CheckedContinuation<
+                    Data,
+                    Error,
+                >) in
+                    connection
+                        .receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { data, _, isComplete, error in
+                            if let error {
+                                cont.resume(throwing: error)
+                                return
+                            }
+                            if isComplete {
+                                cont.resume(returning: Data())
+                                return
+                            }
+                            cont.resume(returning: data ?? Data())
                         }
-                        if isComplete {
-                            cont.resume(returning: Data())
-                            return
-                        }
-                        cont.resume(returning: data ?? Data())
-                    }
                 }
 
                 if chunk.isEmpty { return nil }
@@ -124,7 +128,12 @@ import Testing
         let client = BridgeClient()
         let token = try await client.pairAndHello(
             endpoint: .hostPort(host: NWEndpoint.Host("127.0.0.1"), port: port),
-            hello: BridgeHello(nodeId: "ios-node", displayName: "iOS", token: "existing-token", platform: "ios", version: "1"),
+            hello: BridgeHello(
+                nodeId: "ios-node",
+                displayName: "iOS",
+                token: "existing-token",
+                platform: "ios",
+                version: "1"),
             onStatus: nil)
 
         #expect(token == "existing-token")

@@ -31,6 +31,7 @@ targets:
         product: ClawdisChatUI
     preBuildScripts:
       - name: SwiftFormat (lint)
+        basedOnDependencyAnalysis: false
         script: |
           set -euo pipefail
           if ! command -v swiftformat >/dev/null 2>&1; then
@@ -41,6 +42,7 @@ targets:
             "$SRCROOT/Sources" \
             "$SRCROOT/../shared/ClawdisKit/Sources"
       - name: SwiftLint
+        basedOnDependencyAnalysis: false
         script: |
           set -euo pipefail
           if ! command -v swiftlint >/dev/null 2>&1; then
