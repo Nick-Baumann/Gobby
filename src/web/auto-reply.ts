@@ -1165,16 +1165,19 @@ export async function monitorWebProvider(
       if (!replyHeartbeatMinutes) {
         return { status: "skipped", reason: "disabled" };
       }
-      if (lastInboundMsg?.chatType === "group") {
+      let heartbeatInboundMsg = lastInboundMsg;
+      if (heartbeatInboundMsg?.chatType === "group") {
+        // Heartbeats should never target group chats. If the last inbound activity
+        // was in a group, fall back to the main/direct session recipient instead
+        // of skipping heartbeats entirely.
         heartbeatLogger.info(
           { connectionId, reason: "last-inbound-group" },
-          "reply heartbeat skipped",
+          "reply heartbeat falling back",
         );
-        console.log(success("heartbeat: skipped (group chat)"));
-        return { status: "skipped", reason: "group-chat" };
+        heartbeatInboundMsg = null;
       }
       const tickStart = Date.now();
-      if (!lastInboundMsg) {
+      if (!heartbeatInboundMsg) {
         const fallbackTo = getFallbackRecipient(cfg);
         if (!fallbackTo) {
           heartbeatLogger.info(
@@ -1230,12 +1233,12 @@ export async function monitorWebProvider(
       }
 
       try {
-        const snapshot = getSessionSnapshot(cfg, lastInboundMsg.from);
+        const snapshot = getSessionSnapshot(cfg, heartbeatInboundMsg.from);
         if (isVerbose()) {
           heartbeatLogger.info(
             {
               connectionId,
-              to: lastInboundMsg.from,
+              to: heartbeatInboundMsg.from,
               intervalMinutes: replyHeartbeatMinutes,
               sessionKey: snapshot.key,
               sessionId: snapshot.entry?.sessionId ?? null,
@@ -1247,15 +1250,15 @@ export async function monitorWebProvider(
         const replyResult = await (replyResolver ?? getReplyFromConfig)(
           {
             Body: HEARTBEAT_PROMPT,
-            From: lastInboundMsg.from,
-            To: lastInboundMsg.to,
+            From: heartbeatInboundMsg.from,
+            To: heartbeatInboundMsg.to,
             MessageSid: snapshot.entry?.sessionId,
             MediaPath: undefined,
             MediaUrl: undefined,
             MediaType: undefined,
           },
           {
-            onReplyStart: lastInboundMsg.sendComposing,
+            onReplyStart: heartbeatInboundMsg.sendComposing,
             isHeartbeat: true,
           },
         );

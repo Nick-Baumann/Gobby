@@ -19,6 +19,7 @@ import {
   stripHeartbeatToken,
 } from "./auto-reply.js";
 import type { sendMessageWhatsApp } from "./outbound.js";
+import { requestReplyHeartbeatNow } from "./reply-heartbeat-wake.js";
 import {
   resetBaileysMocks,
   resetLoadConfigMock,
@@ -738,6 +739,97 @@ describe("web auto-reply", () => {
       expect(replyResolver).not.toHaveBeenCalled();
     } finally {
       queueSpy.mockRestore();
+    }
+  });
+
+  it("falls back to main recipient when last inbound is a group chat", async () => {
+    const now = Date.now();
+    const store = await makeSessionStore({
+      main: {
+        sessionId: "sid-main",
+        updatedAt: now,
+        lastChannel: "whatsapp",
+        lastTo: "+1555",
+      },
+    });
+
+    const replyResolver = vi.fn(async () => ({ text: HEARTBEAT_TOKEN }));
+    let capturedOnMessage:
+      | ((msg: import("./inbound.js").WebInboundMessage) => Promise<void>)
+      | undefined;
+    const listenerFactory = vi.fn(
+      async (opts: {
+        onMessage: (
+          msg: import("./inbound.js").WebInboundMessage,
+        ) => Promise<void>;
+      }) => {
+        capturedOnMessage = opts.onMessage;
+        const onClose = new Promise<void>(() => {
+          // stay open until aborted
+        });
+        return { close: vi.fn(), onClose };
+      },
+    );
+    const runtime = { log: vi.fn(), error: vi.fn(), exit: vi.fn() } as never;
+
+    setLoadConfigMock(() => ({
+      inbound: {
+        allowFrom: ["+1555"],
+        groupChat: { requireMention: true, mentionPatterns: ["@clawd"] },
+        reply: { mode: "command", session: { store: store.storePath } },
+      },
+    }));
+
+    const controller = new AbortController();
+    const run = monitorWebProvider(
+      false,
+      listenerFactory,
+      true,
+      replyResolver,
+      runtime,
+      controller.signal,
+      { replyHeartbeatMinutes: 10_000 },
+    );
+
+    try {
+      await Promise.resolve();
+      expect(capturedOnMessage).toBeDefined();
+
+      await capturedOnMessage?.({
+        body: "hello group",
+        from: "123@g.us",
+        to: "+1555",
+        id: "g1",
+        sendComposing: vi.fn(),
+        reply: vi.fn(),
+        sendMedia: vi.fn(),
+        chatType: "group",
+        conversationId: "123@g.us",
+        chatId: "123@g.us",
+      });
+
+      // No mention => no auto-reply for the group message.
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(
+        replyResolver.mock.calls.some(
+          (call) => call[0]?.Body !== HEARTBEAT_PROMPT,
+        ),
+      ).toBe(false);
+
+      requestReplyHeartbeatNow({ coalesceMs: 0 });
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      controller.abort();
+      await run;
+
+      const heartbeatCall = replyResolver.mock.calls.find(
+        (call) => call[0]?.Body === HEARTBEAT_PROMPT,
+      );
+      expect(heartbeatCall?.[0]?.From).toBe("+1555");
+      expect(heartbeatCall?.[0]?.To).toBe("+1555");
+      expect(heartbeatCall?.[0]?.MessageSid).toBe("sid-main");
+    } finally {
+      controller.abort();
+      await store.cleanup();
     }
   });
 
