@@ -37,6 +37,7 @@ final class OnboardingController {
     }
 }
 
+// swiftlint:disable:next type_body_length
 struct OnboardingView: View {
     @Environment(\.openSettings) private var openSettings
     @State private var currentPage = 0
