@@ -39,6 +39,24 @@ struct CronModelsTests {
         #expect(decoded == payload)
     }
 
+    @Test func scheduleDecodeRejectsUnknownKind() {
+        let json = """
+        {"kind":"wat","atMs":1}
+        """
+        #expect(throws: DecodingError.self) {
+            _ = try JSONDecoder().decode(CronSchedule.self, from: Data(json.utf8))
+        }
+    }
+
+    @Test func payloadDecodeRejectsUnknownKind() {
+        let json = """
+        {"kind":"wat","text":"hello"}
+        """
+        #expect(throws: DecodingError.self) {
+            _ = try JSONDecoder().decode(CronPayload.self, from: Data(json.utf8))
+        }
+    }
+
     @Test func displayNameTrimsWhitespaceAndFallsBack() {
         let base = CronJob(
             id: "x",
@@ -82,4 +100,3 @@ struct CronModelsTests {
         #expect(job.lastRunDate == Date(timeIntervalSince1970: 1_700_000_050))
     }
 }
-
