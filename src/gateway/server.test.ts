@@ -1832,18 +1832,105 @@ describe("gateway server", () => {
     expect(cappedMsgs.length).toBe(200);
     expect(firstContentText(cappedMsgs[0])).toBe("b1300");
 
-    const maxRes = await rpcReq<{ messages?: unknown[] }>(
-      ws,
-      "chat.history",
-      {
-        sessionKey: "main",
-        limit: 1000,
-      },
-    );
+    const maxRes = await rpcReq<{ messages?: unknown[] }>(ws, "chat.history", {
+      sessionKey: "main",
+      limit: 1000,
+    });
     expect(maxRes.ok).toBe(true);
     const maxMsgs = maxRes.payload?.messages ?? [];
     expect(maxMsgs.length).toBe(1000);
     expect(firstContentText(maxMsgs[0])).toBe("b500");
+
+    ws.close();
+    await server.close();
+  });
+
+  test("chat.history strips injected System blocks and caps payload bytes", async () => {
+    const firstContentText = (msg: unknown): string | undefined => {
+      if (!msg || typeof msg !== "object") return undefined;
+      const content = (msg as { content?: unknown }).content;
+      if (!Array.isArray(content) || content.length === 0) return undefined;
+      const first = content[0];
+      if (!first || typeof first !== "object") return undefined;
+      const text = (first as { text?: unknown }).text;
+      return typeof text === "string" ? text : undefined;
+    };
+
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "clawdis-gw-"));
+    testSessionStorePath = path.join(dir, "sessions.json");
+    await fs.writeFile(
+      testSessionStorePath,
+      JSON.stringify(
+        {
+          main: {
+            sessionId: "sess-main",
+            updatedAt: Date.now(),
+          },
+        },
+        null,
+        2,
+      ),
+      "utf-8",
+    );
+
+    const injected =
+      "System: Node: Peter’s Mac · app 2.0.0 · last input 0s ago · mode local · reason periodic\n" +
+      "System: WhatsApp gateway connected.\n\n" +
+      "Hello from user";
+    await fs.writeFile(
+      path.join(dir, "sess-main.jsonl"),
+      JSON.stringify({
+        message: {
+          role: "user",
+          content: [{ type: "text", text: injected }],
+          timestamp: Date.now(),
+        },
+      }),
+      "utf-8",
+    );
+
+    const { server, ws } = await startServerWithClient();
+    await connectOk(ws);
+
+    const scrubbedRes = await rpcReq<{ messages?: unknown[] }>(
+      ws,
+      "chat.history",
+      { sessionKey: "main", limit: 5 },
+    );
+    expect(scrubbedRes.ok).toBe(true);
+    const scrubbedMsgs = scrubbedRes.payload?.messages ?? [];
+    expect(scrubbedMsgs.length).toBe(1);
+    expect(firstContentText(scrubbedMsgs[0])).toBe("Hello from user");
+
+    const bigText = "x".repeat(300_000);
+    const largeLines: string[] = [];
+    for (let i = 0; i < 60; i += 1) {
+      largeLines.push(
+        JSON.stringify({
+          message: {
+            role: "user",
+            content: [{ type: "text", text: `${i}:${bigText}` }],
+            timestamp: Date.now() + i,
+          },
+        }),
+      );
+    }
+    await fs.writeFile(
+      path.join(dir, "sess-main.jsonl"),
+      largeLines.join("\n"),
+      "utf-8",
+    );
+
+    const cappedRes = await rpcReq<{ messages?: unknown[] }>(
+      ws,
+      "chat.history",
+      { sessionKey: "main", limit: 1000 },
+    );
+    expect(cappedRes.ok).toBe(true);
+    const cappedMsgs = cappedRes.payload?.messages ?? [];
+    const bytes = Buffer.byteLength(JSON.stringify(cappedMsgs), "utf8");
+    expect(bytes).toBeLessThanOrEqual(6 * 1024 * 1024);
+    expect(cappedMsgs.length).toBeLessThan(60);
 
     ws.close();
     await server.close();

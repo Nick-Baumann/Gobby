@@ -161,7 +161,7 @@ struct ChatTypingIndicatorBubble: View {
 @MainActor
 private struct TypingDots: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var phase: Double = 0
+    @State private var animate = false
 
     var body: some View {
         HStack(spacing: 5) {
@@ -169,34 +169,19 @@ private struct TypingDots: View {
                 Circle()
                     .fill(Color.secondary.opacity(0.55))
                     .frame(width: 7, height: 7)
-                    .scaleEffect(self.dotScale(idx))
-                    .opacity(self.dotOpacity(idx))
+                    .scaleEffect(self.reduceMotion ? 0.85 : (self.animate ? 1.05 : 0.70))
+                    .opacity(self.reduceMotion ? 0.55 : (self.animate ? 0.95 : 0.30))
+                    .animation(
+                        self.reduceMotion ? nil : .easeInOut(duration: 0.55)
+                            .repeatForever(autoreverses: true)
+                            .delay(Double(idx) * 0.16),
+                        value: self.animate)
             }
         }
         .onAppear {
             guard !self.reduceMotion else { return }
-            phase = 0
-            withAnimation(.linear(duration: 1.05).repeatForever(autoreverses: false)) {
-                self.phase = .pi * 2
-            }
+            self.animate = true
         }
-    }
-
-    private func dotScale(_ idx: Int) -> CGFloat {
-        if self.reduceMotion { return 0.85 }
-        let wave = self.dotWave(idx)
-        return CGFloat(0.72 + (wave * 0.52))
-    }
-
-    private func dotOpacity(_ idx: Int) -> Double {
-        if self.reduceMotion { return 0.55 }
-        let wave = self.dotWave(idx)
-        return 0.35 + (wave * 0.65)
-    }
-
-    private func dotWave(_ idx: Int) -> Double {
-        let offset = (Double(idx) * (2 * Double.pi / 3))
-        return (sin(self.phase + offset) + 1) / 2
     }
 }
 

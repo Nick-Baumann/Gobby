@@ -254,6 +254,7 @@ function buildSnapshot(): Snapshot {
 
 const MAX_PAYLOAD_BYTES = 512 * 1024; // cap incoming frame size
 const MAX_BUFFERED_BYTES = 1.5 * 1024 * 1024; // per-connection send buffer limit
+const MAX_CHAT_HISTORY_MESSAGES_BYTES = 6 * 1024 * 1024; // keep history responses comfortably under client WS limits
 const HANDSHAKE_TIMEOUT_MS = 10_000;
 const TICK_INTERVAL_MS = 30_000;
 const HEALTH_REFRESH_INTERVAL_MS = 60_000;
@@ -348,6 +349,66 @@ function readSessionMessages(
     }
   }
   return messages;
+}
+
+function stripInjectedSystemBlock(text: string): string {
+  if (!text.startsWith("System: ")) return text;
+  const sep = text.indexOf("\n\n");
+  if (sep <= 0) return text;
+  const head = text.slice(0, sep);
+  const lines = head.split("\n");
+  if (lines.length === 0) return text;
+  if (!lines.every((l) => l.startsWith("System: "))) return text;
+  return text.slice(sep + 2);
+}
+
+function scrubInjectedSystemBlocks(messages: unknown[]): unknown[] {
+  let changed = false;
+  const out = messages.map((msg) => {
+    if (!msg || typeof msg !== "object") return msg;
+    const obj = msg as Record<string, unknown>;
+    if (obj.role !== "user") return msg;
+    const content = obj.content;
+    if (!Array.isArray(content) || content.length === 0) return msg;
+    const first = content[0];
+    if (!first || typeof first !== "object") return msg;
+    const firstObj = first as Record<string, unknown>;
+    if (firstObj.type !== "text") return msg;
+    const text = firstObj.text;
+    if (typeof text !== "string") return msg;
+    const stripped = stripInjectedSystemBlock(text);
+    if (stripped === text) return msg;
+    changed = true;
+    const nextFirst = { ...firstObj, text: stripped };
+    const nextContent = [...content];
+    nextContent[0] = nextFirst;
+    return { ...obj, content: nextContent };
+  });
+  return changed ? out : messages;
+}
+
+function jsonUtf8Bytes(value: unknown): number {
+  try {
+    return Buffer.byteLength(JSON.stringify(value), "utf8");
+  } catch {
+    return Buffer.byteLength(String(value), "utf8");
+  }
+}
+
+function capArrayByJsonBytes<T>(
+  items: T[],
+  maxBytes: number,
+): { items: T[]; bytes: number } {
+  if (items.length === 0) return { items, bytes: 2 };
+  const parts = items.map((item) => jsonUtf8Bytes(item));
+  let bytes = 2 + parts.reduce((a, b) => a + b, 0) + (items.length - 1); // [] + commas
+  let start = 0;
+  while (bytes > maxBytes && start < items.length - 1) {
+    bytes -= parts[start] + 1; // item + comma
+    start += 1;
+  }
+  const next = start > 0 ? items.slice(start) : items;
+  return { items: next, bytes };
 }
 
 function loadSessionEntry(sessionKey: string) {
@@ -853,8 +914,13 @@ export async function startGatewayServer(
               ? readSessionMessages(sessionId, storePath)
               : [];
           const max = typeof limit === "number" ? limit : 200;
-          const messages =
+          const sliced =
             rawMessages.length > max ? rawMessages.slice(-max) : rawMessages;
+          const scrubbed = scrubInjectedSystemBlocks(sliced);
+          const capped = capArrayByJsonBytes(
+            scrubbed,
+            MAX_CHAT_HISTORY_MESSAGES_BYTES,
+          ).items;
           const thinkingLevel =
             entry?.thinkingLevel ??
             loadConfig().inbound?.reply?.thinkingDefault ??
@@ -864,7 +930,7 @@ export async function startGatewayServer(
             payloadJSON: JSON.stringify({
               sessionKey,
               sessionId,
-              messages,
+              messages: capped,
               thinkingLevel,
             }),
           };
@@ -1827,13 +1893,23 @@ export async function startGatewayServer(
             const defaultLimit = 200;
             const requested = typeof limit === "number" ? limit : defaultLimit;
             const max = Math.min(hardMax, requested);
-            const messages =
+            const sliced =
               rawMessages.length > max ? rawMessages.slice(-max) : rawMessages;
+            const scrubbed = scrubInjectedSystemBlocks(sliced);
+            const capped = capArrayByJsonBytes(
+              scrubbed,
+              MAX_CHAT_HISTORY_MESSAGES_BYTES,
+            ).items;
             const thinkingLevel =
               entry?.thinkingLevel ??
               loadConfig().inbound?.reply?.thinkingDefault ??
               "off";
-            respond(true, { sessionKey, sessionId, messages, thinkingLevel });
+            respond(true, {
+              sessionKey,
+              sessionId,
+              messages: capped,
+              thinkingLevel,
+            });
             break;
           }
           case "chat.send": {
@@ -2336,7 +2412,14 @@ export async function startGatewayServer(
               reason,
               tags,
             });
-            enqueueSystemEvent(text);
+            const normalizedReason = (reason ?? "").toLowerCase();
+            const looksPeriodic =
+              normalizedReason.startsWith("periodic") ||
+              normalizedReason === "heartbeat";
+            const isNodePresenceLine = text.startsWith("Node:");
+            if (!(isNodePresenceLine && looksPeriodic)) {
+              enqueueSystemEvent(text);
+            }
             presenceVersion += 1;
             broadcast(
               "presence",
