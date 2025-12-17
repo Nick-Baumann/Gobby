@@ -32,6 +32,44 @@ function run(cmd: string, args: string[], opts?: RunOpts): string {
   return typeof res.stdout === "string" ? res.stdout : "";
 }
 
+function writeFileSudoIfNeeded(filePath: string, content: string): void {
+  try {
+    fs.writeFileSync(filePath, content, "utf-8");
+    return;
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    if (code !== "EACCES" && code !== "EPERM") {
+      throw err instanceof Error ? err : new Error(String(err));
+    }
+  }
+
+  const res = spawnSync("sudo", ["tee", filePath], {
+    input: content,
+    encoding: "utf-8",
+    stdio: ["pipe", "ignore", "inherit"],
+  });
+  if (res.error) throw res.error;
+  if (res.status !== 0) {
+    throw new Error(
+      `sudo tee ${filePath} failed: exit ${res.status ?? "unknown"}`,
+    );
+  }
+}
+
+function mkdirSudoIfNeeded(dirPath: string): void {
+  try {
+    fs.mkdirSync(dirPath, { recursive: true });
+    return;
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    if (code !== "EACCES" && code !== "EPERM") {
+      throw err instanceof Error ? err : new Error(String(err));
+    }
+  }
+
+  run("sudo", ["mkdir", "-p", dirPath], { inherit: true });
+}
+
 function detectBrewPrefix(): string {
   const out = run("brew", ["--prefix"]);
   const prefix = out.trim();
@@ -43,7 +81,7 @@ function ensureImportLine(corefilePath: string, importGlob: string): boolean {
   const existing = fs.readFileSync(corefilePath, "utf-8");
   if (existing.includes(importGlob)) return false;
   const next = `${existing.replace(/\s*$/, "")}\n\nimport ${importGlob}\n`;
-  fs.writeFileSync(corefilePath, next, "utf-8");
+  writeFileSudoIfNeeded(corefilePath, next);
   return true;
 }
 
@@ -120,9 +158,11 @@ export function registerDnsCli(program: Command) {
         allowFailure: true,
       });
 
-      await fs.promises.mkdir(confDir, { recursive: true });
+      mkdirSudoIfNeeded(confDir);
 
-      if (fs.existsSync(corefilePath)) {
+      if (!fs.existsSync(corefilePath)) {
+        writeFileSudoIfNeeded(corefilePath, `import ${importGlob}\n`);
+      } else {
         ensureImportLine(corefilePath, importGlob);
       }
 
@@ -141,7 +181,7 @@ export function registerDnsCli(program: Command) {
         `}`,
         ``,
       ].join("\n");
-      fs.writeFileSync(serverPath, server, "utf-8");
+      writeFileSudoIfNeeded(serverPath, server);
 
       // Ensure the gateway can write its zone file path.
       await fs.promises.mkdir(path.dirname(zonePath), { recursive: true });
