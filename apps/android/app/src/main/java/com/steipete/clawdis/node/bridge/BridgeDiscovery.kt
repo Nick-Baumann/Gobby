@@ -168,9 +168,8 @@ class BridgeDiscovery(
       val targetName = stripTrailingDot(srv.target.toString())
       val host =
         try {
-          InetAddress.getAllByName(targetName)
-            .map { it.hostAddress }
-            .firstOrNull { !it.contains(":") } ?: InetAddress.getAllByName(targetName).firstOrNull()?.hostAddress
+          val addrs = InetAddress.getAllByName(targetName).mapNotNull { it.hostAddress }
+          addrs.firstOrNull { !it.contains(":") } ?: addrs.firstOrNull()
         } catch (_: Throwable) {
           null
         } ?: continue
@@ -220,13 +219,13 @@ class BridgeDiscovery(
   private fun txtValue(records: List<TXTRecord>, key: String): String? {
     val prefix = "$key="
     for (r in records) {
-      val strings =
+      val strings: List<String> =
         try {
-          r.strings
+          r.strings.mapNotNull { it as? String }
         } catch (_: Throwable) {
           emptyList()
         }
-      for (s in strings.filterNotNull()) {
+      for (s in strings) {
         val trimmed = s.trim()
         if (trimmed.startsWith(prefix)) {
           return trimmed.removePrefix(prefix).trim().ifEmpty { null }
