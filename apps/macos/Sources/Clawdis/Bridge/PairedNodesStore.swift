@@ -5,6 +5,8 @@ struct PairedNode: Codable, Equatable {
     var displayName: String?
     var platform: String?
     var version: String?
+    var deviceFamily: String?
+    var modelIdentifier: String?
     var token: String
     var createdAtMs: Int
     var lastSeenAtMs: Int?

@@ -403,7 +403,29 @@ actor BridgeServer {
         guard let token = hello.token, token == paired.token else {
             return .unauthorized
         }
-        do { try await store.touchSeen(nodeId: nodeId) } catch { /* ignore */ }
+
+        do {
+            var updated = paired
+            let name = hello.displayName?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+            let platform = hello.platform?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+            let version = hello.version?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+            let deviceFamily = hello.deviceFamily?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+            let modelIdentifier = hello.modelIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+
+            if updated.displayName != name { updated.displayName = name }
+            if updated.platform != platform { updated.platform = platform }
+            if updated.version != version { updated.version = version }
+            if updated.deviceFamily != deviceFamily { updated.deviceFamily = deviceFamily }
+            if updated.modelIdentifier != modelIdentifier { updated.modelIdentifier = modelIdentifier }
+
+            if updated != paired {
+                try await store.upsert(updated)
+            } else {
+                try await store.touchSeen(nodeId: nodeId)
+            }
+        } catch {
+            // ignore
+        }
         return .ok
     }
 
@@ -429,6 +451,8 @@ actor BridgeServer {
             displayName: request.displayName,
             platform: request.platform,
             version: request.version,
+            deviceFamily: request.deviceFamily,
+            modelIdentifier: request.modelIdentifier,
             token: token,
             createdAtMs: nowMs,
             lastSeenAtMs: nowMs)

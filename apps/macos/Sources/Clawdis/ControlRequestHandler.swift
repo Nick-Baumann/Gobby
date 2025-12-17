@@ -10,6 +10,8 @@ enum ControlRequestHandler {
         var displayName: String?
         var platform: String?
         var version: String?
+        var deviceFamily: String?
+        var modelIdentifier: String?
         var remoteAddress: String?
         var connected: Bool
         var capabilities: [String]?
@@ -434,6 +436,8 @@ enum ControlRequestHandler {
                 displayName: (live?.displayName ?? p.displayName),
                 platform: (live?.platform ?? p.platform),
                 version: (live?.version ?? p.version),
+                deviceFamily: (live?.deviceFamily ?? p.deviceFamily),
+                modelIdentifier: (live?.modelIdentifier ?? p.modelIdentifier),
                 remoteAddress: live?.remoteAddress,
                 connected: live != nil,
                 capabilities: live?.caps)
@@ -445,6 +449,8 @@ enum ControlRequestHandler {
                 displayName: c.displayName,
                 platform: c.platform,
                 version: c.version,
+                deviceFamily: c.deviceFamily,
+                modelIdentifier: c.modelIdentifier,
                 remoteAddress: c.remoteAddress,
                 connected: true,
                 capabilities: c.caps)
