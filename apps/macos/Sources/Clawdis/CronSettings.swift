@@ -530,7 +530,7 @@ struct CronJobEditor: View {
     @State private var systemEventText: String = ""
     @State private var agentMessage: String = ""
     @State private var deliver: Bool = false
-    @State private var channel: String = "last"
+    @State private var channel: GatewayAgentChannel = .last
     @State private var to: String = ""
     @State private var thinking: String = ""
     @State private var timeoutSeconds: String = ""
@@ -801,9 +801,9 @@ struct CronJobEditor: View {
                     GridRow {
                         self.gridLabel("Channel")
                         Picker("", selection: self.$channel) {
-                            Text("last").tag("last")
-                            Text("whatsapp").tag("whatsapp")
-                            Text("telegram").tag("telegram")
+                            Text("last").tag(GatewayAgentChannel.last)
+                            Text("whatsapp").tag(GatewayAgentChannel.whatsapp)
+                            Text("telegram").tag(GatewayAgentChannel.telegram)
                         }
                         .labelsHidden()
                         .pickerStyle(.segmented)
@@ -861,7 +861,7 @@ struct CronJobEditor: View {
             self.thinking = thinking ?? ""
             self.timeoutSeconds = timeoutSeconds.map(String.init) ?? ""
             self.deliver = deliver ?? false
-            self.channel = channel ?? "last"
+            self.channel = GatewayAgentChannel(raw: channel)
             self.to = to ?? ""
             self.bestEffortDeliver = bestEffortDeliver ?? false
         }
@@ -980,7 +980,7 @@ struct CronJobEditor: View {
         if let n = Int(self.timeoutSeconds), n > 0 { payload["timeoutSeconds"] = n }
         payload["deliver"] = self.deliver
         if self.deliver {
-            payload["channel"] = self.channel
+            payload["channel"] = self.channel.rawValue
             let to = self.to.trimmingCharacters(in: .whitespacesAndNewlines)
             if !to.isEmpty { payload["to"] = to }
             payload["bestEffortDeliver"] = self.bestEffortDeliver

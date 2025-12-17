@@ -15,10 +15,7 @@ private enum WebChatSwiftUILayout {
 
 struct MacGatewayChatTransport: ClawdisChatTransport, Sendable {
     func requestHistory(sessionKey: String) async throws -> ClawdisChatHistoryPayload {
-        let data = try await GatewayConnection.shared.request(
-            method: "chat.history",
-            params: ["sessionKey": AnyCodable(sessionKey)])
-        return try JSONDecoder().decode(ClawdisChatHistoryPayload.self, from: data)
+        try await GatewayConnection.shared.chatHistory(sessionKey: sessionKey)
     }
 
     func sendMessage(
@@ -28,36 +25,16 @@ struct MacGatewayChatTransport: ClawdisChatTransport, Sendable {
         idempotencyKey: String,
         attachments: [ClawdisChatAttachmentPayload]) async throws -> ClawdisChatSendResponse
     {
-        var params: [String: AnyCodable] = [
-            "sessionKey": AnyCodable(sessionKey),
-            "message": AnyCodable(message),
-            "thinking": AnyCodable(thinking),
-            "idempotencyKey": AnyCodable(idempotencyKey),
-            "timeoutMs": AnyCodable(30000),
-        ]
-
-        if !attachments.isEmpty {
-            let encoded = attachments.map { att in
-                [
-                    "type": att.type,
-                    "mimeType": att.mimeType,
-                    "fileName": att.fileName,
-                    "content": att.content,
-                ]
-            }
-            params["attachments"] = AnyCodable(encoded)
-        }
-
-        let data = try await GatewayConnection.shared.request(method: "chat.send", params: params)
-        return try JSONDecoder().decode(ClawdisChatSendResponse.self, from: data)
+        try await GatewayConnection.shared.chatSend(
+            sessionKey: sessionKey,
+            message: message,
+            thinking: thinking,
+            idempotencyKey: idempotencyKey,
+            attachments: attachments)
     }
 
     func requestHealth(timeoutMs: Int) async throws -> Bool {
-        let data = try await GatewayConnection.shared.request(
-            method: "health",
-            params: nil,
-            timeoutMs: Double(timeoutMs))
-        return (try? JSONDecoder().decode(ClawdisGatewayHealthOK.self, from: data))?.ok ?? true
+        try await GatewayConnection.shared.healthOK(timeoutMs: timeoutMs)
     }
 
     func events() -> AsyncStream<ClawdisChatTransportEvent> {

@@ -105,7 +105,7 @@ Goal: replace legacy gateway/stdin/TCP control with a single WebSocket Gateway, 
 - Add lightweight WS client helper for `status/health/send/agent` when Gateway is up. ✅ `gateway` subcommands use the Gateway over WS.
   - Consider a “local only” flag to avoid accidental remote connects. (optional; not needed with tunnel-first model.)
 - **WebChat backend**:
-  - Single WS to Gateway; seed UI from snapshot; forward `presence/tick/agent` to browser. ✅ implemented via `GatewayClient` in `webchat/server.ts`.
+  - Single WS to Gateway; seed UI from snapshot; forward `presence/tick/agent` to browser. ✅ implemented via the WebChat gateway client in `webchat/server.ts`.
   - Fail fast if handshake fails; no fallback transports. ✅ (webchat returns gateway unavailable)
 
 ## Phase 6 — Send/agent path hardening
@@ -148,7 +148,7 @@ Goal: replace legacy gateway/stdin/TCP control with a single WebSocket Gateway, 
 - Mac app smoke: presence/health render from snapshot; reconnect on tick loss. (Manual: open Instances tab, verify snapshot after connect, induce seq gap by toggling wifi, ensure UI refreshes.)
 - WebChat smoke: snapshot seed + event updates; tunnel scenario. ✅ Offline snapshot harness in `src/webchat/server.test.ts` (mock gateway) now passes; live tunnel still recommended for manual.
 - Idempotency tests: retry send/agent with same key after forced disconnect; expect deduped result. ✅ send + agent dedupe + reconnect retry covered in gateway tests.
-- Seq-gap handling: ✅ clients now detect seq gaps (GatewayClient + mac GatewayChannel) and refresh health/presence (webchat) or trigger UI refresh (mac). Load-test still optional.
+- Seq-gap handling: ✅ clients now detect seq gaps (WebChat gateway client + mac `GatewayConnection/GatewayChannel`) and refresh health/presence (webchat) or trigger UI refresh (mac). Load-test still optional.
 
 ## Phase 10 — Rollout
 - Version bump; release notes: breaking change to control plane (WS only).

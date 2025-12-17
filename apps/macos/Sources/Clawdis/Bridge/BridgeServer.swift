@@ -167,13 +167,13 @@ actor BridgeServer {
             let sessionKey = payload.sessionKey?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
                 ?? "node-\(nodeId)"
 
-            _ = await GatewayConnection.shared.sendAgent(
+            _ = await GatewayConnection.shared.sendAgent(GatewayAgentInvocation(
                 message: text,
-                thinking: "low",
                 sessionKey: sessionKey,
+                thinking: "low",
                 deliver: false,
                 to: nil,
-                channel: "last")
+                channel: .last))
 
         case "agent.request":
             guard let json = evt.payloadJSON, let data = json.data(using: .utf8) else {
@@ -191,15 +191,15 @@ actor BridgeServer {
                 ?? "node-\(nodeId)"
             let thinking = link.thinking?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
             let to = link.to?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
-            let channel = link.channel?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+            let channel = GatewayAgentChannel(raw: link.channel)
 
-            _ = await GatewayConnection.shared.sendAgent(
+            _ = await GatewayConnection.shared.sendAgent(GatewayAgentInvocation(
                 message: message,
-                thinking: thinking,
                 sessionKey: sessionKey,
+                thinking: thinking,
                 deliver: link.deliver,
                 to: to,
-                channel: channel ?? "last")
+                channel: channel))
 
         default:
             break
@@ -347,17 +347,17 @@ actor BridgeServer {
                 "reason \(reason)",
             ].compactMap(\.self).joined(separator: " · ")
 
-            var params: [String: Any] = [
-                "text": summary,
-                "instanceId": nodeId,
-                "host": host,
-                "mode": "node",
-                "reason": reason,
-                "tags": tags,
+            var params: [String: AnyCodable] = [
+                "text": AnyCodable(summary),
+                "instanceId": AnyCodable(nodeId),
+                "host": AnyCodable(host),
+                "mode": AnyCodable("node"),
+                "reason": AnyCodable(reason),
+                "tags": AnyCodable(tags),
             ]
-            if let ip { params["ip"] = ip }
-            if let version { params["version"] = version }
-            _ = try await GatewayConnection.shared.controlRequest(method: "system-event", params: params)
+            if let ip { params["ip"] = AnyCodable(ip) }
+            if let version { params["version"] = AnyCodable(version) }
+            await GatewayConnection.shared.sendSystemEvent(params)
         } catch {
             // Best-effort only.
         }

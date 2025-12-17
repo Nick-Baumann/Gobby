@@ -37,7 +37,7 @@ enum VoiceWakeForwarder {
         var thinking: String = "low"
         var deliver: Bool = true
         var to: String?
-        var channel: String = "last"
+        var channel: GatewayAgentChannel = .last
     }
 
     @discardableResult
@@ -46,15 +46,14 @@ enum VoiceWakeForwarder {
         options: ForwardOptions = ForwardOptions()) async -> Result<Void, VoiceWakeForwardError>
     {
         let payload = Self.prefixedTranscript(transcript)
-        let channel = options.channel.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let deliver = options.deliver && channel != "webchat"
-        let result = await GatewayConnection.shared.sendAgent(
+        let deliver = options.channel.shouldDeliver(options.deliver)
+        let result = await GatewayConnection.shared.sendAgent(GatewayAgentInvocation(
             message: payload,
-            thinking: options.thinking,
             sessionKey: options.sessionKey,
+            thinking: options.thinking,
             deliver: deliver,
             to: options.to,
-            channel: channel)
+            channel: options.channel))
 
         if result.ok {
             self.logger.info("voice wake forward ok")

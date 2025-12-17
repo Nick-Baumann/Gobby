@@ -45,7 +45,7 @@ Goal: enforce the invariant **“one gateway websocket per app process (per effe
 
 Key elements:
 - `GatewayConnection.shared` owns the one websocket and is the *only* supported entry point for app code that needs gateway RPC.
-- Consumers (e.g. Control UI, Agent RPC, SwiftUI WebChat) call `GatewayConnection.shared.request(...)` and do not create their own sockets.
+- Consumers (e.g. Control UI, agent invocations, SwiftUI WebChat) call `GatewayConnection.shared.request(...)` and do not create their own sockets.
 - If the effective connection config changes (local ↔ remote tunnel port, token change), `GatewayConnection` replaces the underlying connection.
 - The transport (`GatewayChannelActor`) is an internal detail and forwards push frames back into `GatewayConnection`.
 - Server-push frames are delivered via `GatewayConnection.shared.subscribe(...) -> AsyncStream<GatewayPush>` (in-process event bus).
@@ -84,7 +84,7 @@ Minimum invariants:
 - Config changes (token / endpoint) cancel the old socket and reconnect once.
 
 Nice-to-have integration coverage:
-- Multiple “consumers” (Control UI + Agent RPC + SwiftUI WebChat) all call through the shared connection and still produce only one websocket.
+- Multiple “consumers” (Control UI + agent invocations + SwiftUI WebChat) all call through the shared connection and still produce only one websocket.
 
 Additional coverage added (macOS):
 - Subscribing after connect replays the latest snapshot.

@@ -550,13 +550,17 @@ private final class CanvasA2UIActionMessageHandler: NSObject, WKScriptMessageHan
             : "A2UI action: \(name)\n\n```json\n\(json)\n```"
 
         Task {
-            let result = await GatewayConnection.shared.sendAgent(
+            if AppStateStore.shared.connectionMode == .local {
+                GatewayProcessManager.shared.setActive(true)
+            }
+
+            let result = await GatewayConnection.shared.sendAgent(GatewayAgentInvocation(
                 message: text,
-                thinking: nil,
                 sessionKey: self.sessionKey,
+                thinking: "low",
                 deliver: false,
                 to: nil,
-                channel: "webchat")
+                channel: .last))
             if !result.ok {
                 canvasWindowLogger.error(
                     "A2UI action send failed name=\(name, privacy: .public) error=\(result.error ?? "unknown", privacy: .public)")
@@ -678,11 +682,11 @@ private final class HoverChromeContainerView: NSView {
             v.state = .active
             v.appearance = NSAppearance(named: .vibrantDark)
             v.wantsLayer = true
-            v.layer?.cornerRadius = 10
+            v.layer?.cornerRadius = 11
             v.layer?.masksToBounds = true
             v.layer?.borderWidth = 1
-            v.layer?.borderColor = NSColor.white.withAlphaComponent(0.18).cgColor
-            v.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.22).cgColor
+            v.layer?.borderColor = NSColor.white.withAlphaComponent(0.22).cgColor
+            v.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.28).cgColor
             v.layer?.shadowColor = NSColor.black.withAlphaComponent(0.35).cgColor
             v.layer?.shadowOpacity = 0.35
             v.layer?.shadowRadius = 8
@@ -691,7 +695,7 @@ private final class HoverChromeContainerView: NSView {
         }()
 
         private let closeButton: NSButton = {
-            let cfg = NSImage.SymbolConfiguration(pointSize: 10, weight: .semibold)
+            let cfg = NSImage.SymbolConfiguration(pointSize: 9, weight: .semibold)
             let img = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close")?
                 .withSymbolConfiguration(cfg)
                 ?? NSImage(size: NSSize(width: 18, height: 18))
@@ -699,7 +703,7 @@ private final class HoverChromeContainerView: NSView {
             btn.isBordered = false
             btn.bezelStyle = .regularSquare
             btn.imageScaling = .scaleProportionallyDown
-            btn.contentTintColor = NSColor.labelColor
+            btn.contentTintColor = NSColor.white.withAlphaComponent(0.92)
             btn.toolTip = "Close"
             return btn
         }()
@@ -740,13 +744,13 @@ private final class HoverChromeContainerView: NSView {
 
                 self.closeBackground.centerXAnchor.constraint(equalTo: self.closeButton.centerXAnchor),
                 self.closeBackground.centerYAnchor.constraint(equalTo: self.closeButton.centerYAnchor),
-                self.closeBackground.widthAnchor.constraint(equalToConstant: 20),
-                self.closeBackground.heightAnchor.constraint(equalToConstant: 20),
+                self.closeBackground.widthAnchor.constraint(equalToConstant: 22),
+                self.closeBackground.heightAnchor.constraint(equalToConstant: 22),
 
-                self.closeButton.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -8),
-                self.closeButton.topAnchor.constraint(equalTo: self.topAnchor, constant: 8),
-                self.closeButton.widthAnchor.constraint(equalToConstant: 20),
-                self.closeButton.heightAnchor.constraint(equalToConstant: 20),
+                self.closeButton.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -9),
+                self.closeButton.topAnchor.constraint(equalTo: self.topAnchor, constant: 9),
+                self.closeButton.widthAnchor.constraint(equalToConstant: 18),
+                self.closeButton.heightAnchor.constraint(equalToConstant: 18),
 
                 self.resizeHandle.trailingAnchor.constraint(equalTo: self.trailingAnchor),
                 self.resizeHandle.bottomAnchor.constraint(equalTo: self.bottomAnchor),

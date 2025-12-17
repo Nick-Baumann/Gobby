@@ -320,10 +320,7 @@ final class NodePairingApprovalPrompter {
 
     private func approve(requestId: String) async {
         do {
-            _ = try await GatewayConnection.shared.request(
-                method: "node.pair.approve",
-                params: ["requestId": AnyCodable(requestId)],
-                timeoutMs: 10000)
+            try await GatewayConnection.shared.nodePairApprove(requestId: requestId)
             self.logger.info("approved node pairing requestId=\(requestId, privacy: .public)")
         } catch {
             self.logger.error("approve failed requestId=\(requestId, privacy: .public)")
@@ -333,10 +330,7 @@ final class NodePairingApprovalPrompter {
 
     private func reject(requestId: String) async {
         do {
-            _ = try await GatewayConnection.shared.request(
-                method: "node.pair.reject",
-                params: ["requestId": AnyCodable(requestId)],
-                timeoutMs: 10000)
+            try await GatewayConnection.shared.nodePairReject(requestId: requestId)
             self.logger.info("rejected node pairing requestId=\(requestId, privacy: .public)")
         } catch {
             self.logger.error("reject failed requestId=\(requestId, privacy: .public)")
