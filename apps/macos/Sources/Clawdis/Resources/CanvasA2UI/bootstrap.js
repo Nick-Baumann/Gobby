@@ -150,7 +150,78 @@ class ClawdisA2UIHost extends LitElement {
       reset: () => this.reset(),
       getSurfaces: () => Array.from(this.#processor.getSurfaces().keys()),
     };
+    this.addEventListener("a2uiaction", (evt) => this.#handleA2UIAction(evt));
     this.#syncSurfaces();
+  }
+
+  #handleA2UIAction(evt) {
+    const payload = evt?.detail ?? evt?.payload ?? null;
+    if (!payload || payload.eventType !== "a2ui.action") {
+      return;
+    }
+
+    const action = payload.action;
+    const name = action?.name;
+    if (!name) {
+      return;
+    }
+
+    const sourceComponentId = payload.sourceComponentId ?? "";
+    const surfaces = this.#processor.getSurfaces();
+
+    let surfaceId = null;
+    let sourceNode = null;
+    for (const [sid, surface] of surfaces.entries()) {
+      const node = surface?.components?.get?.(sourceComponentId) ?? null;
+      if (node) {
+        surfaceId = sid;
+        sourceNode = node;
+        break;
+      }
+    }
+
+    const context = {};
+    const ctxItems = Array.isArray(action?.context) ? action.context : [];
+    for (const item of ctxItems) {
+      const key = item?.key;
+      const value = item?.value ?? null;
+      if (!key || !value) continue;
+
+      if (typeof value.path === "string") {
+        const resolved = sourceNode
+          ? this.#processor.getData(sourceNode, value.path, surfaceId ?? undefined)
+          : null;
+        context[key] = resolved;
+        continue;
+      }
+      if (Object.prototype.hasOwnProperty.call(value, "literalString")) {
+        context[key] = value.literalString ?? "";
+        continue;
+      }
+      if (Object.prototype.hasOwnProperty.call(value, "literalNumber")) {
+        context[key] = value.literalNumber ?? 0;
+        continue;
+      }
+      if (Object.prototype.hasOwnProperty.call(value, "literalBoolean")) {
+        context[key] = value.literalBoolean ?? false;
+        continue;
+      }
+    }
+
+    const userAction = {
+      name,
+      surfaceId: surfaceId ?? "main",
+      sourceComponentId,
+      timestamp: new Date().toISOString(),
+      ...(Object.keys(context).length ? { context } : {}),
+    };
+
+    globalThis.__clawdisLastA2UIAction = userAction;
+
+    const handler = globalThis.webkit?.messageHandlers?.clawdisCanvasA2UIAction;
+    if (handler?.postMessage) {
+      handler.postMessage({ userAction });
+    }
   }
 
   applyMessages(messages) {

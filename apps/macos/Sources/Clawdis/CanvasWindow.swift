@@ -37,6 +37,7 @@ final class CanvasWindowController: NSWindowController, WKNavigationDelegate, NS
     private let sessionDir: URL
     private let schemeHandler: CanvasSchemeHandler
     private let webView: WKWebView
+    private var a2uiActionMessageHandler: CanvasA2UIActionMessageHandler?
     private let watcher: CanvasFileWatcher
     private let container: HoverChromeContainerView
     let presentation: CanvasPresentation
@@ -94,6 +95,10 @@ final class CanvasWindowController: NSWindowController, WKNavigationDelegate, NS
         let window = Self.makeWindow(for: presentation, contentView: self.container)
         super.init(window: window)
 
+        let handler = CanvasA2UIActionMessageHandler(sessionKey: sessionKey)
+        self.a2uiActionMessageHandler = handler
+        self.webView.configuration.userContentController.add(handler, name: CanvasA2UIActionMessageHandler.messageName)
+
         self.webView.navigationDelegate = self
         self.window?.delegate = self
         self.container.onClose = { [weak self] in
@@ -107,6 +112,7 @@ final class CanvasWindowController: NSWindowController, WKNavigationDelegate, NS
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     @MainActor deinit {
+        self.webView.configuration.userContentController.removeScriptMessageHandler(forName: CanvasA2UIActionMessageHandler.messageName)
         self.watcher.stop()
     }
 
@@ -480,6 +486,85 @@ final class CanvasWindowController: NSWindowController, WKNavigationDelegate, NS
     }
 }
 
+private final class CanvasA2UIActionMessageHandler: NSObject, WKScriptMessageHandler {
+    static let messageName = "clawdisCanvasA2UIAction"
+
+    private let sessionKey: String
+
+    init(sessionKey: String) {
+        self.sessionKey = sessionKey
+        super.init()
+    }
+
+    func userContentController(_: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.name == Self.messageName else { return }
+
+        // Only accept actions from local Canvas content (not arbitrary web pages).
+        guard let webView = message.webView,
+              webView.url?.scheme == CanvasScheme.scheme
+        else { return }
+
+        let path = webView.url?.path ?? ""
+        guard path == "/" || path.isEmpty || path.hasPrefix("/__clawdis__/a2ui") else { return }
+
+        let body: [String: Any] = {
+            if let dict = message.body as? [String: Any] { return dict }
+            if let dict = message.body as? [AnyHashable: Any] {
+                return dict.reduce(into: [String: Any]()) { acc, pair in
+                    guard let key = pair.key as? String else { return }
+                    acc[key] = pair.value
+                }
+            }
+            return [:]
+        }()
+        guard !body.isEmpty else { return }
+
+        let userActionAny = body["userAction"] ?? body
+        let userAction: [String: Any] = {
+            if let dict = userActionAny as? [String: Any] { return dict }
+            if let dict = userActionAny as? [AnyHashable: Any] {
+                return dict.reduce(into: [String: Any]()) { acc, pair in
+                    guard let key = pair.key as? String else { return }
+                    acc[key] = pair.value
+                }
+            }
+            return [:]
+        }()
+        guard !userAction.isEmpty else { return }
+
+        guard let name = userAction["name"] as? String, !name.isEmpty else { return }
+
+        let json: String = {
+            if let data = try? JSONSerialization.data(withJSONObject: userAction, options: [.prettyPrinted, .sortedKeys]),
+               let str = String(data: data, encoding: .utf8)
+            {
+                return str
+            }
+            return ""
+        }()
+
+        canvasWindowLogger.info("A2UI action \(name, privacy: .public) session=\(self.sessionKey, privacy: .public)")
+
+        let text = json.isEmpty
+            ? "A2UI action: \(name)"
+            : "A2UI action: \(name)\n\n```json\n\(json)\n```"
+
+        Task {
+            let result = await AgentRPC.shared.send(
+                text: text,
+                thinking: nil,
+                sessionKey: self.sessionKey,
+                deliver: false,
+                to: nil,
+                channel: "webchat")
+            if !result.ok {
+                canvasWindowLogger.error(
+                    "A2UI action send failed name=\(name, privacy: .public) error=\(result.error ?? "unknown", privacy: .public)")
+            }
+        }
+    }
+}
+
 // MARK: - Hover chrome container
 
 private final class HoverChromeContainerView: NSView {
@@ -591,16 +676,24 @@ private final class HoverChromeContainerView: NSView {
             v.material = .hudWindow
             v.blendingMode = .withinWindow
             v.state = .active
+            v.appearance = NSAppearance(named: .vibrantDark)
             v.wantsLayer = true
-            v.layer?.cornerRadius = 11
+            v.layer?.cornerRadius = 10
             v.layer?.masksToBounds = true
             v.layer?.borderWidth = 1
-            v.layer?.borderColor = NSColor.white.withAlphaComponent(0.12).cgColor
+            v.layer?.borderColor = NSColor.white.withAlphaComponent(0.18).cgColor
+            v.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.22).cgColor
+            v.layer?.shadowColor = NSColor.black.withAlphaComponent(0.35).cgColor
+            v.layer?.shadowOpacity = 0.35
+            v.layer?.shadowRadius = 8
+            v.layer?.shadowOffset = .zero
             return v
         }()
 
         private let closeButton: NSButton = {
-            let img = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close")
+            let cfg = NSImage.SymbolConfiguration(pointSize: 10, weight: .semibold)
+            let img = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close")?
+                .withSymbolConfiguration(cfg)
                 ?? NSImage(size: NSSize(width: 18, height: 18))
             let btn = NSButton(image: img, target: nil, action: nil)
             btn.isBordered = false
@@ -647,13 +740,13 @@ private final class HoverChromeContainerView: NSView {
 
                 self.closeBackground.centerXAnchor.constraint(equalTo: self.closeButton.centerXAnchor),
                 self.closeBackground.centerYAnchor.constraint(equalTo: self.closeButton.centerYAnchor),
-                self.closeBackground.widthAnchor.constraint(equalToConstant: 22),
-                self.closeBackground.heightAnchor.constraint(equalToConstant: 22),
+                self.closeBackground.widthAnchor.constraint(equalToConstant: 20),
+                self.closeBackground.heightAnchor.constraint(equalToConstant: 20),
 
                 self.closeButton.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -8),
                 self.closeButton.topAnchor.constraint(equalTo: self.topAnchor, constant: 8),
-                self.closeButton.widthAnchor.constraint(equalToConstant: 16),
-                self.closeButton.heightAnchor.constraint(equalToConstant: 16),
+                self.closeButton.widthAnchor.constraint(equalToConstant: 20),
+                self.closeButton.heightAnchor.constraint(equalToConstant: 20),
 
                 self.resizeHandle.trailingAnchor.constraint(equalTo: self.trailingAnchor),
                 self.resizeHandle.bottomAnchor.constraint(equalTo: self.bottomAnchor),
