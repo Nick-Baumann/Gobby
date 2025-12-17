@@ -200,6 +200,8 @@ export async function runEmbeddedPiAgent(params: {
           systemPrompt,
           model,
           thinkingLevel,
+          // TODO(steipete): Once pi-mono publishes file-magic MIME detection in `read` image payloads,
+          // remove `createClawdisCodingTools()` and use upstream `codingTools` again.
           tools: createClawdisCodingTools(),
         },
         messageTransformer,

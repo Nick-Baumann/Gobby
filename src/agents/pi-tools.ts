@@ -3,6 +3,8 @@ import { codingTools, readTool } from "@mariozechner/pi-coding-agent";
 
 import { detectMime } from "../media/mime.js";
 
+// TODO(steipete): Remove this wrapper once pi-mono ships file-magic MIME detection
+// for `read` image payloads in `@mariozechner/pi-coding-agent` (then switch back to `codingTools` directly).
 type ImageContentBlock = {
   type: "image";
   data: string;
