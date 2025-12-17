@@ -149,13 +149,11 @@ export async function sessionsCommand(
 ) {
   const cfg = loadConfig();
   const configContextTokens =
-    cfg.inbound?.reply?.agent?.contextTokens ??
-    lookupContextTokens(cfg.inbound?.reply?.agent?.model) ??
+    cfg.inbound?.agent?.contextTokens ??
+    lookupContextTokens(cfg.inbound?.agent?.model) ??
     DEFAULT_CONTEXT_TOKENS;
-  const configModel = cfg.inbound?.reply?.agent?.model ?? DEFAULT_MODEL;
-  const storePath = resolveStorePath(
-    opts.store ?? cfg.inbound?.reply?.session?.store,
-  );
+  const configModel = cfg.inbound?.agent?.model ?? DEFAULT_MODEL;
+  const storePath = resolveStorePath(opts.store ?? cfg.inbound?.session?.store);
   const store = loadSessionStore(storePath);
 
   let activeMinutes: number | undefined;

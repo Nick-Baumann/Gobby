@@ -5,12 +5,12 @@ import { describe, expect, it } from "vitest";
 import { ensureAgentWorkspace } from "./workspace.js";
 
 describe("ensureAgentWorkspace", () => {
-  it("creates directory and AGENTS.md when missing", async () => {
+  it("creates directory and bootstrap files when missing", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "clawdis-ws-"));
     const nested = path.join(dir, "nested");
     const result = await ensureAgentWorkspace({
       dir: nested,
-      ensureAgentsFile: true,
+      ensureBootstrapFiles: true,
     });
     expect(result.dir).toBe(path.resolve(nested));
     expect(result.agentsPath).toBe(
@@ -26,7 +26,7 @@ describe("ensureAgentWorkspace", () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "clawdis-ws-"));
     const agentsPath = path.join(dir, "AGENTS.md");
     await fs.writeFile(agentsPath, "custom", "utf-8");
-    await ensureAgentWorkspace({ dir, ensureAgentsFile: true });
+    await ensureAgentWorkspace({ dir, ensureBootstrapFiles: true });
     expect(await fs.readFile(agentsPath, "utf-8")).toBe("custom");
   });
 });

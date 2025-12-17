@@ -11,7 +11,7 @@ import {
 } from "@whiskeysockets/baileys";
 import qrcode from "qrcode-terminal";
 
-import { SESSION_STORE_DEFAULT } from "../config/sessions.js";
+import { resolveDefaultSessionStorePath } from "../config/sessions.js";
 import { danger, info, success } from "../globals.js";
 import { getChildLogger, toPinoLikeLogger } from "../logging.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
@@ -153,7 +153,7 @@ export async function logoutWeb(runtime: RuntimeEnv = defaultRuntime) {
   }
   await fs.rm(WA_WEB_AUTH_DIR, { recursive: true, force: true });
   // Also drop session store to clear lingering per-sender state after logout.
-  await fs.rm(SESSION_STORE_DEFAULT, { force: true });
+  await fs.rm(resolveDefaultSessionStorePath(), { force: true });
   runtime.log(success("Cleared WhatsApp Web credentials."));
   return true;
 }

@@ -1,10 +1,31 @@
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
-import * as tauRpc from "../process/tau-rpc.js";
+
+vi.mock("../agents/pi-embedded.js", () => ({
+  runEmbeddedPiAgent: vi.fn(),
+}));
+
+import { runEmbeddedPiAgent } from "../agents/pi-embedded.js";
 import {
   extractThinkDirective,
   extractVerboseDirective,
   getReplyFromConfig,
 } from "./reply.js";
+
+async function withTempHome<T>(fn: (home: string) => Promise<T>): Promise<T> {
+  const base = await fs.mkdtemp(path.join(os.tmpdir(), "clawdis-reply-"));
+  const previousHome = process.env.HOME;
+  process.env.HOME = base;
+  try {
+    return await fn(base);
+  } finally {
+    process.env.HOME = previousHome;
+    await fs.rm(base, { recursive: true, force: true });
+  }
+}
 
 describe("directive parsing", () => {
   afterEach(() => {
@@ -44,66 +65,57 @@ describe("directive parsing", () => {
   });
 
   it("applies inline think and still runs agent content", async () => {
-    const rpcMock = vi.spyOn(tauRpc, "runPiRpc").mockResolvedValue({
-      stdout:
-        '{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"done"}]}}',
-      stderr: "",
-      code: 0,
-      signal: null,
-      killed: false,
-    });
+    await withTempHome(async (home) => {
+      vi.mocked(runEmbeddedPiAgent).mockResolvedValue({
+        payloads: [{ text: "done" }],
+        meta: {
+          durationMs: 5,
+          agentMeta: { sessionId: "s", provider: "p", model: "m" },
+        },
+      });
 
-    const res = await getReplyFromConfig(
-      {
-        Body: "please sync /think:high now",
-        From: "+1004",
-        To: "+2000",
-      },
-      {},
-      {
-        inbound: {
-          allowFrom: ["*"],
-          reply: {
-            mode: "command",
-            command: ["pi", "{{Body}}"],
-            agent: { kind: "pi" },
-            session: {},
+      const res = await getReplyFromConfig(
+        {
+          Body: "please sync /think:high now",
+          From: "+1004",
+          To: "+2000",
+        },
+        {},
+        {
+          inbound: {
+            allowFrom: ["*"],
+            workspace: path.join(home, "clawd"),
+            agent: { provider: "anthropic", model: "claude-opus-4-5" },
+            session: { store: path.join(home, "sessions.json") },
           },
         },
-      },
-    );
+      );
 
-    const text = Array.isArray(res) ? res[0]?.text : res?.text;
-    expect(text).toBe("done");
-    expect(rpcMock).toHaveBeenCalledOnce();
+      const text = Array.isArray(res) ? res[0]?.text : res?.text;
+      expect(text).toBe("done");
+      expect(runEmbeddedPiAgent).toHaveBeenCalledOnce();
+    });
   });
 
   it("acks verbose directive immediately with system marker", async () => {
-    const rpcMock = vi.spyOn(tauRpc, "runPiRpc").mockResolvedValue({
-      stdout: "",
-      stderr: "",
-      code: 0,
-      signal: null,
-      killed: false,
-    });
+    await withTempHome(async (home) => {
+      vi.mocked(runEmbeddedPiAgent).mockReset();
 
-    const res = await getReplyFromConfig(
-      { Body: "/verbose on", From: "+1222", To: "+1222" },
-      {},
-      {
-        inbound: {
-          reply: {
-            mode: "command",
-            command: ["pi", "{{Body}}"],
-            agent: { kind: "pi" },
-            session: {},
+      const res = await getReplyFromConfig(
+        { Body: "/verbose on", From: "+1222", To: "+1222" },
+        {},
+        {
+          inbound: {
+            workspace: path.join(home, "clawd"),
+            agent: { provider: "anthropic", model: "claude-opus-4-5" },
+            session: { store: path.join(home, "sessions.json") },
           },
         },
-      },
-    );
+      );
 
-    const text = Array.isArray(res) ? res[0]?.text : res?.text;
-    expect(text).toMatch(/^⚙️ Verbose logging enabled\./);
-    expect(rpcMock).not.toHaveBeenCalled();
+      const text = Array.isArray(res) ? res[0]?.text : res?.text;
+      expect(text).toMatch(/^⚙️ Verbose logging enabled\./);
+      expect(runEmbeddedPiAgent).not.toHaveBeenCalled();
+    });
   });
 });

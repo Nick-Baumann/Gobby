@@ -377,7 +377,7 @@ function capArrayByJsonBytes<T>(
 
 function loadSessionEntry(sessionKey: string) {
   const cfg = loadConfig();
-  const sessionCfg = cfg.inbound?.reply?.session;
+  const sessionCfg = cfg.inbound?.session;
   const storePath = sessionCfg?.store
     ? resolveStorePath(sessionCfg.store)
     : resolveStorePath(undefined);
@@ -394,9 +394,9 @@ function classifySessionKey(key: string): GatewaySessionRow["kind"] {
 }
 
 function getSessionDefaults(cfg: ClawdisConfig): GatewaySessionsDefaults {
-  const model = cfg.inbound?.reply?.agent?.model ?? DEFAULT_MODEL;
+  const model = cfg.inbound?.agent?.model ?? DEFAULT_MODEL;
   const contextTokens =
-    cfg.inbound?.reply?.agent?.contextTokens ??
+    cfg.inbound?.agent?.contextTokens ??
     lookupContextTokens(model) ??
     DEFAULT_CONTEXT_TOKENS;
   return { model: model ?? null, contextTokens: contextTokens ?? null };
@@ -886,7 +886,7 @@ export async function startGatewayServer(
           ).items;
           const thinkingLevel =
             entry?.thinkingLevel ??
-            loadConfig().inbound?.reply?.thinkingDefault ??
+            loadConfig().inbound?.agent?.thinkingDefault ??
             "off";
           return {
             ok: true,
@@ -1864,7 +1864,7 @@ export async function startGatewayServer(
             ).items;
             const thinkingLevel =
               entry?.thinkingLevel ??
-              loadConfig().inbound?.reply?.thinkingDefault ??
+              loadConfig().inbound?.agent?.thinkingDefault ??
               "off";
             respond(true, {
               sessionKey,
@@ -2192,9 +2192,7 @@ export async function startGatewayServer(
             }
             const p = params as SessionsListParams;
             const cfg = loadConfig();
-            const storePath = resolveStorePath(
-              cfg.inbound?.reply?.session?.store,
-            );
+            const storePath = resolveStorePath(cfg.inbound?.session?.store);
             const store = loadSessionStore(storePath);
             const result = listSessionsFromStore({
               cfg,
@@ -2230,9 +2228,7 @@ export async function startGatewayServer(
             }
 
             const cfg = loadConfig();
-            const storePath = resolveStorePath(
-              cfg.inbound?.reply?.session?.store,
-            );
+            const storePath = resolveStorePath(cfg.inbound?.session?.store);
             const store = loadSessionStore(storePath);
             const now = Date.now();
 
@@ -2867,8 +2863,7 @@ export async function startGatewayServer(
               }
               resolvedSessionId = sessionId;
               const mainKey =
-                (cfg.inbound?.reply?.session?.mainKey ?? "main").trim() ||
-                "main";
+                (cfg.inbound?.session?.mainKey ?? "main").trim() || "main";
               if (requestedSessionKey === mainKey) {
                 chatRunSessions.set(sessionId, {
                   sessionKey: requestedSessionKey,

@@ -8,17 +8,28 @@ import type { CliDeps } from "../cli/deps.js";
 import type { ClawdisConfig } from "../config/config.js";
 import type { CronJob } from "./types.js";
 
-vi.mock("../auto-reply/command-reply.js", () => ({
-  runCommandReply: vi.fn(),
+vi.mock("../agents/pi-embedded.js", () => ({
+  runEmbeddedPiAgent: vi.fn(),
 }));
 
-import { runCommandReply } from "../auto-reply/command-reply.js";
+import { runEmbeddedPiAgent } from "../agents/pi-embedded.js";
 import { runCronIsolatedAgentTurn } from "./isolated-agent.js";
 
-async function makeSessionStorePath() {
-  const dir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "clawdis-cron-sessions-"),
-  );
+async function withTempHome<T>(fn: (home: string) => Promise<T>): Promise<T> {
+  const base = await fs.mkdtemp(path.join(os.tmpdir(), "clawdis-cron-"));
+  const previousHome = process.env.HOME;
+  process.env.HOME = base;
+  try {
+    return await fn(base);
+  } finally {
+    process.env.HOME = previousHome;
+    await fs.rm(base, { recursive: true, force: true });
+  }
+}
+
+async function writeSessionStore(home: string) {
+  const dir = path.join(home, ".clawdis", "sessions");
+  await fs.mkdir(dir, { recursive: true });
   const storePath = path.join(dir, "sessions.json");
   await fs.writeFile(
     storePath,
@@ -34,26 +45,17 @@ async function makeSessionStorePath() {
       null,
       2,
     ),
+    "utf-8",
   );
-  return {
-    storePath,
-    cleanup: async () => {
-      await fs.rm(dir, { recursive: true, force: true });
-    },
-  };
+  return storePath;
 }
 
-function makeCfg(storePath: string): ClawdisConfig {
+function makeCfg(home: string, storePath: string): ClawdisConfig {
   return {
     inbound: {
-      reply: {
-        mode: "command",
-        command: ["echo", "ok"],
-        session: {
-          store: storePath,
-          mainKey: "main",
-        },
-      },
+      workspace: path.join(home, "clawd"),
+      agent: { provider: "anthropic", model: "claude-opus-4-5" },
+      session: { store: storePath, mainKey: "main" },
     },
   } as ClawdisConfig;
 }
@@ -76,122 +78,138 @@ function makeJob(payload: CronJob["payload"]): CronJob {
 
 describe("runCronIsolatedAgentTurn", () => {
   beforeEach(() => {
-    vi.mocked(runCommandReply).mockReset();
+    vi.mocked(runEmbeddedPiAgent).mockReset();
   });
 
   it("uses last non-empty agent text as summary", async () => {
-    const sessions = await makeSessionStorePath();
-    const deps: CliDeps = {
-      sendMessageWhatsApp: vi.fn(),
-      sendMessageTelegram: vi.fn(),
-    };
-    vi.mocked(runCommandReply).mockResolvedValue({
-      payloads: [{ text: "first" }, { text: " " }, { text: " last " }],
+    await withTempHome(async (home) => {
+      const storePath = await writeSessionStore(home);
+      const deps: CliDeps = {
+        sendMessageWhatsApp: vi.fn(),
+        sendMessageTelegram: vi.fn(),
+      };
+      vi.mocked(runEmbeddedPiAgent).mockResolvedValue({
+        payloads: [{ text: "first" }, { text: " " }, { text: " last " }],
+        meta: {
+          durationMs: 5,
+          agentMeta: { sessionId: "s", provider: "p", model: "m" },
+        },
+      });
+
+      const res = await runCronIsolatedAgentTurn({
+        cfg: makeCfg(home, storePath),
+        deps,
+        job: makeJob({ kind: "agentTurn", message: "do it", deliver: false }),
+        message: "do it",
+        sessionKey: "cron:job-1",
+        lane: "cron",
+      });
+
+      expect(res.status).toBe("ok");
+      expect(res.summary).toBe("last");
     });
-
-    const res = await runCronIsolatedAgentTurn({
-      cfg: makeCfg(sessions.storePath),
-      deps,
-      job: makeJob({ kind: "agentTurn", message: "do it", deliver: false }),
-      message: "do it",
-      sessionKey: "cron:job-1",
-      lane: "cron",
-    });
-
-    expect(res.status).toBe("ok");
-    expect(res.summary).toBe("last");
-
-    await sessions.cleanup();
   });
 
   it("truncates long summaries", async () => {
-    const sessions = await makeSessionStorePath();
-    const deps: CliDeps = {
-      sendMessageWhatsApp: vi.fn(),
-      sendMessageTelegram: vi.fn(),
-    };
-    const long = "a".repeat(2001);
-    vi.mocked(runCommandReply).mockResolvedValue({
-      payloads: [{ text: long }],
+    await withTempHome(async (home) => {
+      const storePath = await writeSessionStore(home);
+      const deps: CliDeps = {
+        sendMessageWhatsApp: vi.fn(),
+        sendMessageTelegram: vi.fn(),
+      };
+      const long = "a".repeat(2001);
+      vi.mocked(runEmbeddedPiAgent).mockResolvedValue({
+        payloads: [{ text: long }],
+        meta: {
+          durationMs: 5,
+          agentMeta: { sessionId: "s", provider: "p", model: "m" },
+        },
+      });
+
+      const res = await runCronIsolatedAgentTurn({
+        cfg: makeCfg(home, storePath),
+        deps,
+        job: makeJob({ kind: "agentTurn", message: "do it", deliver: false }),
+        message: "do it",
+        sessionKey: "cron:job-1",
+        lane: "cron",
+      });
+
+      expect(res.status).toBe("ok");
+      expect(String(res.summary ?? "")).toMatch(/…$/);
     });
-
-    const res = await runCronIsolatedAgentTurn({
-      cfg: makeCfg(sessions.storePath),
-      deps,
-      job: makeJob({ kind: "agentTurn", message: "do it", deliver: false }),
-      message: "do it",
-      sessionKey: "cron:job-1",
-      lane: "cron",
-    });
-
-    expect(res.status).toBe("ok");
-    expect(String(res.summary ?? "")).toMatch(/…$/);
-
-    await sessions.cleanup();
   });
 
   it("fails delivery without a WhatsApp recipient when bestEffortDeliver=false", async () => {
-    const sessions = await makeSessionStorePath();
-    const deps: CliDeps = {
-      sendMessageWhatsApp: vi.fn(),
-      sendMessageTelegram: vi.fn(),
-    };
-    vi.mocked(runCommandReply).mockResolvedValue({
-      payloads: [{ text: "hello" }],
-    });
+    await withTempHome(async (home) => {
+      const storePath = await writeSessionStore(home);
+      const deps: CliDeps = {
+        sendMessageWhatsApp: vi.fn(),
+        sendMessageTelegram: vi.fn(),
+      };
+      vi.mocked(runEmbeddedPiAgent).mockResolvedValue({
+        payloads: [{ text: "hello" }],
+        meta: {
+          durationMs: 5,
+          agentMeta: { sessionId: "s", provider: "p", model: "m" },
+        },
+      });
 
-    const res = await runCronIsolatedAgentTurn({
-      cfg: makeCfg(sessions.storePath),
-      deps,
-      job: makeJob({
-        kind: "agentTurn",
+      const res = await runCronIsolatedAgentTurn({
+        cfg: makeCfg(home, storePath),
+        deps,
+        job: makeJob({
+          kind: "agentTurn",
+          message: "do it",
+          deliver: true,
+          channel: "whatsapp",
+          bestEffortDeliver: false,
+        }),
         message: "do it",
-        deliver: true,
-        channel: "whatsapp",
-        bestEffortDeliver: false,
-      }),
-      message: "do it",
-      sessionKey: "cron:job-1",
-      lane: "cron",
+        sessionKey: "cron:job-1",
+        lane: "cron",
+      });
+
+      expect(res.status).toBe("error");
+      expect(res.summary).toBe("hello");
+      expect(String(res.error ?? "")).toMatch(/requires a recipient/i);
+      expect(deps.sendMessageWhatsApp).not.toHaveBeenCalled();
     });
-
-    expect(res.status).toBe("error");
-    expect(res.summary).toBe("hello");
-    expect(String(res.error ?? "")).toMatch(/requires a recipient/i);
-    expect(deps.sendMessageWhatsApp).not.toHaveBeenCalled();
-
-    await sessions.cleanup();
   });
 
   it("skips delivery without a WhatsApp recipient when bestEffortDeliver=true", async () => {
-    const sessions = await makeSessionStorePath();
-    const deps: CliDeps = {
-      sendMessageWhatsApp: vi.fn(),
-      sendMessageTelegram: vi.fn(),
-    };
-    vi.mocked(runCommandReply).mockResolvedValue({
-      payloads: [{ text: "hello" }],
-    });
+    await withTempHome(async (home) => {
+      const storePath = await writeSessionStore(home);
+      const deps: CliDeps = {
+        sendMessageWhatsApp: vi.fn(),
+        sendMessageTelegram: vi.fn(),
+      };
+      vi.mocked(runEmbeddedPiAgent).mockResolvedValue({
+        payloads: [{ text: "hello" }],
+        meta: {
+          durationMs: 5,
+          agentMeta: { sessionId: "s", provider: "p", model: "m" },
+        },
+      });
 
-    const res = await runCronIsolatedAgentTurn({
-      cfg: makeCfg(sessions.storePath),
-      deps,
-      job: makeJob({
-        kind: "agentTurn",
+      const res = await runCronIsolatedAgentTurn({
+        cfg: makeCfg(home, storePath),
+        deps,
+        job: makeJob({
+          kind: "agentTurn",
+          message: "do it",
+          deliver: true,
+          channel: "whatsapp",
+          bestEffortDeliver: true,
+        }),
         message: "do it",
-        deliver: true,
-        channel: "whatsapp",
-        bestEffortDeliver: true,
-      }),
-      message: "do it",
-      sessionKey: "cron:job-1",
-      lane: "cron",
+        sessionKey: "cron:job-1",
+        lane: "cron",
+      });
+
+      expect(res.status).toBe("skipped");
+      expect(String(res.summary ?? "")).toMatch(/delivery skipped/i);
+      expect(deps.sendMessageWhatsApp).not.toHaveBeenCalled();
     });
-
-    expect(res.status).toBe("skipped");
-    expect(String(res.summary ?? "")).toMatch(/delivery skipped/i);
-    expect(deps.sendMessageWhatsApp).not.toHaveBeenCalled();
-
-    await sessions.cleanup();
   });
 });

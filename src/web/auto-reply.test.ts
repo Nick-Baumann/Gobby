@@ -5,6 +5,12 @@ import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../agents/pi-embedded.js", () => ({
+  runEmbeddedPiAgent: vi.fn(),
+}));
+
+import { runEmbeddedPiAgent } from "../agents/pi-embedded.js";
 import { getReplyFromConfig } from "../auto-reply/reply.js";
 import type { ClawdisConfig } from "../config/config.js";
 import { resetLogger, setLoggerOverride } from "../logging.js";
@@ -25,6 +31,23 @@ import {
   resetLoadConfigMock,
   setLoadConfigMock,
 } from "./test-helpers.js";
+
+let previousHome: string | undefined;
+let tempHome: string | undefined;
+
+beforeEach(async () => {
+  previousHome = process.env.HOME;
+  tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "clawdis-web-home-"));
+  process.env.HOME = tempHome;
+});
+
+afterEach(async () => {
+  process.env.HOME = previousHome;
+  if (tempHome) {
+    await fs.rm(tempHome, { recursive: true, force: true });
+    tempHome = undefined;
+  }
+});
 
 const makeSessionStore = async (
   entries: Record<string, unknown> = {},
@@ -89,27 +112,20 @@ describe("heartbeat helpers", () => {
 
   it("resolves heartbeat minutes with default and overrides", () => {
     const cfgBase: ClawdisConfig = {
-      inbound: {
-        reply: { mode: "command" as const },
-      },
+      inbound: {},
     };
     expect(resolveReplyHeartbeatMinutes(cfgBase)).toBe(30);
     expect(
       resolveReplyHeartbeatMinutes({
-        inbound: { reply: { mode: "command", heartbeatMinutes: 5 } },
+        inbound: { agent: { heartbeatMinutes: 5 } },
       }),
     ).toBe(5);
     expect(
       resolveReplyHeartbeatMinutes({
-        inbound: { reply: { mode: "command", heartbeatMinutes: 0 } },
+        inbound: { agent: { heartbeatMinutes: 0 } },
       }),
     ).toBeNull();
     expect(resolveReplyHeartbeatMinutes(cfgBase, 7)).toBe(7);
-    expect(
-      resolveReplyHeartbeatMinutes({
-        inbound: { reply: { mode: "text" } },
-      }),
-    ).toBeNull();
   });
 });
 
@@ -122,7 +138,7 @@ describe("resolveHeartbeatRecipients", () => {
     const cfg: ClawdisConfig = {
       inbound: {
         allowFrom: ["+1999"],
-        reply: { mode: "command", session: { store: store.storePath } },
+        session: { store: store.storePath },
       },
     };
     const result = resolveHeartbeatRecipients(cfg);
@@ -140,7 +156,7 @@ describe("resolveHeartbeatRecipients", () => {
     const cfg: ClawdisConfig = {
       inbound: {
         allowFrom: ["+1999"],
-        reply: { mode: "command", session: { store: store.storePath } },
+        session: { store: store.storePath },
       },
     };
     const result = resolveHeartbeatRecipients(cfg);
@@ -154,7 +170,7 @@ describe("resolveHeartbeatRecipients", () => {
     const cfg: ClawdisConfig = {
       inbound: {
         allowFrom: ["*"],
-        reply: { mode: "command", session: { store: store.storePath } },
+        session: { store: store.storePath },
       },
     };
     const result = resolveHeartbeatRecipients(cfg);
@@ -171,7 +187,7 @@ describe("resolveHeartbeatRecipients", () => {
     const cfg: ClawdisConfig = {
       inbound: {
         allowFrom: ["+1999"],
-        reply: { mode: "command", session: { store: store.storePath } },
+        session: { store: store.storePath },
       },
     };
     const result = resolveHeartbeatRecipients(cfg, { all: true });
@@ -191,7 +207,6 @@ describe("partial reply gating", () => {
 
     const mockConfig: ClawdisConfig = {
       inbound: {
-        reply: { mode: "command" },
         allowFrom: ["*"],
       },
     };
@@ -240,10 +255,7 @@ describe("partial reply gating", () => {
     const mockConfig: ClawdisConfig = {
       inbound: {
         allowFrom: ["*"],
-        reply: {
-          mode: "command",
-          session: { store: store.storePath, mainKey: "main" },
-        },
+        session: { store: store.storePath, mainKey: "main" },
       },
     };
 
@@ -289,12 +301,13 @@ describe("partial reply gating", () => {
   });
 
   it("defaults to self-only when no config is present", async () => {
-    const cfg: ClawdisConfig = {
-      inbound: {
-        // No allowFrom provided; this simulates zero config file while keeping reply simple
-        reply: { mode: "text", text: "ok" },
+    vi.mocked(runEmbeddedPiAgent).mockResolvedValue({
+      payloads: [{ text: "ok" }],
+      meta: {
+        durationMs: 1,
+        agentMeta: { sessionId: "s", provider: "p", model: "m" },
       },
-    };
+    });
 
     // Not self: should be blocked
     const blocked = await getReplyFromConfig(
@@ -304,9 +317,10 @@ describe("partial reply gating", () => {
         To: "whatsapp:+123",
       },
       undefined,
-      cfg,
+      {},
     );
     expect(blocked).toBeUndefined();
+    expect(runEmbeddedPiAgent).not.toHaveBeenCalled();
 
     // Self: should be allowed
     const allowed = await getReplyFromConfig(
@@ -316,9 +330,10 @@ describe("partial reply gating", () => {
         To: "whatsapp:+123",
       },
       undefined,
-      cfg,
+      {},
     );
     expect(allowed).toEqual({ text: "ok" });
+    expect(runEmbeddedPiAgent).toHaveBeenCalledOnce();
   });
 });
 
@@ -331,7 +346,7 @@ describe("runWebHeartbeatOnce", () => {
       cfg: {
         inbound: {
           allowFrom: ["+1555"],
-          reply: { mode: "command", session: { store: store.storePath } },
+          session: { store: store.storePath },
         },
       },
       to: "+1555",
@@ -354,7 +369,7 @@ describe("runWebHeartbeatOnce", () => {
       cfg: {
         inbound: {
           allowFrom: ["+1555"],
-          reply: { mode: "command", session: { store: store.storePath } },
+          session: { store: store.storePath },
         },
       },
       to: "+1555",
@@ -383,7 +398,7 @@ describe("runWebHeartbeatOnce", () => {
       cfg: {
         inbound: {
           allowFrom: ["+1999"],
-          reply: { mode: "command", session: { store: storePath } },
+          session: { store: storePath },
         },
       },
       to: "+1999",
@@ -412,13 +427,10 @@ describe("runWebHeartbeatOnce", () => {
     setLoadConfigMock({
       inbound: {
         allowFrom: ["+1555"],
-        reply: {
-          mode: "command",
-          session: {
-            store: storePath,
-            idleMinutes: 60,
-            heartbeatIdleMinutes: 10,
-          },
+        session: {
+          store: storePath,
+          idleMinutes: 60,
+          heartbeatIdleMinutes: 10,
         },
       },
     });
@@ -451,11 +463,8 @@ describe("runWebHeartbeatOnce", () => {
     setLoadConfigMock(() => ({
       inbound: {
         allowFrom: ["+4367"],
-        reply: {
-          mode: "command",
-          heartbeatMinutes: 0.001,
-          session: { store: storePath, idleMinutes: 60 },
-        },
+        agent: { heartbeatMinutes: 0.001 },
+        session: { store: storePath, idleMinutes: 60 },
       },
     }));
 
@@ -464,10 +473,7 @@ describe("runWebHeartbeatOnce", () => {
     const cfg: ClawdisConfig = {
       inbound: {
         allowFrom: ["+4367"],
-        reply: {
-          mode: "command",
-          session: { store: storePath, idleMinutes: 60 },
-        },
+        session: { store: storePath, idleMinutes: 60 },
       },
     };
 
@@ -496,10 +502,7 @@ describe("runWebHeartbeatOnce", () => {
     setLoadConfigMock(() => ({
       inbound: {
         allowFrom: ["+1999"],
-        reply: {
-          mode: "command",
-          session: { store: storePath, idleMinutes: 60 },
-        },
+        session: { store: storePath, idleMinutes: 60 },
       },
     }));
 
@@ -507,10 +510,7 @@ describe("runWebHeartbeatOnce", () => {
     const cfg: ClawdisConfig = {
       inbound: {
         allowFrom: ["+1999"],
-        reply: {
-          mode: "command",
-          session: { store: storePath, idleMinutes: 60 },
-        },
+        session: { store: storePath, idleMinutes: 60 },
       },
     };
     await runWebHeartbeatOnce({
@@ -541,7 +541,7 @@ describe("runWebHeartbeatOnce", () => {
       cfg: {
         inbound: {
           allowFrom: ["+1555"],
-          reply: { mode: "command", session: { store: store.storePath } },
+          session: { store: store.storePath },
         },
       },
       to: "+1555",
@@ -565,7 +565,7 @@ describe("runWebHeartbeatOnce", () => {
       cfg: {
         inbound: {
           allowFrom: ["+1555"],
-          reply: { mode: "command", session: { store: store.storePath } },
+          session: { store: store.storePath },
         },
       },
       to: "+1555",
@@ -717,7 +717,7 @@ describe("web auto-reply", () => {
     setLoadConfigMock(() => ({
       inbound: {
         allowFrom: ["+1555"],
-        reply: { mode: "command", session: { store: storePath } },
+        session: { store: storePath },
       },
     }));
 
@@ -776,7 +776,7 @@ describe("web auto-reply", () => {
       inbound: {
         allowFrom: ["+1555"],
         groupChat: { requireMention: true, mentionPatterns: ["@clawd"] },
-        reply: { mode: "command", session: { store: store.storePath } },
+        session: { store: store.storePath },
       },
     }));
 
@@ -879,7 +879,7 @@ describe("web auto-reply", () => {
     setLoadConfigMock(() => ({
       inbound: {
         timestampPrefix: "UTC",
-        reply: { mode: "command", session: { store: store.storePath } },
+        session: { store: store.storePath },
       },
     }));
 
@@ -1155,7 +1155,7 @@ describe("web auto-reply", () => {
 
       for (const fmt of formats) {
         // Force a small cap to ensure compression is exercised for every format.
-        setLoadConfigMock(() => ({ inbound: { reply: { mediaMaxMb: 1 } } }));
+        setLoadConfigMock(() => ({ inbound: { agent: { mediaMaxMb: 1 } } }));
         const sendMedia = vi.fn();
         const reply = vi.fn().mockResolvedValue(undefined);
         const sendComposing = vi.fn();
@@ -1220,7 +1220,7 @@ describe("web auto-reply", () => {
   );
 
   it("honors mediaMaxMb from config", async () => {
-    setLoadConfigMock(() => ({ inbound: { reply: { mediaMaxMb: 1 } } }));
+    setLoadConfigMock(() => ({ inbound: { agent: { mediaMaxMb: 1 } } }));
     const sendMedia = vi.fn();
     const reply = vi.fn().mockResolvedValue(undefined);
     const sendComposing = vi.fn();

@@ -74,7 +74,7 @@ const formatDuration = (ms: number) =>
 
 const DEFAULT_REPLY_HEARTBEAT_MINUTES = 30;
 export const HEARTBEAT_TOKEN = "HEARTBEAT_OK";
-export const HEARTBEAT_PROMPT = "HEARTBEAT /think:high";
+export const HEARTBEAT_PROMPT = "HEARTBEAT";
 
 function elide(text?: string, limit = 400) {
   if (!text) return text;
@@ -164,12 +164,10 @@ export function resolveReplyHeartbeatMinutes(
   cfg: ReturnType<typeof loadConfig>,
   overrideMinutes?: number,
 ) {
-  const raw = overrideMinutes ?? cfg.inbound?.reply?.heartbeatMinutes;
+  const raw = overrideMinutes ?? cfg.inbound?.agent?.heartbeatMinutes;
   if (raw === 0) return null;
   if (typeof raw === "number" && raw > 0) return raw;
-  return cfg.inbound?.reply?.mode === "command"
-    ? DEFAULT_REPLY_HEARTBEAT_MINUTES
-    : null;
+  return DEFAULT_REPLY_HEARTBEAT_MINUTES;
 }
 
 export function stripHeartbeatToken(raw?: string) {
@@ -214,12 +212,12 @@ export async function runWebHeartbeatOnce(opts: {
   });
 
   const cfg = cfgOverride ?? loadConfig();
-  const sessionCfg = cfg.inbound?.reply?.session;
+  const sessionCfg = cfg.inbound?.session;
   const sessionScope = sessionCfg?.scope ?? "per-sender";
   const mainKey = sessionCfg?.mainKey;
   const sessionKey = resolveSessionKey(sessionScope, { From: to }, mainKey);
   if (sessionId) {
-    const storePath = resolveStorePath(cfg.inbound?.reply?.session?.store);
+    const storePath = resolveStorePath(cfg.inbound?.session?.store);
     const store = loadSessionStore(storePath);
     store[sessionKey] = {
       ...(store[sessionKey] ?? {}),
@@ -319,7 +317,7 @@ export async function runWebHeartbeatOnce(opts: {
     const stripped = stripHeartbeatToken(replyPayload.text);
     if (stripped.shouldSkip && !hasMedia) {
       // Don't let heartbeats keep sessions alive: restore previous updatedAt so idle expiry still works.
-      const storePath = resolveStorePath(cfg.inbound?.reply?.session?.store);
+      const storePath = resolveStorePath(cfg.inbound?.session?.store);
       const store = loadSessionStore(storePath);
       if (sessionSnapshot.entry && store[sessionSnapshot.key]) {
         store[sessionSnapshot.key].updatedAt = sessionSnapshot.entry.updatedAt;
@@ -381,7 +379,7 @@ export async function runWebHeartbeatOnce(opts: {
 }
 
 function getFallbackRecipient(cfg: ReturnType<typeof loadConfig>) {
-  const sessionCfg = cfg.inbound?.reply?.session;
+  const sessionCfg = cfg.inbound?.session;
   const storePath = resolveStorePath(sessionCfg?.store);
   const store = loadSessionStore(storePath);
   const mainKey = (sessionCfg?.mainKey ?? "main").trim() || "main";
@@ -402,10 +400,10 @@ function getFallbackRecipient(cfg: ReturnType<typeof loadConfig>) {
 }
 
 function getSessionRecipients(cfg: ReturnType<typeof loadConfig>) {
-  const sessionCfg = cfg.inbound?.reply?.session;
+  const sessionCfg = cfg.inbound?.session;
   const scope = sessionCfg?.scope ?? "per-sender";
   if (scope === "global") return [];
-  const storePath = resolveStorePath(cfg.inbound?.reply?.session?.store);
+  const storePath = resolveStorePath(cfg.inbound?.session?.store);
   const store = loadSessionStore(storePath);
   const isGroupKey = (key: string) =>
     key.startsWith("group:") || key.includes("@g.us");
@@ -470,7 +468,7 @@ function getSessionSnapshot(
   from: string,
   isHeartbeat = false,
 ) {
-  const sessionCfg = cfg.inbound?.reply?.session;
+  const sessionCfg = cfg.inbound?.session;
   const scope = sessionCfg?.scope ?? "per-sender";
   const key = resolveSessionKey(
     scope,
@@ -700,7 +698,7 @@ export async function monitorWebProvider(
   const heartbeatLogger = getChildLogger({ module: "web-heartbeat", runId });
   const reconnectLogger = getChildLogger({ module: "web-reconnect", runId });
   const cfg = loadConfig();
-  const configuredMaxMb = cfg.inbound?.reply?.mediaMaxMb;
+  const configuredMaxMb = cfg.inbound?.agent?.mediaMaxMb;
   const maxMediaBytes =
     typeof configuredMaxMb === "number" && configuredMaxMb > 0
       ? configuredMaxMb * 1024 * 1024
@@ -873,7 +871,7 @@ export async function monitorWebProvider(
       );
 
       if (latest.chatType !== "group") {
-        const sessionCfg = cfg.inbound?.reply?.session;
+        const sessionCfg = cfg.inbound?.session;
         const mainKey = (sessionCfg?.mainKey ?? "main").trim() || "main";
         const storePath = resolveStorePath(sessionCfg?.store);
         const to = (() => {

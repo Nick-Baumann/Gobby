@@ -1,11 +1,17 @@
 import crypto from "node:crypto";
-import { chunkText } from "../auto-reply/chunk.js";
-import { runCommandReply } from "../auto-reply/command-reply.js";
+import { lookupContextTokens } from "../agents/context.js";
 import {
-  applyTemplate,
-  type MsgContext,
-  type TemplateContext,
-} from "../auto-reply/templating.js";
+  DEFAULT_CONTEXT_TOKENS,
+  DEFAULT_MODEL,
+  DEFAULT_PROVIDER,
+} from "../agents/defaults.js";
+import { runEmbeddedPiAgent } from "../agents/pi-embedded.js";
+import {
+  DEFAULT_AGENT_WORKSPACE_DIR,
+  ensureAgentWorkspace,
+} from "../agents/workspace.js";
+import { chunkText } from "../auto-reply/chunk.js";
+import type { MsgContext } from "../auto-reply/templating.js";
 import {
   normalizeThinkLevel,
   normalizeVerboseLevel,
@@ -18,6 +24,7 @@ import {
   DEFAULT_IDLE_MINUTES,
   loadSessionStore,
   resolveSessionKey,
+  resolveSessionTranscriptPath,
   resolveStorePath,
   type SessionEntry,
   saveSessionStore,
@@ -37,7 +44,7 @@ type AgentCommandOpts = {
   timeout?: string;
   deliver?: boolean;
   surface?: string;
-  provider?: string;
+  provider?: string; // delivery provider (whatsapp|telegram|...)
   bestEffortDeliver?: boolean;
 };
 
@@ -46,31 +53,18 @@ type SessionResolution = {
   sessionKey?: string;
   sessionEntry?: SessionEntry;
   sessionStore?: Record<string, SessionEntry>;
-  storePath?: string;
+  storePath: string;
   isNewSession: boolean;
-  systemSent: boolean;
   persistedThinking?: ThinkLevel;
   persistedVerbose?: VerboseLevel;
 };
 
-function assertCommandConfig(cfg: ClawdisConfig) {
-  const reply = cfg.inbound?.reply;
-  if (!reply || reply.mode !== "command" || !reply.command?.length) {
-    throw new Error(
-      "Configure inbound.reply.mode=command with reply.command before using `clawdis agent`.",
-    );
-  }
-  return reply as NonNullable<
-    NonNullable<ClawdisConfig["inbound"]>["reply"]
-  > & { mode: "command"; command: string[] };
-}
-
 function resolveSession(opts: {
+  cfg: ClawdisConfig;
   to?: string;
   sessionId?: string;
-  replyCfg: NonNullable<NonNullable<ClawdisConfig["inbound"]>["reply"]>;
 }): SessionResolution {
-  const sessionCfg = opts.replyCfg?.session;
+  const sessionCfg = opts.cfg.inbound?.session;
   const scope = sessionCfg?.scope ?? "per-sender";
   const mainKey = sessionCfg?.mainKey ?? "main";
   const idleMinutes = Math.max(
@@ -78,20 +72,20 @@ function resolveSession(opts: {
     1,
   );
   const idleMs = idleMinutes * 60_000;
-  const storePath = sessionCfg ? resolveStorePath(sessionCfg.store) : undefined;
-  const sessionStore = storePath ? loadSessionStore(storePath) : undefined;
+  const storePath = resolveStorePath(sessionCfg?.store);
+  const sessionStore = loadSessionStore(storePath);
   const now = Date.now();
 
-  let sessionKey: string | undefined =
-    sessionStore && opts.to
-      ? resolveSessionKey(scope, { From: opts.to } as MsgContext, mainKey)
-      : undefined;
-  let sessionEntry =
-    sessionKey && sessionStore ? sessionStore[sessionKey] : undefined;
+  const ctx: MsgContext | undefined = opts.to?.trim()
+    ? { From: opts.to }
+    : undefined;
+  let sessionKey: string | undefined = ctx
+    ? resolveSessionKey(scope, ctx, mainKey)
+    : undefined;
+  let sessionEntry = sessionKey ? sessionStore[sessionKey] : undefined;
 
   // If a session id was provided, prefer to re-use its entry (by id) even when no key was derived.
   if (
-    sessionStore &&
     opts.sessionId &&
     (!sessionEntry || sessionEntry.sessionId !== opts.sessionId)
   ) {
@@ -104,52 +98,29 @@ function resolveSession(opts: {
     }
   }
 
-  let sessionId = opts.sessionId?.trim() || sessionEntry?.sessionId;
-  let isNewSession = false;
-  let systemSent = sessionEntry?.systemSent ?? false;
-
-  if (!opts.sessionId) {
-    const fresh = sessionEntry && sessionEntry.updatedAt >= now - idleMs;
-    if (!sessionEntry || !fresh) {
-      sessionId = sessionId ?? crypto.randomUUID();
-      isNewSession = true;
-      systemSent = false;
-      if (sessionCfg && sessionStore && sessionKey) {
-        sessionEntry = {
-          sessionId,
-          updatedAt: now,
-          abortedLastRun: sessionEntry?.abortedLastRun,
-        };
-      }
-    }
-  } else {
-    sessionId = sessionId ?? crypto.randomUUID();
-    isNewSession = false;
-    if (!sessionEntry && sessionCfg && sessionStore && sessionKey) {
-      sessionEntry = {
-        sessionId,
-        updatedAt: now,
-      };
-    }
-  }
+  const fresh = sessionEntry && sessionEntry.updatedAt >= now - idleMs;
+  const sessionId =
+    opts.sessionId?.trim() ||
+    (fresh ? sessionEntry?.sessionId : undefined) ||
+    crypto.randomUUID();
+  const isNewSession = !fresh && !opts.sessionId;
 
   const persistedThinking =
-    !isNewSession && sessionEntry
+    fresh && sessionEntry?.thinkingLevel
       ? normalizeThinkLevel(sessionEntry.thinkingLevel)
       : undefined;
   const persistedVerbose =
-    !isNewSession && sessionEntry
+    fresh && sessionEntry?.verboseLevel
       ? normalizeVerboseLevel(sessionEntry.verboseLevel)
       : undefined;
 
   return {
-    sessionId: sessionId ?? crypto.randomUUID(),
+    sessionId,
     sessionKey,
     sessionEntry,
     sessionStore,
     storePath,
     isNewSession,
-    systemSent,
     persistedThinking,
     persistedVerbose,
   };
@@ -161,16 +132,20 @@ export async function agentCommand(
   deps: CliDeps = createDefaultDeps(),
 ) {
   const body = (opts.message ?? "").trim();
-  if (!body) {
-    throw new Error("Message (--message) is required");
-  }
+  if (!body) throw new Error("Message (--message) is required");
   if (!opts.to && !opts.sessionId) {
     throw new Error("Pass --to <E.164> or --session-id to choose a session");
   }
 
   const cfg = loadConfig();
-  const replyCfg = assertCommandConfig(cfg);
-  const sessionCfg = replyCfg.session;
+  const agentCfg = cfg.inbound?.agent;
+  const workspaceDirRaw = cfg.inbound?.workspace ?? DEFAULT_AGENT_WORKSPACE_DIR;
+  const workspace = await ensureAgentWorkspace({
+    dir: workspaceDirRaw,
+    ensureBootstrapFiles: true,
+  });
+  const workspaceDir = workspace.dir;
+
   const allowFrom = (cfg.inbound?.allowFrom ?? [])
     .map((val) => normalizeE164(val))
     .filter((val) => val.length > 1);
@@ -187,6 +162,7 @@ export async function agentCommand(
       "Invalid one-shot thinking level. Use one of: off, minimal, low, medium, high.",
     );
   }
+
   const verboseOverride = normalizeVerboseLevel(opts.verbose);
   if (opts.verbose && !verboseOverride) {
     throw new Error('Invalid verbose level. Use "on" or "off".');
@@ -195,18 +171,18 @@ export async function agentCommand(
   const timeoutSecondsRaw =
     opts.timeout !== undefined
       ? Number.parseInt(String(opts.timeout), 10)
-      : (replyCfg.timeoutSeconds ?? 600);
-  const timeoutSeconds = Math.max(timeoutSecondsRaw, 1);
+      : (agentCfg?.timeoutSeconds ?? 600);
   if (Number.isNaN(timeoutSecondsRaw) || timeoutSecondsRaw <= 0) {
     throw new Error("--timeout must be a positive integer (seconds)");
   }
-  const timeoutMs = timeoutSeconds * 1000;
+  const timeoutMs = Math.max(timeoutSecondsRaw, 1) * 1000;
 
   const sessionResolution = resolveSession({
+    cfg,
     to: opts.to,
     sessionId: opts.sessionId,
-    replyCfg,
   });
+
   const {
     sessionId,
     sessionKey,
@@ -214,88 +190,40 @@ export async function agentCommand(
     sessionStore,
     storePath,
     isNewSession,
-    systemSent: initialSystemSent,
     persistedThinking,
     persistedVerbose,
   } = sessionResolution;
 
-  let systemSent = initialSystemSent;
-  const sendSystemOnce = sessionCfg?.sendSystemOnce === true;
-  const isFirstTurnInSession = isNewSession || !systemSent;
-
-  // Merge thinking/verbose levels: one-shot override > flag override > persisted > defaults.
-  const resolvedThinkLevel: ThinkLevel | undefined =
+  const resolvedThinkLevel =
     thinkOnce ??
     thinkOverride ??
     persistedThinking ??
-    (replyCfg.thinkingDefault as ThinkLevel | undefined);
-  const resolvedVerboseLevel: VerboseLevel | undefined =
+    (agentCfg?.thinkingDefault as ThinkLevel | undefined);
+  const resolvedVerboseLevel =
     verboseOverride ??
     persistedVerbose ??
-    (replyCfg.verboseDefault as VerboseLevel | undefined);
+    (agentCfg?.verboseDefault as VerboseLevel | undefined);
 
-  // Persist overrides into the session store (mirrors directive-only flow).
-  if (sessionStore && sessionEntry && sessionKey && storePath) {
-    sessionEntry.updatedAt = Date.now();
+  // Persist explicit /command overrides to the session store when we have a key.
+  if (sessionStore && sessionKey) {
+    const entry = sessionEntry ??
+      sessionStore[sessionKey] ?? { sessionId, updatedAt: Date.now() };
+    const next: SessionEntry = { ...entry, sessionId, updatedAt: Date.now() };
     if (thinkOverride) {
-      if (thinkOverride === "off") {
-        delete sessionEntry.thinkingLevel;
-      } else {
-        sessionEntry.thinkingLevel = thinkOverride;
-      }
-    } else if (isNewSession) {
-      delete sessionEntry.thinkingLevel;
+      if (thinkOverride === "off") delete next.thinkingLevel;
+      else next.thinkingLevel = thinkOverride;
     }
-
     if (verboseOverride) {
-      if (verboseOverride === "off") {
-        delete sessionEntry.verboseLevel;
-      } else {
-        sessionEntry.verboseLevel = verboseOverride;
-      }
-    } else if (isNewSession) {
-      delete sessionEntry.verboseLevel;
+      if (verboseOverride === "off") delete next.verboseLevel;
+      else next.verboseLevel = verboseOverride;
     }
-
-    if (sendSystemOnce && isFirstTurnInSession) {
-      sessionEntry.systemSent = true;
-      systemSent = true;
-    }
-
-    sessionStore[sessionKey] = sessionEntry;
+    sessionStore[sessionKey] = next;
     await saveSessionStore(storePath, sessionStore);
   }
 
-  const baseCtx: TemplateContext = {
-    Body: body,
-    BodyStripped: body,
-    From: opts.to,
-    SessionId: sessionId,
-    IsNewSession: isNewSession ? "true" : "false",
-    Surface: opts.surface,
-  };
-
-  const sessionIntro =
-    isFirstTurnInSession && sessionCfg?.sessionIntro
-      ? applyTemplate(sessionCfg.sessionIntro, baseCtx)
-      : "";
-  const bodyPrefix = replyCfg.bodyPrefix
-    ? applyTemplate(replyCfg.bodyPrefix, baseCtx)
-    : "";
-
-  let commandBody = body;
-  if (!sendSystemOnce || isFirstTurnInSession) {
-    commandBody = bodyPrefix ? `${bodyPrefix}${commandBody}` : commandBody;
-  }
-  if (sessionIntro) {
-    commandBody = `${sessionIntro}\n\n${commandBody}`;
-  }
-
-  const templatingCtx: TemplateContext = {
-    ...baseCtx,
-    Body: commandBody,
-    BodyStripped: commandBody,
-  };
+  const provider = agentCfg?.provider?.trim() || DEFAULT_PROVIDER;
+  const model = agentCfg?.model?.trim() || DEFAULT_MODEL;
+  const sessionFile = resolveSessionTranscriptPath(sessionId);
 
   const startedAt = Date.now();
   emitAgentEvent({
@@ -304,25 +232,24 @@ export async function agentCommand(
     data: {
       state: "started",
       startedAt,
-      to: opts.to,
+      to: opts.to ?? null,
       sessionId,
       isNewSession,
     },
   });
 
-  let result: Awaited<ReturnType<typeof runCommandReply>>;
+  let result: Awaited<ReturnType<typeof runEmbeddedPiAgent>>;
   try {
-    result = await runCommandReply({
-      reply: { ...replyCfg, mode: "command" },
-      templatingCtx,
-      sendSystemOnce,
-      isNewSession,
-      isFirstTurnInSession,
-      systemSent,
-      timeoutMs,
-      timeoutSeconds,
+    result = await runEmbeddedPiAgent({
+      sessionId,
+      sessionFile,
+      workspaceDir,
+      prompt: body,
+      provider,
+      model,
       thinkLevel: resolvedThinkLevel,
       verboseLevel: resolvedVerboseLevel,
+      timeoutMs,
       runId: sessionId,
       onAgentEvent: (evt) => {
         emitAgentEvent({
@@ -339,7 +266,7 @@ export async function agentCommand(
         state: "done",
         startedAt,
         endedAt: Date.now(),
-        to: opts.to,
+        to: opts.to ?? null,
         sessionId,
         durationMs: Date.now() - startedAt,
       },
@@ -352,7 +279,7 @@ export async function agentCommand(
         state: "error",
         startedAt,
         endedAt: Date.now(),
-        to: opts.to,
+        to: opts.to ?? null,
         sessionId,
         durationMs: Date.now() - startedAt,
         error: String(err),
@@ -361,50 +288,68 @@ export async function agentCommand(
     throw err;
   }
 
-  // If the agent returned a new session id, persist it.
-  const returnedSessionId = result.meta.agentMeta?.sessionId;
-  if (
-    returnedSessionId &&
-    returnedSessionId !== sessionId &&
-    sessionStore &&
-    sessionEntry &&
-    sessionKey &&
-    storePath
-  ) {
-    sessionEntry.sessionId = returnedSessionId;
-    sessionEntry.updatedAt = Date.now();
-    sessionStore[sessionKey] = sessionEntry;
+  // Update token+model fields in the session store.
+  if (sessionStore && sessionKey) {
+    const usage = result.meta.agentMeta?.usage;
+    const modelUsed = result.meta.agentMeta?.model ?? model;
+    const contextTokens =
+      agentCfg?.contextTokens ??
+      lookupContextTokens(modelUsed) ??
+      DEFAULT_CONTEXT_TOKENS;
+
+    const entry = sessionStore[sessionKey] ?? {
+      sessionId,
+      updatedAt: Date.now(),
+    };
+    const next: SessionEntry = {
+      ...entry,
+      sessionId,
+      updatedAt: Date.now(),
+      model: modelUsed,
+      contextTokens,
+    };
+    if (usage) {
+      const input = usage.input ?? 0;
+      const output = usage.output ?? 0;
+      const promptTokens =
+        input + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0);
+      next.inputTokens = input;
+      next.outputTokens = output;
+      next.totalTokens =
+        promptTokens > 0 ? promptTokens : (usage.total ?? input);
+    }
+    sessionStore[sessionKey] = next;
     await saveSessionStore(storePath, sessionStore);
   }
 
   const payloads = result.payloads ?? [];
   const deliver = opts.deliver === true;
   const bestEffortDeliver = opts.bestEffortDeliver === true;
-  const provider = (opts.provider ?? "whatsapp").toLowerCase();
+  const deliveryProvider = (opts.provider ?? "whatsapp").toLowerCase();
 
   const whatsappTarget = opts.to ? normalizeE164(opts.to) : allowFrom[0];
   const telegramTarget = opts.to?.trim() || undefined;
 
   const logDeliveryError = (err: unknown) => {
-    const message = `Delivery failed (${provider}): ${String(err)}`;
+    const message = `Delivery failed (${deliveryProvider}): ${String(err)}`;
     runtime.error?.(message);
     if (!runtime.error) runtime.log(message);
   };
 
   if (deliver) {
-    if (provider === "whatsapp" && !whatsappTarget) {
+    if (deliveryProvider === "whatsapp" && !whatsappTarget) {
       const err = new Error(
         "Delivering to WhatsApp requires --to <E.164> or inbound.allowFrom[0]",
       );
       if (!bestEffortDeliver) throw err;
       logDeliveryError(err);
     }
-    if (provider === "telegram" && !telegramTarget) {
+    if (deliveryProvider === "telegram" && !telegramTarget) {
       const err = new Error("Delivering to Telegram requires --to <chatId>");
       if (!bestEffortDeliver) throw err;
       logDeliveryError(err);
     }
-    if (provider === "webchat") {
+    if (deliveryProvider === "webchat") {
       const err = new Error(
         "Delivering to WebChat is not supported via `clawdis agent`; use WebChat RPC instead.",
       );
@@ -412,11 +357,11 @@ export async function agentCommand(
       logDeliveryError(err);
     }
     if (
-      provider !== "whatsapp" &&
-      provider !== "telegram" &&
-      provider !== "webchat"
+      deliveryProvider !== "whatsapp" &&
+      deliveryProvider !== "telegram" &&
+      deliveryProvider !== "webchat"
     ) {
-      const err = new Error(`Unknown provider: ${provider}`);
+      const err = new Error(`Unknown provider: ${deliveryProvider}`);
       if (!bestEffortDeliver) throw err;
       logDeliveryError(err);
     }
@@ -430,16 +375,11 @@ export async function agentCommand(
     }));
     runtime.log(
       JSON.stringify(
-        {
-          payloads: normalizedPayloads,
-          meta: result.meta,
-        },
+        { payloads: normalizedPayloads, meta: result.meta },
         null,
         2,
       ),
     );
-    // If JSON output was requested, suppress additional human-readable logs unless we're
-    // also delivering, in which case we still proceed to send below.
     if (!deliver) return;
   }
 
@@ -451,12 +391,11 @@ export async function agentCommand(
   for (const payload of payloads) {
     const mediaList =
       payload.mediaUrls ?? (payload.mediaUrl ? [payload.mediaUrl] : []);
+
     if (!opts.json) {
       const lines: string[] = [];
       if (payload.text) lines.push(payload.text.trimEnd());
-      for (const url of mediaList) {
-        lines.push(`MEDIA:${url}`);
-      }
+      for (const url of mediaList) lines.push(`MEDIA:${url}`);
       runtime.log(lines.join("\n"));
     }
 
@@ -466,14 +405,13 @@ export async function agentCommand(
     const media = mediaList;
     if (!text && media.length === 0) continue;
 
-    if (provider === "whatsapp" && whatsappTarget) {
+    if (deliveryProvider === "whatsapp" && whatsappTarget) {
       try {
         const primaryMedia = media[0];
         await deps.sendMessageWhatsApp(whatsappTarget, text, {
           verbose: false,
           mediaUrl: primaryMedia,
         });
-
         for (const extra of media.slice(1)) {
           await deps.sendMessageWhatsApp(whatsappTarget, "", {
             verbose: false,
@@ -487,7 +425,7 @@ export async function agentCommand(
       continue;
     }
 
-    if (provider === "telegram" && telegramTarget) {
+    if (deliveryProvider === "telegram" && telegramTarget) {
       try {
         if (media.length === 0) {
           for (const chunk of chunkText(text, 4000)) {

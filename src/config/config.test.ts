@@ -27,89 +27,7 @@ describe("config identity defaults", () => {
     process.env.HOME = previousHome;
   });
 
-  it("derives responsePrefix, mentionPatterns, and sessionIntro when identity is set", async () => {
-    await withTempHome(async (home) => {
-      const configDir = path.join(home, ".clawdis");
-      await fs.mkdir(configDir, { recursive: true });
-      await fs.writeFile(
-        path.join(configDir, "clawdis.json"),
-        JSON.stringify(
-          {
-            identity: { name: "Samantha", theme: "helpful sloth", emoji: "🦥" },
-            inbound: {
-              reply: {
-                mode: "command",
-                command: ["pi", "--mode", "rpc", "x"],
-                session: {},
-              },
-            },
-          },
-          null,
-          2,
-        ),
-        "utf-8",
-      );
-
-      vi.resetModules();
-      const { loadConfig } = await import("./config.js");
-      const cfg = loadConfig();
-
-      expect(cfg.inbound?.responsePrefix).toBe("🦥");
-      expect(cfg.inbound?.groupChat?.mentionPatterns).toEqual([
-        "\\b@?Samantha\\b",
-      ]);
-      expect(cfg.inbound?.reply?.session?.sessionIntro).toContain(
-        "You are Samantha.",
-      );
-      expect(cfg.inbound?.reply?.session?.sessionIntro).toContain(
-        "Theme: helpful sloth.",
-      );
-      expect(cfg.inbound?.reply?.session?.sessionIntro).toContain(
-        "Your emoji is 🦥.",
-      );
-    });
-  });
-
-  it("does not override explicit values", async () => {
-    await withTempHome(async (home) => {
-      const configDir = path.join(home, ".clawdis");
-      await fs.mkdir(configDir, { recursive: true });
-      await fs.writeFile(
-        path.join(configDir, "clawdis.json"),
-        JSON.stringify(
-          {
-            identity: {
-              name: "Samantha Sloth",
-              theme: "space lobster",
-              emoji: "🦞",
-            },
-            inbound: {
-              responsePrefix: "✅",
-              groupChat: { mentionPatterns: ["@clawd"] },
-              reply: {
-                mode: "command",
-                command: ["pi", "--mode", "rpc", "x"],
-                session: { sessionIntro: "Explicit intro" },
-              },
-            },
-          },
-          null,
-          2,
-        ),
-        "utf-8",
-      );
-
-      vi.resetModules();
-      const { loadConfig } = await import("./config.js");
-      const cfg = loadConfig();
-
-      expect(cfg.inbound?.responsePrefix).toBe("✅");
-      expect(cfg.inbound?.groupChat?.mentionPatterns).toEqual(["@clawd"]);
-      expect(cfg.inbound?.reply?.session?.sessionIntro).toBe("Explicit intro");
-    });
-  });
-
-  it("does not synthesize inbound.reply when it is absent", async () => {
+  it("derives responsePrefix and mentionPatterns when identity is set", async () => {
     await withTempHome(async (home) => {
       const configDir = path.join(home, ".clawdis");
       await fs.mkdir(configDir, { recursive: true });
@@ -134,7 +52,69 @@ describe("config identity defaults", () => {
       expect(cfg.inbound?.groupChat?.mentionPatterns).toEqual([
         "\\b@?Samantha\\b",
       ]);
-      expect(cfg.inbound?.reply).toBeUndefined();
+    });
+  });
+
+  it("does not override explicit values", async () => {
+    await withTempHome(async (home) => {
+      const configDir = path.join(home, ".clawdis");
+      await fs.mkdir(configDir, { recursive: true });
+      await fs.writeFile(
+        path.join(configDir, "clawdis.json"),
+        JSON.stringify(
+          {
+            identity: {
+              name: "Samantha Sloth",
+              theme: "space lobster",
+              emoji: "🦞",
+            },
+            inbound: {
+              responsePrefix: "✅",
+              groupChat: { mentionPatterns: ["@clawd"] },
+            },
+          },
+          null,
+          2,
+        ),
+        "utf-8",
+      );
+
+      vi.resetModules();
+      const { loadConfig } = await import("./config.js");
+      const cfg = loadConfig();
+
+      expect(cfg.inbound?.responsePrefix).toBe("✅");
+      expect(cfg.inbound?.groupChat?.mentionPatterns).toEqual(["@clawd"]);
+    });
+  });
+
+  it("does not synthesize inbound.agent/session when absent", async () => {
+    await withTempHome(async (home) => {
+      const configDir = path.join(home, ".clawdis");
+      await fs.mkdir(configDir, { recursive: true });
+      await fs.writeFile(
+        path.join(configDir, "clawdis.json"),
+        JSON.stringify(
+          {
+            identity: { name: "Samantha", theme: "helpful sloth", emoji: "🦥" },
+            inbound: {},
+          },
+          null,
+          2,
+        ),
+        "utf-8",
+      );
+
+      vi.resetModules();
+      const { loadConfig } = await import("./config.js");
+      const cfg = loadConfig();
+
+      expect(cfg.inbound?.responsePrefix).toBe("🦥");
+      expect(cfg.inbound?.groupChat?.mentionPatterns).toEqual([
+        "\\b@?Samantha\\b",
+      ]);
+      expect(cfg.inbound?.agent).toBeUndefined();
+      expect(cfg.inbound?.session).toBeUndefined();
     });
   });
 });

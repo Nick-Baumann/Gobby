@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import { type AddressInfo, createServer } from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { WebSocket } from "ws";
 import { agentCommand } from "../commands/agent.js";
 import { emitAgentEvent } from "../infra/agent-events.js";
@@ -72,11 +72,9 @@ vi.mock("../config/config.js", () => ({
   loadConfig: () => ({
     inbound: {
       allowFrom: testAllowFrom,
-      reply: {
-        mode: "command",
-        command: ["echo", "ok"],
-        session: { mainKey: "main", store: testSessionStorePath },
-      },
+      workspace: path.join(os.tmpdir(), "clawd-gateway-test"),
+      agent: { provider: "anthropic", model: "claude-opus-4-5" },
+      session: { mainKey: "main", store: testSessionStorePath },
     },
     cron: (() => {
       const cron: Record<string, unknown> = {};
@@ -106,6 +104,23 @@ vi.mock("../commands/agent.js", () => ({
 }));
 
 process.env.CLAWDIS_SKIP_PROVIDERS = "1";
+
+let previousHome: string | undefined;
+let tempHome: string | undefined;
+
+beforeEach(async () => {
+  previousHome = process.env.HOME;
+  tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "clawdis-gateway-home-"));
+  process.env.HOME = tempHome;
+});
+
+afterEach(async () => {
+  process.env.HOME = previousHome;
+  if (tempHome) {
+    await fs.rm(tempHome, { recursive: true, force: true });
+    tempHome = undefined;
+  }
+});
 
 async function getFreePort(): Promise<number> {
   return await new Promise((resolve, reject) => {

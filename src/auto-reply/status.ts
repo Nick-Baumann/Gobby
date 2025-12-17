@@ -1,7 +1,5 @@
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
-import path from "node:path";
 
 import { lookupContextTokens } from "../agents/context.js";
 import { DEFAULT_CONTEXT_TOKENS, DEFAULT_MODEL } from "../agents/defaults.js";
@@ -11,13 +9,18 @@ import {
   type UsageLike,
 } from "../agents/usage.js";
 import type { ClawdisConfig } from "../config/config.js";
-import type { SessionEntry, SessionScope } from "../config/sessions.js";
+import {
+  resolveSessionTranscriptPath,
+  type SessionEntry,
+  type SessionScope,
+} from "../config/sessions.js";
 import type { ThinkLevel, VerboseLevel } from "./thinking.js";
 
-type ReplyConfig = NonNullable<ClawdisConfig["inbound"]>["reply"];
+type AgentConfig = NonNullable<ClawdisConfig["inbound"]>["agent"];
 
 type StatusArgs = {
-  reply: ReplyConfig;
+  agent: AgentConfig;
+  workspaceDir?: string;
   sessionEntry?: SessionEntry;
   sessionKey?: string;
   sessionScope?: SessionScope;
@@ -28,12 +31,6 @@ type StatusArgs = {
   webLinked?: boolean;
   webAuthAgeMs?: number | null;
   heartbeatSeconds?: number;
-};
-
-type AgentProbe = {
-  ok: boolean;
-  detail: string;
-  label: string;
 };
 
 const formatAge = (ms?: number | null) => {
@@ -57,49 +54,6 @@ const abbreviatePath = (p?: string) => {
   return p;
 };
 
-const probeAgentCommand = (command?: string[]): AgentProbe => {
-  const bin = command?.[0];
-  if (!bin) {
-    return { ok: false, detail: "no command configured", label: "not set" };
-  }
-
-  const commandLabel = command
-    .slice(0, 3)
-    .map((c) => c.replace(/\{\{[^}]+}}/g, "{…}"))
-    .join(" ")
-    .concat(command.length > 3 ? " …" : "");
-
-  const looksLikePath = bin.includes("/") || bin.startsWith(".");
-  if (looksLikePath) {
-    const exists = fs.existsSync(bin);
-    return {
-      ok: exists,
-      detail: exists ? "binary found" : "binary missing",
-      label: commandLabel || bin,
-    };
-  }
-
-  try {
-    const res = spawnSync("which", [bin], {
-      encoding: "utf-8",
-      timeout: 1500,
-    });
-    const found =
-      res.status === 0 && res.stdout ? res.stdout.split("\n")[0]?.trim() : "";
-    return {
-      ok: Boolean(found),
-      detail: found || "not in PATH",
-      label: commandLabel || bin,
-    };
-  } catch (err) {
-    return {
-      ok: false,
-      detail: `probe failed: ${String(err)}`,
-      label: commandLabel || bin,
-    };
-  }
-};
-
 const formatTokens = (
   total: number | null | undefined,
   contextTokens: number | null,
@@ -117,7 +71,6 @@ const formatTokens = (
 
 const readUsageFromSessionLog = (
   sessionId?: string,
-  storePath?: string,
 ):
   | {
       input: number;
@@ -127,24 +80,10 @@ const readUsageFromSessionLog = (
       model?: string;
     }
   | undefined => {
-  // Prefer the coding-agent session log (pi-mono) if present.
-  // Path resolution rules (priority):
-  // 1) Store directory sibling file <sessionId>.jsonl
-  // 2) PI coding agent dir: ~/.pi/agent/sessions/<sessionId>.jsonl
+  // Transcripts always live at: ~/.clawdis/sessions/<SessionId>.jsonl
   if (!sessionId) return undefined;
-
-  const candidatePaths: string[] = [];
-
-  if (storePath) {
-    const dir = path.dirname(storePath);
-    candidatePaths.push(path.join(dir, `${sessionId}.jsonl`));
-  }
-
-  const piDir = path.join(os.homedir(), ".pi", "agent", "sessions");
-  candidatePaths.push(path.join(piDir, `${sessionId}.jsonl`));
-
-  const logPath = candidatePaths.find((p) => fs.existsSync(p));
-  if (!logPath) return undefined;
+  const logPath = resolveSessionTranscriptPath(sessionId);
+  if (!fs.existsSync(logPath)) return undefined;
 
   try {
     const lines = fs.readFileSync(logPath, "utf-8").split(/\n+/);
@@ -190,10 +129,10 @@ const readUsageFromSessionLog = (
 export function buildStatusMessage(args: StatusArgs): string {
   const now = args.now ?? Date.now();
   const entry = args.sessionEntry;
-  let model = entry?.model ?? args.reply?.agent?.model ?? DEFAULT_MODEL;
+  let model = entry?.model ?? args.agent?.model ?? DEFAULT_MODEL;
   let contextTokens =
     entry?.contextTokens ??
-    args.reply?.agent?.contextTokens ??
+    args.agent?.contextTokens ??
     lookupContextTokens(model) ??
     DEFAULT_CONTEXT_TOKENS;
 
@@ -203,7 +142,7 @@ export function buildStatusMessage(args: StatusArgs): string {
 
   // Prefer prompt-size tokens from the session transcript when it looks larger
   // (cached prompt tokens are often missing from agent meta/store).
-  const logUsage = readUsageFromSessionLog(entry?.sessionId, args.storePath);
+  const logUsage = readUsageFromSessionLog(entry?.sessionId);
   if (logUsage) {
     const candidate = logUsage.promptTokens || logUsage.total;
     if (!totalTokens || totalTokens === 0 || candidate > totalTokens) {
@@ -214,12 +153,10 @@ export function buildStatusMessage(args: StatusArgs): string {
       contextTokens = lookupContextTokens(logUsage.model) ?? contextTokens;
     }
   }
-  const agentProbe = probeAgentCommand(args.reply?.command);
 
-  const thinkLevel =
-    args.resolvedThink ?? args.reply?.thinkingDefault ?? "auto";
+  const thinkLevel = args.resolvedThink ?? args.agent?.thinkingDefault ?? "off";
   const verboseLevel =
-    args.resolvedVerbose ?? args.reply?.verboseDefault ?? "off";
+    args.resolvedVerbose ?? args.agent?.verboseDefault ?? "off";
 
   const webLine = (() => {
     if (args.webLinked === false) {
@@ -251,7 +188,17 @@ export function buildStatusMessage(args: StatusArgs): string {
 
   const optionsLine = `Options: thinking=${thinkLevel} | verbose=${verboseLevel} (set with /think <level>, /verbose on|off)`;
 
-  const agentLine = `Agent: ${agentProbe.ok ? "ready" : "check"} — ${agentProbe.label}${agentProbe.detail ? ` (${agentProbe.detail})` : ""}${model ? ` • model ${model}` : ""}`;
+  const modelLabel = args.agent?.provider?.trim()
+    ? `${args.agent.provider}/${args.agent?.model ?? model}`
+    : model
+      ? model
+      : "unknown";
+
+  const agentLine = `Agent: embedded pi • ${modelLabel}`;
+
+  const workspaceLine = args.workspaceDir
+    ? `Workspace: ${abbreviatePath(args.workspaceDir)}`
+    : undefined;
 
   const helpersLine = "Shortcuts: /new reset | /restart relink";
 
@@ -259,6 +206,7 @@ export function buildStatusMessage(args: StatusArgs): string {
     "⚙️ Status",
     webLine,
     agentLine,
+    workspaceLine,
     contextLine,
     sessionLine,
     optionsLine,

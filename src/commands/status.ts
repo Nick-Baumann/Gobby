@@ -61,13 +61,13 @@ export async function getStatusSummary(): Promise<StatusSummary> {
   const providerSummary = await buildProviderSummary(cfg);
   const queuedSystemEvents = peekSystemEvents();
 
-  const configModel = cfg.inbound?.reply?.agent?.model ?? DEFAULT_MODEL;
+  const configModel = cfg.inbound?.agent?.model ?? DEFAULT_MODEL;
   const configContextTokens =
-    cfg.inbound?.reply?.agent?.contextTokens ??
+    cfg.inbound?.agent?.contextTokens ??
     lookupContextTokens(configModel) ??
     DEFAULT_CONTEXT_TOKENS;
 
-  const storePath = resolveStorePath(cfg.inbound?.reply?.session?.store);
+  const storePath = resolveStorePath(cfg.inbound?.session?.store);
   const store = loadSessionStore(storePath);
   const now = Date.now();
   const sessions = Object.entries(store)

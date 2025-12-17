@@ -5,9 +5,6 @@ import path from "node:path";
 import JSON5 from "json5";
 import { z } from "zod";
 
-import type { AgentKind } from "../agents/index.js";
-
-export type ReplyMode = "text" | "command";
 export type SessionScope = "per-sender" | "global";
 
 export type SessionConfig = {
@@ -16,13 +13,7 @@ export type SessionConfig = {
   idleMinutes?: number;
   heartbeatIdleMinutes?: number;
   store?: string;
-  sessionArgNew?: string[];
-  sessionArgResume?: string[];
-  sessionArgBeforeBody?: boolean;
-  sendSystemOnce?: boolean;
-  sessionIntro?: string;
   typingIntervalSeconds?: number;
-  heartbeatMinutes?: number;
   mainKey?: string;
 };
 
@@ -105,31 +96,25 @@ export type ClawdisConfig = {
       timeoutSeconds?: number;
     };
     groupChat?: GroupChatConfig;
-    reply?: {
-      mode: ReplyMode;
-      text?: string;
-      command?: string[];
-      heartbeatCommand?: string[];
+    agent?: {
+      /** Provider id, e.g. "anthropic" or "openai" (pi-ai catalog). */
+      provider?: string;
+      /** Model id within provider, e.g. "claude-opus-4-5". */
+      model?: string;
+      /** Optional display-only context window override (used for % in status UIs). */
+      contextTokens?: number;
+      /** Default thinking level when no /think directive is present. */
       thinkingDefault?: "off" | "minimal" | "low" | "medium" | "high";
+      /** Default verbose level when no /verbose directive is present. */
       verboseDefault?: "off" | "on";
-      cwd?: string;
-      template?: string;
       timeoutSeconds?: number;
-      bodyPrefix?: string;
-      mediaUrl?: string;
-      session?: SessionConfig;
+      /** Max inbound media size in MB for agent-visible attachments (text note or future image attach). */
       mediaMaxMb?: number;
       typingIntervalSeconds?: number;
+      /** Periodic background heartbeat runs (minutes). 0 disables. */
       heartbeatMinutes?: number;
-      agent?: {
-        kind: AgentKind;
-        format?: "text" | "json";
-        identityPrefix?: string;
-        provider?: string;
-        model?: string;
-        contextTokens?: number;
-      };
     };
+    session?: SessionConfig;
   };
   web?: WebConfig;
   telegram?: TelegramConfig;
@@ -143,70 +128,6 @@ export const CONFIG_PATH_CLAWDIS = path.join(
   ".clawdis",
   "clawdis.json",
 );
-
-const ReplySchema = z
-  .object({
-    mode: z.union([z.literal("text"), z.literal("command")]),
-    text: z.string().optional(),
-    command: z.array(z.string()).optional(),
-    heartbeatCommand: z.array(z.string()).optional(),
-    thinkingDefault: z
-      .union([
-        z.literal("off"),
-        z.literal("minimal"),
-        z.literal("low"),
-        z.literal("medium"),
-        z.literal("high"),
-      ])
-      .optional(),
-    verboseDefault: z.union([z.literal("off"), z.literal("on")]).optional(),
-    cwd: z.string().optional(),
-    template: z.string().optional(),
-    timeoutSeconds: z.number().int().positive().optional(),
-    bodyPrefix: z.string().optional(),
-    mediaUrl: z.string().optional(),
-    mediaMaxMb: z.number().positive().optional(),
-    typingIntervalSeconds: z.number().int().positive().optional(),
-    session: z
-      .object({
-        scope: z
-          .union([z.literal("per-sender"), z.literal("global")])
-          .optional(),
-        resetTriggers: z.array(z.string()).optional(),
-        idleMinutes: z.number().int().positive().optional(),
-        heartbeatIdleMinutes: z.number().int().positive().optional(),
-        store: z.string().optional(),
-        sessionArgNew: z.array(z.string()).optional(),
-        sessionArgResume: z.array(z.string()).optional(),
-        sessionArgBeforeBody: z.boolean().optional(),
-        sendSystemOnce: z.boolean().optional(),
-        sessionIntro: z.string().optional(),
-        typingIntervalSeconds: z.number().int().positive().optional(),
-        mainKey: z.string().optional(),
-      })
-      .optional(),
-    heartbeatMinutes: z.number().int().nonnegative().optional(),
-    agent: z
-      .object({
-        kind: z.literal("pi"),
-        format: z.union([z.literal("text"), z.literal("json")]).optional(),
-        identityPrefix: z.string().optional(),
-        provider: z.string().optional(),
-        model: z.string().optional(),
-        contextTokens: z.number().int().positive().optional(),
-      })
-      .optional(),
-  })
-  .refine(
-    (val) =>
-      val.mode === "text"
-        ? Boolean(val.text)
-        : Boolean(val.command || val.heartbeatCommand),
-    {
-      message:
-        "reply.text is required for mode=text; reply.command or reply.heartbeatCommand is required for mode=command",
-    },
-  );
 
 const ClawdisSchema = z.object({
   identity: z
@@ -261,7 +182,42 @@ const ClawdisSchema = z.object({
           timeoutSeconds: z.number().int().positive().optional(),
         })
         .optional(),
-      reply: ReplySchema.optional(),
+      agent: z
+        .object({
+          provider: z.string().optional(),
+          model: z.string().optional(),
+          contextTokens: z.number().int().positive().optional(),
+          thinkingDefault: z
+            .union([
+              z.literal("off"),
+              z.literal("minimal"),
+              z.literal("low"),
+              z.literal("medium"),
+              z.literal("high"),
+            ])
+            .optional(),
+          verboseDefault: z
+            .union([z.literal("off"), z.literal("on")])
+            .optional(),
+          timeoutSeconds: z.number().int().positive().optional(),
+          mediaMaxMb: z.number().positive().optional(),
+          typingIntervalSeconds: z.number().int().positive().optional(),
+          heartbeatMinutes: z.number().nonnegative().optional(),
+        })
+        .optional(),
+      session: z
+        .object({
+          scope: z
+            .union([z.literal("per-sender"), z.literal("global")])
+            .optional(),
+          resetTriggers: z.array(z.string()).optional(),
+          idleMinutes: z.number().int().positive().optional(),
+          heartbeatIdleMinutes: z.number().int().positive().optional(),
+          store: z.string().optional(),
+          typingIntervalSeconds: z.number().int().positive().optional(),
+          mainKey: z.string().optional(),
+        })
+        .optional(),
     })
     .optional(),
   cron: z
@@ -315,12 +271,9 @@ function applyIdentityDefaults(cfg: ClawdisConfig): ClawdisConfig {
 
   const emoji = identity.emoji?.trim();
   const name = identity.name?.trim();
-  const theme = identity.theme?.trim();
 
   const inbound = cfg.inbound ?? {};
   const groupChat = inbound.groupChat ?? {};
-  const reply = inbound.reply ?? undefined;
-  const session = reply?.session ?? undefined;
 
   let mutated = false;
   const next: ClawdisConfig = { ...cfg };
@@ -337,22 +290,6 @@ function applyIdentityDefaults(cfg: ClawdisConfig): ClawdisConfig {
     next.inbound = {
       ...(next.inbound ?? inbound),
       groupChat: { ...groupChat, mentionPatterns: [pattern] },
-    };
-    mutated = true;
-  }
-
-  if (name && reply && !session?.sessionIntro) {
-    const introParts = [
-      `You are ${name}.`,
-      theme ? `Theme: ${theme}.` : undefined,
-      emoji ? `Your emoji is ${emoji}.` : undefined,
-    ].filter(Boolean);
-    next.inbound = {
-      ...(next.inbound ?? inbound),
-      reply: {
-        ...reply,
-        session: { ...(session ?? {}), sessionIntro: introParts.join(" ") },
-      },
     };
     mutated = true;
   }

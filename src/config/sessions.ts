@@ -5,7 +5,7 @@ import path from "node:path";
 
 import JSON5 from "json5";
 import type { MsgContext } from "../auto-reply/templating.js";
-import { CONFIG_DIR, normalizeE164 } from "../utils.js";
+import { normalizeE164 } from "../utils.js";
 
 export type SessionScope = "per-sender" | "global";
 
@@ -27,16 +27,22 @@ export type SessionEntry = {
   syncing?: boolean | string;
 };
 
-export const SESSION_STORE_DEFAULT = path.join(
-  CONFIG_DIR,
-  "sessions",
-  "sessions.json",
-);
+export function resolveSessionTranscriptsDir(): string {
+  return path.join(os.homedir(), ".clawdis", "sessions");
+}
+
+export function resolveDefaultSessionStorePath(): string {
+  return path.join(resolveSessionTranscriptsDir(), "sessions.json");
+}
 export const DEFAULT_RESET_TRIGGER = "/new";
 export const DEFAULT_IDLE_MINUTES = 60;
 
+export function resolveSessionTranscriptPath(sessionId: string): string {
+  return path.join(resolveSessionTranscriptsDir(), `${sessionId}.jsonl`);
+}
+
 export function resolveStorePath(store?: string) {
-  if (!store) return SESSION_STORE_DEFAULT;
+  if (!store) return resolveDefaultSessionStorePath();
   if (store.startsWith("~"))
     return path.resolve(store.replace("~", os.homedir()));
   return path.resolve(store);

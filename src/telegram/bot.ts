@@ -149,7 +149,7 @@ export function createTelegramBot(opts: TelegramBotOptions) {
       };
 
       if (!isGroup) {
-        const sessionCfg = cfg.inbound?.reply?.session;
+        const sessionCfg = cfg.inbound?.session;
         const mainKey = (sessionCfg?.mainKey ?? "main").trim() || "main";
         const storePath = resolveStorePath(sessionCfg?.store);
         await updateLastRoute({

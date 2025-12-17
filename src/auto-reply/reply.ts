@@ -6,7 +6,7 @@ import {
   DEFAULT_MODEL,
   DEFAULT_PROVIDER,
 } from "../agents/defaults.js";
-import { resolveBundledPiBinary } from "../agents/pi-path.js";
+import { runEmbeddedPiAgent } from "../agents/pi-embedded.js";
 import {
   DEFAULT_AGENT_WORKSPACE_DIR,
   ensureAgentWorkspace,
@@ -17,25 +17,20 @@ import {
   DEFAULT_RESET_TRIGGER,
   loadSessionStore,
   resolveSessionKey,
+  resolveSessionTranscriptPath,
   resolveStorePath,
   type SessionEntry,
   saveSessionStore,
 } from "../config/sessions.js";
-import { isVerbose, logVerbose } from "../globals.js";
+import { logVerbose } from "../globals.js";
 import { buildProviderSummary } from "../infra/provider-summary.js";
 import { triggerClawdisRestart } from "../infra/restart.js";
 import { drainSystemEvents } from "../infra/system-events.js";
 import { defaultRuntime } from "../runtime.js";
-import { resolveUserPath } from "../utils.js";
 import { resolveHeartbeatSeconds } from "../web/reconnect.js";
 import { getWebAuthAgeMs, webAuthExists } from "../web/session.js";
-import { runCommandReply } from "./command-reply.js";
 import { buildStatusMessage } from "./status.js";
-import {
-  applyTemplate,
-  type MsgContext,
-  type TemplateContext,
-} from "./templating.js";
+import type { MsgContext, TemplateContext } from "./templating.js";
 import {
   normalizeThinkLevel,
   normalizeVerboseLevel,
@@ -50,10 +45,6 @@ export type { GetReplyOptions, ReplyPayload } from "./types.js";
 const ABORT_TRIGGERS = new Set(["stop", "esc", "abort", "wait", "exit"]);
 const ABORT_MEMORY = new Map<string, boolean>();
 const SYSTEM_MARK = "⚙️";
-
-type ReplyConfig = NonNullable<ClawdisConfig["inbound"]>["reply"];
-
-type ResolvedReplyConfig = NonNullable<ReplyConfig>;
 
 export function extractThinkDirective(body?: string): {
   cleaned: string;
@@ -147,63 +138,31 @@ function stripMentions(
   return result.replace(/\s+/g, " ").trim();
 }
 
-function makeDefaultPiReply(): ResolvedReplyConfig {
-  const piBin = resolveBundledPiBinary() ?? "pi";
-  const defaultContext =
-    lookupContextTokens(DEFAULT_MODEL) ?? DEFAULT_CONTEXT_TOKENS;
-  return {
-    mode: "command" as const,
-    command: [piBin, "--mode", "rpc", "{{BodyStripped}}"],
-    agent: {
-      kind: "pi" as const,
-      provider: DEFAULT_PROVIDER,
-      model: DEFAULT_MODEL,
-      contextTokens: defaultContext,
-      format: "json" as const,
-    },
-    session: {
-      scope: "per-sender" as const,
-      resetTriggers: [DEFAULT_RESET_TRIGGER],
-      idleMinutes: DEFAULT_IDLE_MINUTES,
-    },
-    timeoutSeconds: 600,
-  };
-}
-
 export async function getReplyFromConfig(
   ctx: MsgContext,
   opts?: GetReplyOptions,
   configOverride?: ClawdisConfig,
 ): Promise<ReplyPayload | ReplyPayload[] | undefined> {
-  // Choose reply from config: static text or external command stdout.
   const cfg = configOverride ?? loadConfig();
-  const workspaceDir = cfg.inbound?.workspace ?? DEFAULT_AGENT_WORKSPACE_DIR;
-  const configuredReply = cfg.inbound?.reply as ResolvedReplyConfig | undefined;
-  const reply: ResolvedReplyConfig = configuredReply
-    ? { ...configuredReply, cwd: configuredReply.cwd ?? workspaceDir }
-    : { ...makeDefaultPiReply(), cwd: workspaceDir };
-  const identity = cfg.identity;
-  if (identity?.name?.trim() && reply.session && !reply.session.sessionIntro) {
-    const name = identity.name.trim();
-    const theme = identity.theme?.trim();
-    const emoji = identity.emoji?.trim();
-    const introParts = [
-      `You are ${name}.`,
-      theme ? `Theme: ${theme}.` : undefined,
-      emoji ? `Your emoji is ${emoji}.` : undefined,
-    ].filter(Boolean);
-    reply.session = { ...reply.session, sessionIntro: introParts.join(" ") };
-  }
+  const workspaceDirRaw = cfg.inbound?.workspace ?? DEFAULT_AGENT_WORKSPACE_DIR;
+  const agentCfg = cfg.inbound?.agent;
+  const sessionCfg = cfg.inbound?.session;
 
-  // Bootstrap the workspace (and a starter AGENTS.md) only when we actually run from it.
-  if (reply.mode === "command" && typeof reply.cwd === "string") {
-    const resolvedWorkspace = resolveUserPath(workspaceDir);
-    const resolvedCwd = resolveUserPath(reply.cwd);
-    if (resolvedCwd === resolvedWorkspace) {
-      await ensureAgentWorkspace({ dir: workspaceDir, ensureAgentsFile: true });
-    }
-  }
-  const timeoutSeconds = Math.max(reply.timeoutSeconds ?? 600, 1);
+  const provider = agentCfg?.provider?.trim() || DEFAULT_PROVIDER;
+  const model = agentCfg?.model?.trim() || DEFAULT_MODEL;
+  const contextTokens =
+    agentCfg?.contextTokens ??
+    lookupContextTokens(model) ??
+    DEFAULT_CONTEXT_TOKENS;
+
+  // Bootstrap the workspace and the required files (AGENTS.md, SOUL.md, TOOLS.md).
+  const workspace = await ensureAgentWorkspace({
+    dir: workspaceDirRaw,
+    ensureBootstrapFiles: true,
+  });
+  const workspaceDir = workspace.dir;
+
+  const timeoutSeconds = Math.max(agentCfg?.timeoutSeconds ?? 600, 1);
   const timeoutMs = timeoutSeconds * 1000;
   let started = false;
   const triggerTyping = async () => {
@@ -216,11 +175,9 @@ export async function getReplyFromConfig(
   };
   let typingTimer: NodeJS.Timeout | undefined;
   const typingIntervalMs =
-    reply?.mode === "command"
-      ? (reply.typingIntervalSeconds ??
-          reply?.session?.typingIntervalSeconds ??
-          8) * 1000
-      : 0;
+    (agentCfg?.typingIntervalSeconds ??
+      sessionCfg?.typingIntervalSeconds ??
+      8) * 1000;
   const cleanupTyping = () => {
     if (typingTimer) {
       clearInterval(typingTimer);
@@ -250,7 +207,6 @@ export async function getReplyFromConfig(
   }
 
   // Optional session handling (conversation reuse + /new resets)
-  const sessionCfg = reply?.session;
   const mainKey = sessionCfg?.mainKey ?? "main";
   const resetTriggers = sessionCfg?.resetTriggers?.length
     ? sessionCfg.resetTriggers
@@ -278,64 +234,62 @@ export async function getReplyFromConfig(
     .trim()
     .toLowerCase();
 
-  if (sessionCfg) {
-    const rawBody = ctx.Body ?? "";
-    const trimmedBody = rawBody.trim();
-    // Timestamp/message prefixes (e.g. "[Dec 4 17:35] ") are added by the
-    // web inbox before we get here. They prevented reset triggers like "/new"
-    // from matching, so strip structural wrappers when checking for resets.
-    const strippedForReset = triggerBodyNormalized;
-    for (const trigger of resetTriggers) {
-      if (!trigger) continue;
-      if (trimmedBody === trigger || strippedForReset === trigger) {
-        isNewSession = true;
-        bodyStripped = "";
-        break;
-      }
-      const triggerPrefix = `${trigger} `;
-      if (
-        trimmedBody.startsWith(triggerPrefix) ||
-        strippedForReset.startsWith(triggerPrefix)
-      ) {
-        isNewSession = true;
-        bodyStripped = strippedForReset.slice(trigger.length).trimStart();
-        break;
-      }
-    }
-
-    sessionKey = resolveSessionKey(sessionScope, ctx, mainKey);
-    sessionStore = loadSessionStore(storePath);
-    const entry = sessionStore[sessionKey];
-    const idleMs = idleMinutes * 60_000;
-    const freshEntry = entry && Date.now() - entry.updatedAt <= idleMs;
-
-    if (!isNewSession && freshEntry) {
-      sessionId = entry.sessionId;
-      systemSent = entry.systemSent ?? false;
-      abortedLastRun = entry.abortedLastRun ?? false;
-      persistedThinking = entry.thinkingLevel;
-      persistedVerbose = entry.verboseLevel;
-    } else {
-      sessionId = crypto.randomUUID();
+  const rawBody = ctx.Body ?? "";
+  const trimmedBody = rawBody.trim();
+  // Timestamp/message prefixes (e.g. "[Dec 4 17:35] ") are added by the
+  // web inbox before we get here. They prevented reset triggers like "/new"
+  // from matching, so strip structural wrappers when checking for resets.
+  const strippedForReset = triggerBodyNormalized;
+  for (const trigger of resetTriggers) {
+    if (!trigger) continue;
+    if (trimmedBody === trigger || strippedForReset === trigger) {
       isNewSession = true;
-      systemSent = false;
-      abortedLastRun = false;
+      bodyStripped = "";
+      break;
     }
-
-    const baseEntry = !isNewSession && freshEntry ? entry : undefined;
-    sessionEntry = {
-      ...baseEntry,
-      sessionId,
-      updatedAt: Date.now(),
-      systemSent,
-      abortedLastRun,
-      // Persist previously stored thinking/verbose levels when present.
-      thinkingLevel: persistedThinking ?? baseEntry?.thinkingLevel,
-      verboseLevel: persistedVerbose ?? baseEntry?.verboseLevel,
-    };
-    sessionStore[sessionKey] = sessionEntry;
-    await saveSessionStore(storePath, sessionStore);
+    const triggerPrefix = `${trigger} `;
+    if (
+      trimmedBody.startsWith(triggerPrefix) ||
+      strippedForReset.startsWith(triggerPrefix)
+    ) {
+      isNewSession = true;
+      bodyStripped = strippedForReset.slice(trigger.length).trimStart();
+      break;
+    }
   }
+
+  sessionKey = resolveSessionKey(sessionScope, ctx, mainKey);
+  sessionStore = loadSessionStore(storePath);
+  const entry = sessionStore[sessionKey];
+  const idleMs = idleMinutes * 60_000;
+  const freshEntry = entry && Date.now() - entry.updatedAt <= idleMs;
+
+  if (!isNewSession && freshEntry) {
+    sessionId = entry.sessionId;
+    systemSent = entry.systemSent ?? false;
+    abortedLastRun = entry.abortedLastRun ?? false;
+    persistedThinking = entry.thinkingLevel;
+    persistedVerbose = entry.verboseLevel;
+  } else {
+    sessionId = crypto.randomUUID();
+    isNewSession = true;
+    systemSent = false;
+    abortedLastRun = false;
+  }
+
+  const baseEntry = !isNewSession && freshEntry ? entry : undefined;
+  sessionEntry = {
+    ...baseEntry,
+    sessionId,
+    updatedAt: Date.now(),
+    systemSent,
+    abortedLastRun,
+    // Persist previously stored thinking/verbose levels when present.
+    thinkingLevel: persistedThinking ?? baseEntry?.thinkingLevel,
+    verboseLevel: persistedVerbose ?? baseEntry?.verboseLevel,
+  };
+  sessionStore[sessionKey] = sessionEntry;
+  await saveSessionStore(storePath, sessionStore);
 
   const sessionCtx: TemplateContext = {
     ...ctx,
@@ -366,12 +320,12 @@ export async function getReplyFromConfig(
   let resolvedThinkLevel =
     inlineThink ??
     (sessionEntry?.thinkingLevel as ThinkLevel | undefined) ??
-    (reply?.thinkingDefault as ThinkLevel | undefined);
+    (agentCfg?.thinkingDefault as ThinkLevel | undefined);
 
   const resolvedVerboseLevel =
     inlineVerbose ??
     (sessionEntry?.verboseLevel as VerboseLevel | undefined) ??
-    (reply?.verboseDefault as VerboseLevel | undefined);
+    (agentCfg?.verboseDefault as VerboseLevel | undefined);
 
   const combinedDirectiveOnly =
     hasThinkDirective &&
@@ -565,7 +519,14 @@ export async function getReplyFromConfig(
     const webAuthAgeMs = getWebAuthAgeMs();
     const heartbeatSeconds = resolveHeartbeatSeconds(cfg, undefined);
     const statusText = buildStatusMessage({
-      reply,
+      agent: {
+        provider,
+        model,
+        contextTokens,
+        thinkingDefault: agentCfg?.thinkingDefault,
+        verboseDefault: agentCfg?.verboseDefault,
+      },
+      workspaceDir,
       sessionEntry,
       sessionKey,
       sessionScope,
@@ -580,8 +541,7 @@ export async function getReplyFromConfig(
     return { text: statusText };
   }
 
-  const abortRequested =
-    reply?.mode === "command" && isAbortTrigger(rawBodyNormalized);
+  const abortRequested = isAbortTrigger(rawBodyNormalized);
 
   if (abortRequested) {
     if (sessionEntry && sessionStore && sessionKey) {
@@ -598,13 +558,7 @@ export async function getReplyFromConfig(
 
   await startTypingLoop();
 
-  // Optional prefix injected before Body for templating/command prompts.
-  const sendSystemOnce = sessionCfg?.sendSystemOnce === true;
   const isFirstTurnInSession = isNewSession || !systemSent;
-  const sessionIntro =
-    isFirstTurnInSession && sessionCfg?.sessionIntro
-      ? applyTemplate(sessionCfg.sessionIntro ?? "", sessionCtx)
-      : "";
   const groupIntro =
     isFirstTurnInSession && sessionCtx.ChatType === "group"
       ? (() => {
@@ -624,9 +578,6 @@ export async function getReplyFromConfig(
             );
         })()
       : "";
-  const bodyPrefix = reply?.bodyPrefix
-    ? applyTemplate(reply.bodyPrefix ?? "", sessionCtx)
-    : "";
   const baseBody = sessionCtx.BodyStripped ?? sessionCtx.Body ?? "";
   const baseBodyTrimmed = baseBody.trim();
   const rawBodyTrimmed = (ctx.Body ?? "").trim();
@@ -648,19 +599,10 @@ export async function getReplyFromConfig(
       text: "I didn't receive any text in your message. Please resend or add a caption.",
     };
   }
-  const abortedHint =
-    reply?.mode === "command" && abortedLastRun
-      ? "Note: The previous agent run was aborted by the user. Resume carefully or ask for clarification."
-      : "";
+  const abortedHint = abortedLastRun
+    ? "Note: The previous agent run was aborted by the user. Resume carefully or ask for clarification."
+    : "";
   let prefixedBodyBase = baseBody;
-  if (!sendSystemOnce || isFirstTurnInSession) {
-    prefixedBodyBase = bodyPrefix
-      ? `${bodyPrefix}${prefixedBodyBase}`
-      : prefixedBodyBase;
-  }
-  if (sessionIntro) {
-    prefixedBodyBase = `${sessionIntro}\n\n${prefixedBodyBase}`;
-  }
   if (groupIntro) {
     prefixedBodyBase = `${groupIntro}\n\n${prefixedBodyBase}`;
   }
@@ -711,13 +653,7 @@ export async function getReplyFromConfig(
       prefixedBodyBase = `${block}\n\n${prefixedBodyBase}`;
     }
   }
-  if (
-    sessionCfg &&
-    sendSystemOnce &&
-    isFirstTurnInSession &&
-    sessionStore &&
-    sessionKey
-  ) {
+  if (isFirstTurnInSession && sessionStore && sessionKey) {
     const current = sessionEntry ??
       sessionStore[sessionKey] ?? {
         sessionId: sessionId ?? crypto.randomUUID(),
@@ -734,20 +670,17 @@ export async function getReplyFromConfig(
     systemSent = true;
   }
 
-  const prefixedBody =
-    transcribedText && reply?.mode === "command"
-      ? [prefixedBodyBase, `Transcript:\n${transcribedText}`]
-          .filter(Boolean)
-          .join("\n\n")
-      : prefixedBodyBase;
+  const prefixedBody = transcribedText
+    ? [prefixedBodyBase, `Transcript:\n${transcribedText}`]
+        .filter(Boolean)
+        .join("\n\n")
+    : prefixedBodyBase;
   const mediaNote = ctx.MediaPath?.length
     ? `[media attached: ${ctx.MediaPath}${ctx.MediaType ? ` (${ctx.MediaType})` : ""}${ctx.MediaUrl ? ` | ${ctx.MediaUrl}` : ""}]`
     : undefined;
-  // For command prompts we prepend the media note so Pi sees it; text replies stay clean.
-  const mediaReplyHint =
-    mediaNote && reply?.mode === "command"
-      ? "To send an image back, add a line like: MEDIA:https://example.com/image.jpg (no spaces). Keep caption in the text body."
-      : undefined;
+  const mediaReplyHint = mediaNote
+    ? "To send an image back, add a line like: MEDIA:https://example.com/image.jpg (no spaces). Keep caption in the text body."
+    : undefined;
   let commandBody = mediaNote
     ? [mediaNote, mediaReplyHint, prefixedBody ?? ""]
         .filter(Boolean)
@@ -764,169 +697,92 @@ export async function getReplyFromConfig(
       commandBody = parts.slice(1).join(" ").trim();
     }
   }
-  const templatingCtx: TemplateContext = {
-    ...sessionCtx,
-    Body: commandBody,
-    BodyStripped: commandBody,
-  };
-  if (!reply) {
-    logVerbose("No inbound.reply configured; skipping auto-reply");
-    cleanupTyping();
-    return undefined;
-  }
 
-  if (reply.mode === "text" && reply.text) {
-    await onReplyStart();
-    logVerbose("Using text auto-reply from config");
-    const result = {
-      text: applyTemplate(reply.text ?? "", templatingCtx),
-      mediaUrl: reply.mediaUrl,
-    };
-    cleanupTyping();
-    return result;
-  }
+  const sessionIdFinal = sessionId ?? crypto.randomUUID();
+  const sessionFile = resolveSessionTranscriptPath(sessionIdFinal);
 
-  const isHeartbeat = opts?.isHeartbeat === true;
+  await onReplyStart();
 
-  if (reply && reply.mode === "command") {
-    const heartbeatCommand = isHeartbeat
-      ? (reply as { heartbeatCommand?: string[] }).heartbeatCommand
-      : undefined;
-    const commandArgs = heartbeatCommand?.length
-      ? heartbeatCommand
-      : reply.command;
+  try {
+    const runId = crypto.randomUUID();
+    const runResult = await runEmbeddedPiAgent({
+      sessionId: sessionIdFinal,
+      sessionFile,
+      workspaceDir,
+      prompt: commandBody,
+      provider,
+      model,
+      thinkLevel: resolvedThinkLevel,
+      verboseLevel: resolvedVerboseLevel,
+      timeoutMs,
+      runId,
+      onPartialReply: opts?.onPartialReply
+        ? (payload) =>
+            opts.onPartialReply?.({
+              text: payload.text,
+              mediaUrls: payload.mediaUrls,
+            })
+        : undefined,
+    });
 
-    if (!commandArgs?.length) {
-      cleanupTyping();
-      return undefined;
-    }
+    const payloadArray = runResult.payloads ?? [];
+    if (payloadArray.length === 0) return undefined;
 
-    await onReplyStart();
-    const commandReply = {
-      ...reply,
-      command: commandArgs,
-      mode: "command" as const,
-    };
-    try {
-      const runResult = await runCommandReply({
-        reply: commandReply,
-        templatingCtx,
-        sendSystemOnce,
-        isNewSession,
-        isFirstTurnInSession,
-        systemSent,
-        timeoutMs,
-        timeoutSeconds,
-        thinkLevel: resolvedThinkLevel,
-        verboseLevel: resolvedVerboseLevel,
-        onPartialReply: opts?.onPartialReply,
-      });
-      const payloadArray = runResult.payloads ?? [];
-      const meta = runResult.meta;
-      let finalPayloads = payloadArray;
-      if (!finalPayloads || finalPayloads.length === 0) {
-        return undefined;
-      }
-      if (sessionCfg && sessionStore && sessionKey) {
-        const returnedSessionId = meta.agentMeta?.sessionId;
-        // TODO: remove once pi-mono persists stable session ids for custom --session paths.
-        const allowMetaSessionId = false;
-        if (
-          allowMetaSessionId &&
-          returnedSessionId &&
-          returnedSessionId !== sessionId
-        ) {
-          const entry = sessionEntry ??
-            sessionStore[sessionKey] ?? {
-              sessionId: returnedSessionId,
-              updatedAt: Date.now(),
-              systemSent,
-              abortedLastRun,
-            };
+    if (sessionStore && sessionKey) {
+      const usage = runResult.meta.agentMeta?.usage;
+      const modelUsed =
+        runResult.meta.agentMeta?.model ?? agentCfg?.model ?? DEFAULT_MODEL;
+      const contextTokensUsed =
+        agentCfg?.contextTokens ??
+        lookupContextTokens(modelUsed) ??
+        sessionEntry?.contextTokens ??
+        DEFAULT_CONTEXT_TOKENS;
+
+      if (usage) {
+        const entry = sessionEntry ?? sessionStore[sessionKey];
+        if (entry) {
+          const input = usage.input ?? 0;
+          const output = usage.output ?? 0;
+          const promptTokens =
+            input + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0);
           sessionEntry = {
             ...entry,
-            sessionId: returnedSessionId,
+            inputTokens: input,
+            outputTokens: output,
+            totalTokens:
+              promptTokens > 0 ? promptTokens : (usage.total ?? input),
+            model: modelUsed,
+            contextTokens: contextTokensUsed ?? entry.contextTokens,
             updatedAt: Date.now(),
           };
           sessionStore[sessionKey] = sessionEntry;
           await saveSessionStore(storePath, sessionStore);
-          sessionId = returnedSessionId;
-          if (isVerbose()) {
-            logVerbose(
-              `Session id updated from agent meta: ${returnedSessionId} (store: ${storePath})`,
-            );
-          }
         }
-
-        const usage = meta.agentMeta?.usage;
-        const model =
-          meta.agentMeta?.model ||
-          reply?.agent?.model ||
-          sessionEntry?.model ||
-          DEFAULT_MODEL;
-        const contextTokens =
-          reply?.agent?.contextTokens ??
-          lookupContextTokens(model) ??
-          sessionEntry?.contextTokens ??
-          DEFAULT_CONTEXT_TOKENS;
-
-        if (usage) {
-          const entry = sessionEntry ?? sessionStore[sessionKey];
-          if (entry) {
-            const input = usage.input ?? 0;
-            const output = usage.output ?? 0;
-            const promptTokens =
-              input + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0);
-            sessionEntry = {
-              ...entry,
-              inputTokens: input,
-              outputTokens: output,
-              // Track the effective prompt/context size (cached + uncached input).
-              totalTokens:
-                promptTokens > 0 ? promptTokens : (usage.total ?? input),
-              model,
-              contextTokens: contextTokens ?? entry.contextTokens,
-              updatedAt: Date.now(),
-            };
-            sessionStore[sessionKey] = sessionEntry;
-            await saveSessionStore(storePath, sessionStore);
-          }
-        } else if (model || contextTokens) {
-          const entry = sessionEntry ?? sessionStore[sessionKey];
-          if (entry) {
-            sessionEntry = {
-              ...entry,
-              model: model ?? entry.model,
-              contextTokens: contextTokens ?? entry.contextTokens,
-            };
-            sessionStore[sessionKey] = sessionEntry;
-            await saveSessionStore(storePath, sessionStore);
-          }
+      } else if (modelUsed || contextTokensUsed) {
+        const entry = sessionEntry ?? sessionStore[sessionKey];
+        if (entry) {
+          sessionEntry = {
+            ...entry,
+            model: modelUsed ?? entry.model,
+            contextTokens: contextTokensUsed ?? entry.contextTokens,
+          };
+          sessionStore[sessionKey] = sessionEntry;
+          await saveSessionStore(storePath, sessionStore);
         }
       }
-      if (meta.agentMeta && isVerbose()) {
-        logVerbose(`Agent meta: ${JSON.stringify(meta.agentMeta)}`);
-      }
-      // If verbose is enabled and this is a new session, prepend a session hint.
-      const sessionIdHint =
-        resolvedVerboseLevel === "on" && isNewSession
-          ? (sessionId ??
-            meta.agentMeta?.sessionId ??
-            templatingCtx.SessionId ??
-            "unknown")
-          : undefined;
-      if (sessionIdHint) {
-        finalPayloads = [
-          { text: `🧭 New session: ${sessionIdHint}` },
-          ...payloadArray,
-        ];
-      }
-      return finalPayloads.length === 1 ? finalPayloads[0] : finalPayloads;
-    } finally {
-      cleanupTyping();
     }
-  }
 
-  cleanupTyping();
-  return undefined;
+    // If verbose is enabled and this is a new session, prepend a session hint.
+    let finalPayloads = payloadArray;
+    if (resolvedVerboseLevel === "on" && isNewSession) {
+      finalPayloads = [
+        { text: `🧭 New session: ${sessionIdFinal}` },
+        ...payloadArray,
+      ];
+    }
+
+    return finalPayloads.length === 1 ? finalPayloads[0] : finalPayloads;
+  } finally {
+    cleanupTyping();
+  }
 }

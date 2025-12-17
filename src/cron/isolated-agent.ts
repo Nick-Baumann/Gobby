@@ -1,22 +1,27 @@
 import crypto from "node:crypto";
-
-import { chunkText } from "../auto-reply/chunk.js";
-import { runCommandReply } from "../auto-reply/command-reply.js";
+import { lookupContextTokens } from "../agents/context.js";
 import {
-  applyTemplate,
-  type TemplateContext,
-} from "../auto-reply/templating.js";
+  DEFAULT_CONTEXT_TOKENS,
+  DEFAULT_MODEL,
+  DEFAULT_PROVIDER,
+} from "../agents/defaults.js";
+import { runEmbeddedPiAgent } from "../agents/pi-embedded.js";
+import {
+  DEFAULT_AGENT_WORKSPACE_DIR,
+  ensureAgentWorkspace,
+} from "../agents/workspace.js";
+import { chunkText } from "../auto-reply/chunk.js";
 import { normalizeThinkLevel } from "../auto-reply/thinking.js";
 import type { CliDeps } from "../cli/deps.js";
 import type { ClawdisConfig } from "../config/config.js";
 import {
   DEFAULT_IDLE_MINUTES,
   loadSessionStore,
+  resolveSessionTranscriptPath,
   resolveStorePath,
   type SessionEntry,
   saveSessionStore,
 } from "../config/sessions.js";
-import { enqueueCommandInLane } from "../process/command-queue.js";
 import { normalizeE164 } from "../utils.js";
 import type { CronJob } from "./types.js";
 
@@ -25,21 +30,6 @@ export type RunCronAgentTurnResult = {
   summary?: string;
   error?: string;
 };
-
-function assertCommandReplyConfig(cfg: ClawdisConfig) {
-  const reply = cfg.inbound?.reply;
-  if (!reply || reply.mode !== "command" || !reply.command?.length) {
-    throw new Error(
-      "Configure inbound.reply.mode=command with reply.command before using cron agent jobs.",
-    );
-  }
-  return reply as NonNullable<
-    NonNullable<ClawdisConfig["inbound"]>["reply"]
-  > & {
-    mode: "command";
-    command: string[];
-  };
-}
 
 function pickSummaryFromOutput(text: string | undefined) {
   const clean = (text ?? "").trim();
@@ -72,7 +62,7 @@ function resolveDeliveryTarget(
       ? jobPayload.to.trim()
       : undefined;
 
-  const sessionCfg = cfg.inbound?.reply?.session;
+  const sessionCfg = cfg.inbound?.session;
   const mainKey = (sessionCfg?.mainKey ?? "main").trim() || "main";
   const storePath = resolveStorePath(sessionCfg?.store);
   const store = loadSessionStore(storePath);
@@ -120,7 +110,7 @@ function resolveCronSession(params: {
   sessionKey: string;
   nowMs: number;
 }) {
-  const sessionCfg = params.cfg.inbound?.reply?.session;
+  const sessionCfg = params.cfg.inbound?.session;
   const idleMinutes = Math.max(
     sessionCfg?.idleMinutes ?? DEFAULT_IDLE_MINUTES,
     1,
@@ -155,28 +145,28 @@ export async function runCronIsolatedAgentTurn(params: {
   sessionKey: string;
   lane?: string;
 }): Promise<RunCronAgentTurnResult> {
-  const replyCfg = assertCommandReplyConfig(params.cfg);
+  const agentCfg = params.cfg.inbound?.agent;
+  void params.lane;
+  const workspaceDirRaw =
+    params.cfg.inbound?.workspace ?? DEFAULT_AGENT_WORKSPACE_DIR;
+  const workspace = await ensureAgentWorkspace({
+    dir: workspaceDirRaw,
+    ensureBootstrapFiles: true,
+  });
+  const workspaceDir = workspace.dir;
+
+  const provider = agentCfg?.provider?.trim() || DEFAULT_PROVIDER;
+  const model = agentCfg?.model?.trim() || DEFAULT_MODEL;
   const now = Date.now();
   const cronSession = resolveCronSession({
     cfg: params.cfg,
     sessionKey: params.sessionKey,
     nowMs: now,
   });
-  const sendSystemOnce = replyCfg.session?.sendSystemOnce === true;
   const isFirstTurnInSession =
     cronSession.isNewSession || !cronSession.systemSent;
-  const sessionIntro = replyCfg.session?.sessionIntro
-    ? applyTemplate(replyCfg.session.sessionIntro, {
-        SessionId: cronSession.sessionEntry.sessionId,
-      })
-    : "";
-  const bodyPrefix = replyCfg.bodyPrefix
-    ? applyTemplate(replyCfg.bodyPrefix, {
-        SessionId: cronSession.sessionEntry.sessionId,
-      })
-    : "";
 
-  const thinkOverride = normalizeThinkLevel(replyCfg.thinkingDefault);
+  const thinkOverride = normalizeThinkLevel(agentCfg?.thinkingDefault);
   const jobThink = normalizeThinkLevel(
     (params.job.payload.kind === "agentTurn"
       ? params.job.payload.thinking
@@ -187,7 +177,7 @@ export async function runCronIsolatedAgentTurn(params: {
   const timeoutSecondsRaw =
     params.job.payload.kind === "agentTurn" && params.job.payload.timeoutSeconds
       ? params.job.payload.timeoutSeconds
-      : (replyCfg.timeoutSeconds ?? 600);
+      : (agentCfg?.timeoutSeconds ?? 600);
   const timeoutSeconds = Math.max(Math.floor(timeoutSecondsRaw), 1);
   const timeoutMs = timeoutSeconds * 1000;
 
@@ -212,26 +202,10 @@ export async function runCronIsolatedAgentTurn(params: {
   const base =
     `[cron:${params.job.id}${params.job.name ? ` ${params.job.name}` : ""}] ${params.message}`.trim();
 
-  let commandBody = base;
-  if (!sendSystemOnce || isFirstTurnInSession) {
-    commandBody = bodyPrefix ? `${bodyPrefix}${commandBody}` : commandBody;
-  }
-  if (sessionIntro) {
-    commandBody = `${sessionIntro}\n\n${commandBody}`;
-  }
-
-  const templatingCtx: TemplateContext = {
-    Body: commandBody,
-    BodyStripped: commandBody,
-    SessionId: cronSession.sessionEntry.sessionId,
-    From: resolvedDelivery.to ?? "",
-    To: resolvedDelivery.to ?? "",
-    Surface: "Cron",
-    IsNewSession: cronSession.isNewSession ? "true" : "false",
-  };
+  const commandBody = base;
 
   // Persist systemSent before the run, mirroring the inbound auto-reply behavior.
-  if (sendSystemOnce && isFirstTurnInSession) {
+  if (isFirstTurnInSession) {
     cronSession.sessionEntry.systemSent = true;
     cronSession.store[params.sessionKey] = cronSession.sessionEntry;
     await saveSessionStore(cronSession.storePath, cronSession.store);
@@ -240,21 +214,23 @@ export async function runCronIsolatedAgentTurn(params: {
     await saveSessionStore(cronSession.storePath, cronSession.store);
   }
 
-  const lane = params.lane?.trim() || "cron";
-
-  let runResult: Awaited<ReturnType<typeof runCommandReply>>;
+  let runResult: Awaited<ReturnType<typeof runEmbeddedPiAgent>>;
   try {
-    runResult = await runCommandReply({
-      reply: { ...replyCfg, mode: "command" },
-      templatingCtx,
-      sendSystemOnce,
-      isNewSession: cronSession.isNewSession,
-      isFirstTurnInSession,
-      systemSent: cronSession.sessionEntry.systemSent ?? false,
-      timeoutMs,
-      timeoutSeconds,
+    const sessionFile = resolveSessionTranscriptPath(
+      cronSession.sessionEntry.sessionId,
+    );
+    runResult = await runEmbeddedPiAgent({
+      sessionId: cronSession.sessionEntry.sessionId,
+      sessionFile,
+      workspaceDir,
+      prompt: commandBody,
+      provider,
+      model,
       thinkLevel,
-      enqueue: (task, opts) => enqueueCommandInLane(lane, task, opts),
+      verboseLevel:
+        (cronSession.sessionEntry.verboseLevel as "on" | "off" | undefined) ??
+        (agentCfg?.verboseDefault as "on" | "off" | undefined),
+      timeoutMs,
       runId: cronSession.sessionEntry.sessionId,
     });
   } catch (err) {
@@ -262,6 +238,31 @@ export async function runCronIsolatedAgentTurn(params: {
   }
 
   const payloads = runResult.payloads ?? [];
+
+  // Update token+model fields in the session store.
+  {
+    const usage = runResult.meta.agentMeta?.usage;
+    const modelUsed = runResult.meta.agentMeta?.model ?? model;
+    const contextTokens =
+      agentCfg?.contextTokens ??
+      lookupContextTokens(modelUsed) ??
+      DEFAULT_CONTEXT_TOKENS;
+
+    cronSession.sessionEntry.model = modelUsed;
+    cronSession.sessionEntry.contextTokens = contextTokens;
+    if (usage) {
+      const input = usage.input ?? 0;
+      const output = usage.output ?? 0;
+      const promptTokens =
+        input + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0);
+      cronSession.sessionEntry.inputTokens = input;
+      cronSession.sessionEntry.outputTokens = output;
+      cronSession.sessionEntry.totalTokens =
+        promptTokens > 0 ? promptTokens : (usage.total ?? input);
+    }
+    cronSession.store[params.sessionKey] = cronSession.sessionEntry;
+    await saveSessionStore(cronSession.storePath, cronSession.store);
+  }
   const firstText = payloads[0]?.text ?? "";
   const summary =
     pickSummaryFromPayloads(payloads) ?? pickSummaryFromOutput(firstText);

@@ -10,9 +10,7 @@ process.env.FORCE_COLOR = "0";
 vi.mock("../config/config.js", () => ({
   loadConfig: () => ({
     inbound: {
-      reply: {
-        agent: { model: "pi:opus", contextTokens: 32000 },
-      },
+      agent: { model: "pi:opus", contextTokens: 32000 },
     },
   }),
 }));

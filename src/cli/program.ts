@@ -20,6 +20,7 @@ import { agentCommand } from "../commands/agent.js";
 import { healthCommand } from "../commands/health.js";
 import { sendCommand } from "../commands/send.js";
 import { sessionsCommand } from "../commands/sessions.js";
+import { setupCommand } from "../commands/setup.js";
 import { statusCommand } from "../commands/status.js";
 import { danger, info, setVerbose } from "../globals.js";
 import { loginWeb, logoutWeb } from "../provider-web.js";
@@ -105,6 +106,25 @@ export function buildProgram() {
     "afterAll",
     `\n${chalk.bold.cyan("Examples:")}\n${fmtExamples}\n`,
   );
+
+  program
+    .command("setup")
+    .description("Initialize ~/.clawdis/clawdis.json and the agent workspace")
+    .option(
+      "--workspace <dir>",
+      "Agent workspace directory (default: ~/clawd; stored as inbound.workspace)",
+    )
+    .action(async (opts) => {
+      try {
+        await setupCommand(
+          { workspace: opts.workspace as string | undefined },
+          defaultRuntime,
+        );
+      } catch (err) {
+        defaultRuntime.error(String(err));
+        defaultRuntime.exit(1);
+      }
+    });
 
   program
     .command("login")
@@ -326,7 +346,7 @@ Examples:
   clawdis sessions --json          # machine-readable output
   clawdis sessions --store ./tmp/sessions.json
 
-Shows token usage per session when the agent reports it; set inbound.reply.agent.contextTokens to see % of your model window.`,
+Shows token usage per session when the agent reports it; set inbound.agent.contextTokens to see % of your model window.`,
     )
     .action(async (opts) => {
       setVerbose(Boolean(opts.verbose));
