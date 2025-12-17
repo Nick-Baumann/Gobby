@@ -17,6 +17,9 @@ apps/ios/*.xcodeproj/
 apps/ios/*.xcworkspace/
 apps/ios/.swiftpm/
 
+# Vendor build artifacts
+vendor/a2ui/renderers/lit/dist/
+
 # fastlane (iOS)
 apps/ios/fastlane/README.md
 apps/ios/fastlane/report.xml
