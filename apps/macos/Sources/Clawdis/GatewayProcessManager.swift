@@ -152,9 +152,8 @@ final class GatewayProcessManager {
     private func attachExistingGatewayIfAvailable() async -> Bool {
         let port = GatewayEnvironment.gatewayPort()
         do {
-            let data = try await GatewayConnection.shared.request(method: "health", params: nil)
             let details: String
-            if let snap = decodeHealthSnapshot(from: data) {
+            if let snap = try? await GatewayConnection.shared.healthSnapshot() {
                 let linked = snap.web.linked ? "linked" : "not linked"
                 let authAge = snap.web.authAgeMs.flatMap(msToAge) ?? "unknown age"
                 let instance = await PortGuardian.shared.describe(port: port)

@@ -1,6 +1,36 @@
+import ClawdisChatUI
 import ClawdisProtocol
 import Foundation
 import OSLog
+
+private let gatewayConnectionLogger = Logger(subsystem: "com.steipete.clawdis", category: "gateway.connection")
+
+enum GatewayAgentChannel: String, Codable, CaseIterable, Sendable {
+    case last
+    case whatsapp
+    case telegram
+    case webchat
+
+    init(raw: String?) {
+        let normalized = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        self = GatewayAgentChannel(rawValue: normalized) ?? .last
+    }
+
+    var isDeliverable: Bool { self == .whatsapp || self == .telegram }
+
+    func shouldDeliver(_ deliver: Bool) -> Bool { deliver && self.isDeliverable }
+}
+
+struct GatewayAgentInvocation: Sendable {
+    var message: String
+    var sessionKey: String = "main"
+    var thinking: String?
+    var deliver: Bool = false
+    var to: String?
+    var channel: GatewayAgentChannel = .last
+    var timeoutSeconds: Int?
+    var idempotencyKey: String = UUID().uuidString
+}
 
 /// Single, shared Gateway websocket connection for the whole app.
 ///
@@ -11,8 +41,31 @@ actor GatewayConnection {
 
     typealias Config = (url: URL, token: String?)
 
+    enum Method: String, Sendable {
+        case agent = "agent"
+        case status = "status"
+        case setHeartbeats = "set-heartbeats"
+        case systemEvent = "system-event"
+        case health = "health"
+        case chatHistory = "chat.history"
+        case chatSend = "chat.send"
+        case chatAbort = "chat.abort"
+        case voicewakeGet = "voicewake.get"
+        case voicewakeSet = "voicewake.set"
+        case nodePairApprove = "node.pair.approve"
+        case nodePairReject = "node.pair.reject"
+        case cronList = "cron.list"
+        case cronRuns = "cron.runs"
+        case cronRun = "cron.run"
+        case cronRemove = "cron.remove"
+        case cronUpdate = "cron.update"
+        case cronAdd = "cron.add"
+        case cronStatus = "cron.status"
+    }
+
     private let configProvider: @Sendable () async throws -> Config
     private let sessionBox: WebSocketSessionBox?
+    private let decoder = JSONDecoder()
 
     private var client: GatewayChannelActor?
     private var configuredURL: URL?
@@ -29,6 +82,8 @@ actor GatewayConnection {
         self.sessionBox = sessionBox
     }
 
+    // MARK: - Low-level request
+
     func request(
         method: String,
         params: [String: AnyCodable]?,
@@ -40,6 +95,43 @@ actor GatewayConnection {
             throw NSError(domain: "Gateway", code: 0, userInfo: [NSLocalizedDescriptionKey: "gateway not configured"])
         }
         return try await client.request(method: method, params: params, timeoutMs: timeoutMs)
+    }
+
+    func requestRaw(
+        method: Method,
+        params: [String: AnyCodable]? = nil,
+        timeoutMs: Double? = nil) async throws -> Data
+    {
+        try await self.request(method: method.rawValue, params: params, timeoutMs: timeoutMs)
+    }
+
+    func requestRaw(
+        method: String,
+        params: [String: AnyCodable]? = nil,
+        timeoutMs: Double? = nil) async throws -> Data
+    {
+        try await self.request(method: method, params: params, timeoutMs: timeoutMs)
+    }
+
+    func requestDecoded<T: Decodable>(
+        method: Method,
+        params: [String: AnyCodable]? = nil,
+        timeoutMs: Double? = nil) async throws -> T
+    {
+        let data = try await self.requestRaw(method: method, params: params, timeoutMs: timeoutMs)
+        do {
+            return try self.decoder.decode(T.self, from: data)
+        } catch {
+            throw GatewayDecodingError(method: method.rawValue, message: error.localizedDescription)
+        }
+    }
+
+    func requestVoid(
+        method: Method,
+        params: [String: AnyCodable]? = nil,
+        timeoutMs: Double? = nil) async throws
+    {
+        _ = try await self.requestRaw(method: method, params: params, timeoutMs: timeoutMs)
     }
 
     /// Ensure the underlying socket is configured (and replaced if config changed).
@@ -114,33 +206,13 @@ actor GatewayConnection {
     }
 }
 
-private let gatewayControlLogger = Logger(subsystem: "com.steipete.clawdis", category: "gateway.control")
+// MARK: - Typed gateway API
 
 extension GatewayConnection {
-    private static func wrapParams(_ raw: [String: Any]?) -> [String: AnyCodable]? {
-        guard let raw else { return nil }
-        return raw.reduce(into: [String: AnyCodable]()) { acc, pair in
-            acc[pair.key] = AnyCodable(pair.value)
-        }
-    }
-
-    func controlRequest(
-        method: String,
-        params: [String: Any]? = nil,
-        timeoutMs: Double? = nil) async throws -> Data
-    {
-        try await self.request(method: method, params: Self.wrapParams(params), timeoutMs: timeoutMs)
-    }
-
     func status() async -> (ok: Bool, error: String?) {
         do {
-            let data = try await self.controlRequest(method: "status")
-            if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               (obj["ok"] as? Bool) ?? true
-            {
-                return (true, nil)
-            }
-            return (false, "status error")
+            _ = try await self.requestRaw(method: .status)
+            return (true, nil)
         } catch {
             return (false, error.localizedDescription)
         }
@@ -148,11 +220,36 @@ extension GatewayConnection {
 
     func setHeartbeatsEnabled(_ enabled: Bool) async -> Bool {
         do {
-            _ = try await self.controlRequest(method: "set-heartbeats", params: ["enabled": enabled])
+            try await self.requestVoid(method: .setHeartbeats, params: ["enabled": AnyCodable(enabled)])
             return true
         } catch {
-            gatewayControlLogger.error("setHeartbeatsEnabled failed \(error.localizedDescription, privacy: .public)")
+            gatewayConnectionLogger.error("setHeartbeatsEnabled failed \(error.localizedDescription, privacy: .public)")
             return false
+        }
+    }
+
+    func sendAgent(_ invocation: GatewayAgentInvocation) async -> (ok: Bool, error: String?) {
+        let trimmed = invocation.message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return (false, "message empty") }
+
+        var params: [String: AnyCodable] = [
+            "message": AnyCodable(trimmed),
+            "sessionKey": AnyCodable(invocation.sessionKey),
+            "thinking": AnyCodable(invocation.thinking ?? "default"),
+            "deliver": AnyCodable(invocation.deliver),
+            "to": AnyCodable(invocation.to ?? ""),
+            "channel": AnyCodable(invocation.channel.rawValue),
+            "idempotencyKey": AnyCodable(invocation.idempotencyKey),
+        ]
+        if let timeout = invocation.timeoutSeconds {
+            params["timeout"] = AnyCodable(timeout)
+        }
+
+        do {
+            try await self.requestVoid(method: .agent, params: params)
+            return (true, nil)
+        } catch {
+            return (false, error.localizedDescription)
         }
     }
 
@@ -162,25 +259,172 @@ extension GatewayConnection {
         sessionKey: String,
         deliver: Bool,
         to: String?,
-        channel: String? = nil,
+        channel: GatewayAgentChannel = .last,
+        timeoutSeconds: Int? = nil,
         idempotencyKey: String = UUID().uuidString) async -> (ok: Bool, error: String?)
     {
-        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return (false, "message empty") }
+        await self.sendAgent(GatewayAgentInvocation(
+            message: message,
+            sessionKey: sessionKey,
+            thinking: thinking,
+            deliver: deliver,
+            to: to,
+            channel: channel,
+            timeoutSeconds: timeoutSeconds,
+            idempotencyKey: idempotencyKey))
+    }
+
+    func sendSystemEvent(_ params: [String: AnyCodable]) async {
         do {
-            let params: [String: Any] = [
-                "message": trimmed,
-                "sessionKey": sessionKey,
-                "thinking": thinking ?? "default",
-                "deliver": deliver,
-                "to": to ?? "",
-                "channel": channel ?? "",
-                "idempotencyKey": idempotencyKey,
-            ]
-            _ = try await self.controlRequest(method: "agent", params: params)
-            return (true, nil)
+            try await self.requestVoid(method: .systemEvent, params: params)
         } catch {
-            return (false, error.localizedDescription)
+            // Best-effort only.
         }
+    }
+
+    // MARK: - Health
+
+    func healthSnapshot(timeoutMs: Double? = nil) async throws -> HealthSnapshot {
+        let data = try await self.requestRaw(method: .health, timeoutMs: timeoutMs)
+        if let snap = decodeHealthSnapshot(from: data) { return snap }
+        throw GatewayDecodingError(method: Method.health.rawValue, message: "failed to decode health snapshot")
+    }
+
+    func healthOK(timeoutMs: Int = 8000) async throws -> Bool {
+        let data = try await self.requestRaw(method: .health, timeoutMs: Double(timeoutMs))
+        return (try? self.decoder.decode(ClawdisGatewayHealthOK.self, from: data))?.ok ?? true
+    }
+
+    // MARK: - Chat
+
+    func chatHistory(sessionKey: String) async throws -> ClawdisChatHistoryPayload {
+        try await self.requestDecoded(
+            method: .chatHistory,
+            params: ["sessionKey": AnyCodable(sessionKey)])
+    }
+
+    func chatSend(
+        sessionKey: String,
+        message: String,
+        thinking: String,
+        idempotencyKey: String,
+        attachments: [ClawdisChatAttachmentPayload],
+        timeoutMs: Int = 30000) async throws -> ClawdisChatSendResponse
+    {
+        var params: [String: AnyCodable] = [
+            "sessionKey": AnyCodable(sessionKey),
+            "message": AnyCodable(message),
+            "thinking": AnyCodable(thinking),
+            "idempotencyKey": AnyCodable(idempotencyKey),
+            "timeoutMs": AnyCodable(timeoutMs),
+        ]
+
+        if !attachments.isEmpty {
+            let encoded = attachments.map { att in
+                [
+                    "type": att.type,
+                    "mimeType": att.mimeType,
+                    "fileName": att.fileName,
+                    "content": att.content,
+                ]
+            }
+            params["attachments"] = AnyCodable(encoded)
+        }
+
+        return try await self.requestDecoded(method: .chatSend, params: params)
+    }
+
+    func chatAbort(sessionKey: String, runId: String) async throws -> Bool {
+        struct AbortResponse: Decodable { let ok: Bool?; let aborted: Bool? }
+        let res: AbortResponse = try await self.requestDecoded(
+            method: .chatAbort,
+            params: ["sessionKey": AnyCodable(sessionKey), "runId": AnyCodable(runId)])
+        return res.aborted ?? false
+    }
+
+    // MARK: - VoiceWake
+
+    func voiceWakeGetTriggers() async throws -> [String] {
+        struct VoiceWakePayload: Decodable { let triggers: [String] }
+        let payload: VoiceWakePayload = try await self.requestDecoded(method: .voicewakeGet)
+        return payload.triggers
+    }
+
+    func voiceWakeSetTriggers(_ triggers: [String]) async {
+        do {
+            try await self.requestVoid(
+                method: .voicewakeSet,
+                params: ["triggers": AnyCodable(triggers)],
+                timeoutMs: 10000)
+        } catch {
+            // Best-effort only.
+        }
+    }
+
+    // MARK: - Node pairing
+
+    func nodePairApprove(requestId: String) async throws {
+        try await self.requestVoid(
+            method: .nodePairApprove,
+            params: ["requestId": AnyCodable(requestId)],
+            timeoutMs: 10000)
+    }
+
+    func nodePairReject(requestId: String) async throws {
+        try await self.requestVoid(
+            method: .nodePairReject,
+            params: ["requestId": AnyCodable(requestId)],
+            timeoutMs: 10000)
+    }
+
+    // MARK: - Cron
+
+    struct CronSchedulerStatus: Decodable, Sendable {
+        let enabled: Bool
+        let storePath: String
+        let jobs: Int
+        let nextWakeAtMs: Int?
+    }
+
+    func cronStatus() async throws -> CronSchedulerStatus {
+        try await self.requestDecoded(method: .cronStatus)
+    }
+
+    func cronList(includeDisabled: Bool = true) async throws -> [CronJob] {
+        let res: CronListResponse = try await self.requestDecoded(
+            method: .cronList,
+            params: ["includeDisabled": AnyCodable(includeDisabled)])
+        return res.jobs
+    }
+
+    func cronRuns(jobId: String, limit: Int = 200) async throws -> [CronRunLogEntry] {
+        let res: CronRunsResponse = try await self.requestDecoded(
+            method: .cronRuns,
+            params: ["id": AnyCodable(jobId), "limit": AnyCodable(limit)])
+        return res.entries
+    }
+
+    func cronRun(jobId: String, force: Bool = true) async throws {
+        try await self.requestVoid(
+            method: .cronRun,
+            params: [
+                "id": AnyCodable(jobId),
+                "mode": AnyCodable(force ? "force" : "due"),
+            ],
+            timeoutMs: 20000)
+    }
+
+    func cronRemove(jobId: String) async throws {
+        try await self.requestVoid(method: .cronRemove, params: ["id": AnyCodable(jobId)])
+    }
+
+    func cronUpdate(jobId: String, patch: [String: Any]) async throws {
+        try await self.requestVoid(
+            method: .cronUpdate,
+            params: ["id": AnyCodable(jobId), "patch": AnyCodable(patch)])
+    }
+
+    func cronAdd(payload: [String: Any]) async throws {
+        try await self.requestVoid(method: .cronAdd, params: payload.mapValues { AnyCodable($0) })
     }
 }

@@ -169,16 +169,15 @@ enum ControlRequestHandler {
         let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return Response(ok: false, message: "message empty") }
         let sessionKey = session ?? "main"
-        let rpcResult = await GatewayConnection.shared.sendAgent(
+        let invocation = GatewayAgentInvocation(
             message: trimmed,
-            thinking: thinking,
             sessionKey: sessionKey,
+            thinking: thinking,
             deliver: deliver,
             to: to,
-            channel: nil)
-        return rpcResult.ok
-            ? Response(ok: true, message: "sent")
-            : Response(ok: false, message: rpcResult.error ?? "failed to send")
+            channel: .last)
+        let rpcResult = await GatewayConnection.shared.sendAgent(invocation)
+        return rpcResult.ok ? Response(ok: true, message: "sent") : Response(ok: false, message: rpcResult.error)
     }
 
     private static func canvasEnabled() -> Bool {

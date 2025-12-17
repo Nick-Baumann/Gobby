@@ -67,16 +67,12 @@ final class CronJobsStore {
         defer { self.isLoadingJobs = false }
 
         do {
-            if let status = try? await self.fetchCronStatus() {
+            if let status = try? await GatewayConnection.shared.cronStatus() {
                 self.schedulerEnabled = status.enabled
                 self.schedulerStorePath = status.storePath
                 self.schedulerNextWakeAtMs = status.nextWakeAtMs
             }
-            let data = try await self.request(
-                method: "cron.list",
-                params: ["includeDisabled": true])
-            let res = try JSONDecoder().decode(CronListResponse.self, from: data)
-            self.jobs = res.jobs
+            self.jobs = try await GatewayConnection.shared.cronList(includeDisabled: true)
             if self.jobs.isEmpty {
                 self.statusMessage = "No cron jobs yet."
             }
@@ -92,11 +88,7 @@ final class CronJobsStore {
         defer { self.isLoadingRuns = false }
 
         do {
-            let data = try await self.request(
-                method: "cron.runs",
-                params: ["id": jobId, "limit": limit])
-            let res = try JSONDecoder().decode(CronRunsResponse.self, from: data)
-            self.runEntries = res.entries
+            self.runEntries = try await GatewayConnection.shared.cronRuns(jobId: jobId, limit: limit)
         } catch {
             self.logger.error("cron.runs failed \(error.localizedDescription, privacy: .public)")
             self.lastError = error.localizedDescription
@@ -105,10 +97,7 @@ final class CronJobsStore {
 
     func runJob(id: String, force: Bool = true) async {
         do {
-            _ = try await self.request(
-                method: "cron.run",
-                params: ["id": id, "mode": force ? "force" : "due"],
-                timeoutMs: 20000)
+            try await GatewayConnection.shared.cronRun(jobId: id, force: force)
         } catch {
             self.lastError = error.localizedDescription
         }
@@ -116,7 +105,7 @@ final class CronJobsStore {
 
     func removeJob(id: String) async {
         do {
-            _ = try await self.request(method: "cron.remove", params: ["id": id])
+            try await GatewayConnection.shared.cronRemove(jobId: id)
             await self.refreshJobs()
             if self.selectedJobId == id {
                 self.selectedJobId = nil
@@ -129,9 +118,7 @@ final class CronJobsStore {
 
     func setJobEnabled(id: String, enabled: Bool) async {
         do {
-            _ = try await self.request(
-                method: "cron.update",
-                params: ["id": id, "patch": ["enabled": enabled]])
+            try await GatewayConnection.shared.cronUpdate(jobId: id, patch: ["enabled": enabled])
             await self.refreshJobs()
         } catch {
             self.lastError = error.localizedDescription
@@ -143,9 +130,9 @@ final class CronJobsStore {
         payload: [String: Any]) async throws
     {
         if let id {
-            _ = try await self.request(method: "cron.update", params: ["id": id, "patch": payload])
+            try await GatewayConnection.shared.cronUpdate(jobId: id, patch: payload)
         } else {
-            _ = try await self.request(method: "cron.add", params: payload)
+            try await GatewayConnection.shared.cronAdd(payload: payload)
         }
         await self.refreshJobs()
     }
@@ -206,26 +193,5 @@ final class CronJobsStore {
         }
     }
 
-    // MARK: - RPC
-
-    private func request(
-        method: String,
-        params: [String: Any]?,
-        timeoutMs: Double? = nil) async throws -> Data
-    {
-        let rawParams = params?.reduce(into: [String: AnyCodable]()) { $0[$1.key] = AnyCodable($1.value) }
-        return try await GatewayConnection.shared.request(method: method, params: rawParams, timeoutMs: timeoutMs)
-    }
-
-    private func fetchCronStatus() async throws -> CronStatusResponse {
-        let data = try await self.request(method: "cron.status", params: nil)
-        return try JSONDecoder().decode(CronStatusResponse.self, from: data)
-    }
-}
-
-private struct CronStatusResponse: Decodable {
-    let enabled: Bool
-    let storePath: String
-    let jobs: Int
-    let nextWakeAtMs: Int?
+    // MARK: - (no additional RPC helpers)
 }

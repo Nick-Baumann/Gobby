@@ -332,14 +332,7 @@ final class AppState {
         self.voiceWakeGlobalSyncTask?.cancel()
         self.voiceWakeGlobalSyncTask = Task { [sanitized] in
             try? await Task.sleep(nanoseconds: 650_000_000)
-            do {
-                _ = try await GatewayConnection.shared.request(
-                    method: "voicewake.set",
-                    params: ["triggers": AnyCodable(sanitized)],
-                    timeoutMs: 10000)
-            } catch {
-                // Best-effort only.
-            }
+            await GatewayConnection.shared.voiceWakeSetTriggers(sanitized)
         }
     }
 

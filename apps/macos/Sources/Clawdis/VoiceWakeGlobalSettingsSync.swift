@@ -44,9 +44,8 @@ final class VoiceWakeGlobalSettingsSync {
 
     private func refreshFromGateway() async {
         do {
-            let data = try await GatewayConnection.shared.request(method: "voicewake.get", params: nil, timeoutMs: 8000)
-            let payload = try JSONDecoder().decode(VoiceWakePayload.self, from: data)
-            AppStateStore.shared.applyGlobalVoiceWakeTriggers(payload.triggers)
+            let triggers = try await GatewayConnection.shared.voiceWakeGetTriggers()
+            AppStateStore.shared.applyGlobalVoiceWakeTriggers(triggers)
         } catch {
             // Best-effort only.
         }

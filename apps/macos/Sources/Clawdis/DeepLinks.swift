@@ -54,18 +54,24 @@ final class DeepLinkHandler {
         }
 
         do {
-            var params: [String: AnyCodable] = [
-                "message": AnyCodable(messagePreview),
-                "idempotencyKey": AnyCodable(UUID().uuidString),
-            ]
-            if let sessionKey = link.sessionKey, !sessionKey.isEmpty { params["sessionKey"] = AnyCodable(sessionKey) }
-            if let thinking = link.thinking, !thinking.isEmpty { params["thinking"] = AnyCodable(thinking) }
-            if let to = link.to, !to.isEmpty { params["to"] = AnyCodable(to) }
-            if let channel = link.channel, !channel.isEmpty { params["channel"] = AnyCodable(channel) }
-            if let timeout = link.timeoutSeconds { params["timeout"] = AnyCodable(timeout) }
-            params["deliver"] = AnyCodable(link.deliver)
+            let channel = GatewayAgentChannel(raw: link.channel)
+            let invocation = GatewayAgentInvocation(
+                message: messagePreview,
+                sessionKey: link.sessionKey?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "main",
+                thinking: link.thinking?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty,
+                deliver: channel.shouldDeliver(link.deliver),
+                to: link.to?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty,
+                channel: channel,
+                timeoutSeconds: link.timeoutSeconds,
+                idempotencyKey: UUID().uuidString)
 
-            _ = try await GatewayConnection.shared.request(method: "agent", params: params)
+            let res = await GatewayConnection.shared.sendAgent(invocation)
+            if !res.ok {
+                throw NSError(
+                    domain: "DeepLink",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: res.error ?? "agent request failed"])
+            }
         } catch {
             self.presentAlert(title: "Agent request failed", message: error.localizedDescription)
         }

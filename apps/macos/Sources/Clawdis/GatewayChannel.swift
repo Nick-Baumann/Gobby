@@ -423,8 +423,12 @@ actor GatewayChannelActor {
             throw NSError(domain: "Gateway", code: 2, userInfo: [NSLocalizedDescriptionKey: "unexpected frame"])
         }
         if res.ok == false {
-            let msg = (res.error?["message"]?.value as? String) ?? "gateway error"
-            throw NSError(domain: "Gateway", code: 3, userInfo: [NSLocalizedDescriptionKey: msg])
+            let code = res.error?["code"]?.value as? String
+            let msg = res.error?["message"]?.value as? String
+            let details: [String: AnyCodable] = (res.error ?? [:]).reduce(into: [:]) { acc, pair in
+                acc[pair.key] = AnyCodable(pair.value.value)
+            }
+            throw GatewayResponseError(method: method, code: code, message: msg, details: details)
         }
         if let payload = res.payload {
             // Encode back to JSON with Swift's encoder to preserve types and avoid ObjC bridging exceptions.
