@@ -116,7 +116,8 @@ struct ClawdisApp: App {
     @MainActor
     private func statusButtonScreenFrame() -> NSRect? {
         guard let button = self.statusItem?.button, let window = button.window else { return nil }
-        return window.convertToScreen(button.frame)
+        let inWindow = button.convert(button.bounds, to: nil)
+        return window.convertToScreen(inWindow)
     }
 
     private var effectiveIconState: IconState {

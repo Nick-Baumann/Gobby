@@ -262,17 +262,24 @@ final class CanvasWindowController: NSWindowController, WKNavigationDelegate, NS
     private func repositionPanel(using anchorProvider: () -> NSRect?) {
         guard let panel = self.window else { return }
         let anchor = anchorProvider()
-        let screen = NSScreen.screens.first { screen in
-            guard let anchor else { return false }
-            return screen.frame.contains(anchor.origin) || screen.frame.contains(NSPoint(
-                x: anchor.midX,
-                y: anchor.midY))
-        } ?? NSScreen.main
+        let targetScreen = Self.screen(forAnchor: anchor)
+            ?? Self.screenContainingMouseCursor()
+            ?? panel.screen
+            ?? NSScreen.main
+            ?? NSScreen.screens.first
 
-        // Base frame: restored frame (preferred), otherwise default top-right.
-        var frame = Self.loadRestoredFrame(sessionKey: self.sessionKey) ?? Self.defaultTopRightFrame(
-            panel: panel,
-            screen: screen)
+        let restored = Self.loadRestoredFrame(sessionKey: self.sessionKey)
+        let restoredIsValid = if let restored, let targetScreen {
+            Self.isFrameMeaningfullyVisible(restored, on: targetScreen)
+        } else {
+            restored != nil
+        }
+
+        var frame = if let restored, restoredIsValid {
+            restored
+        } else {
+            Self.defaultTopRightFrame(panel: panel, screen: targetScreen)
+        }
 
         // Apply agent placement as partial overrides:
         // - If agent provides x/y, override origin.
@@ -285,28 +292,64 @@ final class CanvasWindowController: NSWindowController, WKNavigationDelegate, NS
             if let h = placement.height { frame.size.height = max(CanvasLayout.minPanelSize.height, CGFloat(h)) }
         }
 
-        self.setPanelFrame(frame, on: screen)
+        self.setPanelFrame(frame, on: targetScreen)
     }
 
     private static func defaultTopRightFrame(panel: NSWindow, screen: NSScreen?) -> NSRect {
-        let visible = (screen?.visibleFrame ?? NSScreen.main?.visibleFrame) ?? panel.frame
         let w = max(CanvasLayout.minPanelSize.width, panel.frame.width)
         let h = max(CanvasLayout.minPanelSize.height, panel.frame.height)
-        let x = visible.maxX - w - CanvasLayout.defaultPadding
-        let y = visible.maxY - h - CanvasLayout.defaultPadding
-        return NSRect(x: x, y: y, width: w, height: h)
+        return WindowPlacement.topRightFrame(
+            size: NSSize(width: w, height: h),
+            padding: CanvasLayout.defaultPadding,
+            on: screen)
     }
 
     private func setPanelFrame(_ frame: NSRect, on screen: NSScreen?) {
         guard let panel = self.window else { return }
-        let s = screen ?? panel.screen ?? NSScreen.main
-        let constrained: NSRect = if let s {
-            panel.constrainFrameRect(frame, to: s)
-        } else {
-            frame
+        guard let s = screen ?? panel.screen ?? NSScreen.main ?? NSScreen.screens.first else {
+            panel.setFrame(frame, display: false)
+            self.persistFrameIfPanel()
+            return
         }
+
+        let constrained = Self.constrainFrame(frame, toVisibleFrame: s.visibleFrame)
         panel.setFrame(constrained, display: false)
         self.persistFrameIfPanel()
+    }
+
+    private static func screen(forAnchor anchor: NSRect?) -> NSScreen? {
+        guard let anchor else { return nil }
+        let center = NSPoint(x: anchor.midX, y: anchor.midY)
+        return NSScreen.screens.first { screen in
+            screen.frame.contains(anchor.origin) || screen.frame.contains(center)
+        }
+    }
+
+    private static func screenContainingMouseCursor() -> NSScreen? {
+        let point = NSEvent.mouseLocation
+        return NSScreen.screens.first { $0.frame.contains(point) }
+    }
+
+    private static func isFrameMeaningfullyVisible(_ frame: NSRect, on screen: NSScreen) -> Bool {
+        frame.intersects(screen.visibleFrame.insetBy(dx: 12, dy: 12))
+    }
+
+    fileprivate static func constrainFrame(_ frame: NSRect, toVisibleFrame bounds: NSRect) -> NSRect {
+        if bounds == .zero { return frame }
+
+        var next = frame
+        next.size.width = min(max(CanvasLayout.minPanelSize.width, next.size.width), bounds.width)
+        next.size.height = min(max(CanvasLayout.minPanelSize.height, next.size.height), bounds.height)
+
+        let maxX = bounds.maxX - next.size.width
+        let maxY = bounds.maxY - next.size.height
+
+        next.origin.x = maxX >= bounds.minX ? min(max(next.origin.x, bounds.minX), maxX) : bounds.minX
+        next.origin.y = maxY >= bounds.minY ? min(max(next.origin.y, bounds.minY), maxY) : bounds.minY
+
+        next.origin.x = round(next.origin.x)
+        next.origin.y = round(next.origin.y)
+        return next
     }
 
     // MARK: - WKNavigationDelegate
@@ -490,7 +533,7 @@ private final class HoverChromeContainerView: NSView {
             frame.size.height = max(CanvasLayout.minPanelSize.height, frame.size.height - dy)
 
             if let screen = window.screen {
-                frame = window.constrainFrameRect(frame, to: screen)
+                frame = CanvasWindowController.constrainFrame(frame, toVisibleFrame: screen.visibleFrame)
             }
             window.setFrame(frame, display: true)
         }
