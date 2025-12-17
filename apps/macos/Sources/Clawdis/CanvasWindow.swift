@@ -581,14 +581,32 @@ private final class HoverChromeContainerView: NSView {
 
         private let dragHandle = CanvasDragHandleView(frame: .zero)
         private let resizeHandle = CanvasResizeHandleView(frame: .zero)
+
+        private final class PassthroughVisualEffectView: NSVisualEffectView {
+            override func hitTest(_: NSPoint) -> NSView? { nil }
+        }
+
+        private let closeBackground: NSVisualEffectView = {
+            let v = PassthroughVisualEffectView(frame: .zero)
+            v.material = .hudWindow
+            v.blendingMode = .withinWindow
+            v.state = .active
+            v.wantsLayer = true
+            v.layer?.cornerRadius = 12
+            v.layer?.masksToBounds = true
+            v.layer?.borderWidth = 1
+            v.layer?.borderColor = NSColor.white.withAlphaComponent(0.12).cgColor
+            return v
+        }()
+
         private let closeButton: NSButton = {
-            let img = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Close")
+            let img = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close")
                 ?? NSImage(size: NSSize(width: 18, height: 18))
             let btn = NSButton(image: img, target: nil, action: nil)
             btn.isBordered = false
             btn.bezelStyle = .regularSquare
             btn.imageScaling = .scaleProportionallyDown
-            btn.contentTintColor = NSColor.secondaryLabelColor
+            btn.contentTintColor = NSColor.labelColor
             btn.toolTip = "Close"
             return btn
         }()
@@ -613,6 +631,9 @@ private final class HoverChromeContainerView: NSView {
             self.resizeHandle.layer?.backgroundColor = NSColor.clear.cgColor
             self.addSubview(self.resizeHandle)
 
+            self.closeBackground.translatesAutoresizingMaskIntoConstraints = false
+            self.addSubview(self.closeBackground)
+
             self.closeButton.translatesAutoresizingMaskIntoConstraints = false
             self.closeButton.target = self
             self.closeButton.action = #selector(self.handleClose)
@@ -623,6 +644,11 @@ private final class HoverChromeContainerView: NSView {
                 self.dragHandle.trailingAnchor.constraint(equalTo: self.trailingAnchor),
                 self.dragHandle.topAnchor.constraint(equalTo: self.topAnchor),
                 self.dragHandle.heightAnchor.constraint(equalToConstant: 30),
+
+                self.closeBackground.centerXAnchor.constraint(equalTo: self.closeButton.centerXAnchor),
+                self.closeBackground.centerYAnchor.constraint(equalTo: self.closeButton.centerYAnchor),
+                self.closeBackground.widthAnchor.constraint(equalToConstant: 24),
+                self.closeBackground.heightAnchor.constraint(equalToConstant: 24),
 
                 self.closeButton.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -8),
                 self.closeButton.topAnchor.constraint(equalTo: self.topAnchor, constant: 8),
