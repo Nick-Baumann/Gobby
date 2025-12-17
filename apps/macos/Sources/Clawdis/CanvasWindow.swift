@@ -682,7 +682,7 @@ private final class HoverChromeContainerView: NSView {
             v.state = .active
             v.appearance = NSAppearance(named: .vibrantDark)
             v.wantsLayer = true
-            v.layer?.cornerRadius = 11
+            v.layer?.cornerRadius = 10
             v.layer?.masksToBounds = true
             v.layer?.borderWidth = 1
             v.layer?.borderColor = NSColor.white.withAlphaComponent(0.22).cgColor
@@ -695,7 +695,7 @@ private final class HoverChromeContainerView: NSView {
         }()
 
         private let closeButton: NSButton = {
-            let cfg = NSImage.SymbolConfiguration(pointSize: 9, weight: .semibold)
+            let cfg = NSImage.SymbolConfiguration(pointSize: 8, weight: .semibold)
             let img = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close")?
                 .withSymbolConfiguration(cfg)
                 ?? NSImage(size: NSSize(width: 18, height: 18))
@@ -744,13 +744,13 @@ private final class HoverChromeContainerView: NSView {
 
                 self.closeBackground.centerXAnchor.constraint(equalTo: self.closeButton.centerXAnchor),
                 self.closeBackground.centerYAnchor.constraint(equalTo: self.closeButton.centerYAnchor),
-                self.closeBackground.widthAnchor.constraint(equalToConstant: 22),
-                self.closeBackground.heightAnchor.constraint(equalToConstant: 22),
+                self.closeBackground.widthAnchor.constraint(equalToConstant: 20),
+                self.closeBackground.heightAnchor.constraint(equalToConstant: 20),
 
-                self.closeButton.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -9),
-                self.closeButton.topAnchor.constraint(equalTo: self.topAnchor, constant: 9),
-                self.closeButton.widthAnchor.constraint(equalToConstant: 18),
-                self.closeButton.heightAnchor.constraint(equalToConstant: 18),
+                self.closeButton.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -8),
+                self.closeButton.topAnchor.constraint(equalTo: self.topAnchor, constant: 8),
+                self.closeButton.widthAnchor.constraint(equalToConstant: 16),
+                self.closeButton.heightAnchor.constraint(equalToConstant: 16),
 
                 self.resizeHandle.trailingAnchor.constraint(equalTo: self.trailingAnchor),
                 self.resizeHandle.bottomAnchor.constraint(equalTo: self.bottomAnchor),

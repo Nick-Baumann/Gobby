@@ -94,7 +94,29 @@ actor GatewayConnection {
         guard let client else {
             throw NSError(domain: "Gateway", code: 0, userInfo: [NSLocalizedDescriptionKey: "gateway not configured"])
         }
-        return try await client.request(method: method, params: params, timeoutMs: timeoutMs)
+
+        do {
+            return try await client.request(method: method, params: params, timeoutMs: timeoutMs)
+        } catch {
+            // Auto-recover in local mode by spawning/attaching a gateway and retrying a few times.
+            // Canvas interactions should "just work" even if the local gateway isn't running yet.
+            let isLocal = await MainActor.run { AppStateStore.shared.connectionMode == .local }
+            guard isLocal else { throw error }
+
+            await MainActor.run { GatewayProcessManager.shared.setActive(true) }
+
+            var lastError: Error = error
+            for delayMs in [150, 400, 900] {
+                try await Task.sleep(nanoseconds: UInt64(delayMs) * 1_000_000)
+                do {
+                    return try await client.request(method: method, params: params, timeoutMs: timeoutMs)
+                } catch {
+                    lastError = error
+                }
+            }
+
+            throw lastError
+        }
     }
 
     func requestRaw(
