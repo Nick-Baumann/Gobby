@@ -19,7 +19,6 @@ import {
 } from "@mariozechner/pi-ai";
 import {
   AgentSession,
-  codingTools,
   messageTransformer,
   SessionManager,
   SettingsManager,
@@ -34,7 +33,12 @@ import { splitMediaFromOutput } from "../media/parse.js";
 import { enqueueCommand } from "../process/command-queue.js";
 import { resolveUserPath } from "../utils.js";
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "./defaults.js";
+import {
+  extractAssistantText,
+  inferToolMetaFromArgs,
+} from "./pi-embedded-utils.js";
 import { getAnthropicOAuthToken } from "./pi-oauth.js";
+import { createClawdisCodingTools } from "./pi-tools.js";
 import { buildAgentSystemPrompt } from "./system-prompt.js";
 import { loadWorkspaceBootstrapFiles } from "./workspace.js";
 
@@ -84,49 +88,6 @@ function resolveModel(
   const models = getModels(provider);
   const model = models.find((m) => m.id === modelId);
   return model as Model<Api> | undefined;
-}
-
-function extractAssistantText(msg: AssistantMessage): string {
-  const isTextBlock = (
-    block: unknown,
-  ): block is { type: "text"; text: string } => {
-    if (!block || typeof block !== "object") return false;
-    const rec = block as Record<string, unknown>;
-    return rec.type === "text" && typeof rec.text === "string";
-  };
-
-  const blocks = Array.isArray(msg.content)
-    ? msg.content
-        .filter(isTextBlock)
-        .map((c) => c.text.trim())
-        .filter(Boolean)
-    : [];
-  return blocks.join("\n").trim();
-}
-
-function inferToolMetaFromArgs(
-  toolName: string,
-  args: unknown,
-): string | undefined {
-  if (!args || typeof args !== "object") return undefined;
-  const record = args as Record<string, unknown>;
-
-  const p = typeof record.path === "string" ? record.path : undefined;
-  const command =
-    typeof record.command === "string" ? record.command : undefined;
-
-  if (toolName === "read" && p) {
-    const offset =
-      typeof record.offset === "number" ? record.offset : undefined;
-    const limit = typeof record.limit === "number" ? record.limit : undefined;
-    if (offset !== undefined && limit !== undefined) {
-      return `${p}:${offset}-${offset + limit}`;
-    }
-    return p;
-  }
-  if ((toolName === "edit" || toolName === "write") && p) return p;
-  if (toolName === "bash" && command) return command;
-  return p ?? command;
 }
 
 async function ensureSessionHeader(params: {
@@ -239,7 +200,7 @@ export async function runEmbeddedPiAgent(params: {
           systemPrompt,
           model,
           thinkingLevel,
-          tools: codingTools,
+          tools: createClawdisCodingTools(),
         },
         messageTransformer,
         queueMode: settingsManager.getQueueMode(),
