@@ -35,6 +35,28 @@ import {
 let previousHome: string | undefined;
 let tempHome: string | undefined;
 
+const rmDirWithRetries = async (dir: string): Promise<void> => {
+  // Some tests can leave async session-store writes in-flight; recursive deletion can race and throw ENOTEMPTY.
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    try {
+      await fs.rm(dir, { recursive: true, force: true });
+      return;
+    } catch (err) {
+      const code =
+        err && typeof err === "object" && "code" in err
+          ? String((err as { code?: unknown }).code)
+          : null;
+      if (code === "ENOTEMPTY" || code === "EBUSY" || code === "EPERM") {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  await fs.rm(dir, { recursive: true, force: true });
+};
+
 beforeEach(async () => {
   previousHome = process.env.HOME;
   tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "clawdis-web-home-"));
@@ -44,7 +66,7 @@ beforeEach(async () => {
 afterEach(async () => {
   process.env.HOME = previousHome;
   if (tempHome) {
-    await fs.rm(tempHome, { recursive: true, force: true });
+    await rmDirWithRetries(tempHome);
     tempHome = undefined;
   }
 });
