@@ -165,9 +165,11 @@ extension GatewayConnection {
         channel: String? = nil,
         idempotencyKey: String = UUID().uuidString) async -> (ok: Bool, error: String?)
     {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return (false, "message empty") }
         do {
             let params: [String: Any] = [
-                "message": message,
+                "message": trimmed,
                 "sessionKey": sessionKey,
                 "thinking": thinking ?? "default",
                 "deliver": deliver,

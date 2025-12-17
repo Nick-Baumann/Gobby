@@ -97,7 +97,7 @@ Goal: replace legacy gateway/stdin/TCP control with a single WebSocket Gateway, 
 
 ## Phase 5 — Clients migration
 - **macOS app**:
-  - Replace stdio/SSH RPC with WS client (tunneled via SSH/Tailscale for remote). ✅ AgentRPC/ControlChannel now use Gateway WS.
+  - Replace stdio/SSH RPC with WS client (tunneled via SSH/Tailscale for remote). ✅ GatewayConnection/ControlChannel now use Gateway WS.
   - Implement handshake, snapshot hydration, subscriptions to `presence`, `tick`, `agent`, `shutdown`. ✅ snapshot + presence events broadcast to InstancesStore; agent events still to wire to UI if desired.
   - Remove immediate `health/system-presence` fetch on connect. ✅ presence hydrated from snapshot; periodic refresh kept as fallback.
   - Handle connect failures (`res ok:false`) and retry with backoff if version/token mismatched. ✅ macOS GatewayChannel reconnects with exponential backoff.

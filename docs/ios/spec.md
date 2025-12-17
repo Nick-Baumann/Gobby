@@ -31,7 +31,7 @@ Non-goals (v1):
 ## Current repo reality (constraints we respect)
 - The Gateway WebSocket server binds to `127.0.0.1:18789` (`src/gateway/server.ts`) with an optional `CLAWDIS_GATEWAY_TOKEN`.
 - macOS “Canvas” exists today, but is **mac-only** and controlled via mac app IPC (`clawdis-mac canvas ...`) rather than the Gateway protocol (`docs/mac/canvas.md`).
-- Voice wake forwards via `GatewayChannel` to Gateway `agent` (mac app: `VoiceWakeForwarder` → `AgentRPC`).
+- Voice wake forwards via `GatewayChannel` to Gateway `agent` (mac app: `VoiceWakeForwarder` → `GatewayConnection.sendAgent`).
 
 ## Recommended topology (B): Gateway-owned Bridge + loopback Gateway
 Keep the Node gateway loopback-only; expose a dedicated **gateway-owned bridge** to the LAN/tailnet.
