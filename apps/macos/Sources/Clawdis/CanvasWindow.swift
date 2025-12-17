@@ -105,7 +105,14 @@ final class CanvasWindowController: NSWindowController, WKNavigationDelegate, NS
                 };
 
                 const handler = globalThis.webkit?.messageHandlers?.clawdisCanvasA2UIAction;
-                if (handler?.postMessage) {
+
+                // If the bundled A2UI shell is present, let it forward actions so we keep its richer
+                // context resolution (data model path lookups, surface detection, etc.).
+                const hasBundledA2UIHost = !!globalThis.clawdisA2UI || !!document.querySelector('clawdis-a2ui-host');
+                if (hasBundledA2UIHost && handler?.postMessage) return;
+
+                // Otherwise, forward directly when possible.
+                if (!hasBundledA2UIHost && handler?.postMessage) {
                   handler.postMessage({ userAction });
                   return;
                 }
@@ -210,10 +217,8 @@ final class CanvasWindowController: NSWindowController, WKNavigationDelegate, NS
     func hideCanvas() {
         if case .panel = self.presentation {
             self.persistFrameIfPanel()
-            self.window?.orderOut(nil)
-        } else {
-            self.close()
         }
+        self.window?.orderOut(nil)
         self.onVisibilityChanged?(false)
     }
 
@@ -327,16 +332,17 @@ final class CanvasWindowController: NSWindowController, WKNavigationDelegate, NS
     private static func makeWindow(for presentation: CanvasPresentation, contentView: NSView) -> NSWindow {
         switch presentation {
         case .window:
-            let window = NSWindow(
-                contentRect: NSRect(origin: .zero, size: CanvasLayout.windowSize),
-                styleMask: [.titled, .closable, .resizable, .miniaturizable],
-                backing: .buffered,
-                defer: false)
-            window.title = "Clawdis Canvas"
-            window.contentView = contentView
-            window.center()
-            window.minSize = NSSize(width: 880, height: 680)
-            return window
+	            let window = NSWindow(
+	                contentRect: NSRect(origin: .zero, size: CanvasLayout.windowSize),
+	                styleMask: [.titled, .closable, .resizable, .miniaturizable],
+	                backing: .buffered,
+	                defer: false)
+	            window.title = "Clawdis Canvas"
+	            window.isReleasedWhenClosed = false
+	            window.contentView = contentView
+	            window.center()
+	            window.minSize = NSSize(width: 880, height: 680)
+	            return window
 
         case .panel:
             let panel = CanvasPanel(

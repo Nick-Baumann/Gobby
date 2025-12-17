@@ -17,11 +17,13 @@
   - Inject an A2UI → native bridge at document start that listens for `a2uiaction` and forwards it:
     - Prefer `WKScriptMessageHandler` when available.
     - Otherwise fall back to an unattended `clawdis://agent?...&key=...` deep link (no prompt).
+  - Avoid double-sending actions when the bundled A2UI shell is present (let the shell forward clicks so it can resolve richer context).
   - Intercept `clawdis://…` navigations inside the Canvas WKWebView and route them through `DeepLinkHandler` (no NSWorkspace bounce).
   - `GatewayConnection` auto-starts the local gateway (and retries briefly) when a request fails in `.local` mode, so Canvas actions don’t silently fail if the gateway isn’t running yet.
   - Fix a crash that made `clawdis-mac canvas show`/`eval` look “hung”:
     - `VoicePushToTalkHotkey`’s NSEvent monitor could call `@MainActor` code off-main, triggering executor checks / EXC_BAD_ACCESS on macOS 26.2.
     - Now it hops back to the main actor before mutating state.
+  - Preserve in-page state when closing Canvas (hide the window instead of closing the `WKWebView`).
 
 ## Follow-ups
 - Add a small “action sent / failed” debug overlay in the A2UI shell (dev-only) to make failures obvious.
