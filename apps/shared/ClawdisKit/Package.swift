@@ -27,7 +27,7 @@ let package = Package(
             ]),
         .testTarget(
             name: "ClawdisKitTests",
-            dependencies: ["ClawdisKit"],
+            dependencies: ["ClawdisKit", "ClawdisChatUI"],
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),
                 .enableExperimentalFeature("SwiftTesting"),

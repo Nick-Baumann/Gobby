@@ -5,9 +5,11 @@ public struct ClawdisChatView: View {
     @State private var viewModel: ClawdisChatViewModel
     @State private var scrollerBottomID = UUID()
     @State private var showSessions = false
+    private let showsSessionSwitcher: Bool
 
-    public init(viewModel: ClawdisChatViewModel) {
+    public init(viewModel: ClawdisChatViewModel, showsSessionSwitcher: Bool = false) {
         self._viewModel = State(initialValue: viewModel)
+        self.showsSessionSwitcher = showsSessionSwitcher
     }
 
     public var body: some View {
@@ -26,7 +28,11 @@ public struct ClawdisChatView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear { self.viewModel.load() }
         .sheet(isPresented: self.$showSessions) {
-            ChatSessionsSheet(viewModel: self.viewModel)
+            if self.showsSessionSwitcher {
+                ChatSessionsSheet(viewModel: self.viewModel)
+            } else {
+                EmptyView()
+            }
         }
     }
 
@@ -80,13 +86,15 @@ public struct ClawdisChatView: View {
                         .foregroundStyle(.secondary)
                     Spacer(minLength: 0)
 
-                    Button {
-                        self.showSessions = true
-                    } label: {
-                        Image(systemName: "tray.full")
+                    if self.showsSessionSwitcher {
+                        Button {
+                            self.showSessions = true
+                        } label: {
+                            Image(systemName: "tray.full")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Sessions")
                     }
-                    .buttonStyle(.borderless)
-                    .help("Sessions")
 
                     Button {
                         self.viewModel.refresh()

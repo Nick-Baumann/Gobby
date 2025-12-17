@@ -2078,6 +2078,194 @@ describe("gateway server", () => {
     },
   );
 
+  test("chat.abort returns aborted=false for unknown runId", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "clawdis-gw-"));
+    testSessionStorePath = path.join(dir, "sessions.json");
+    await fs.writeFile(testSessionStorePath, JSON.stringify({}, null, 2), "utf-8");
+
+    const { server, ws } = await startServerWithClient();
+    await connectOk(ws);
+
+    ws.send(
+      JSON.stringify({
+        type: "req",
+        id: "abort-unknown-1",
+        method: "chat.abort",
+        params: { sessionKey: "main", runId: "missing-run" },
+      }),
+    );
+
+    const abortRes = await onceMessage<{
+      type: "res";
+      id: string;
+      ok: boolean;
+      payload?: { ok?: boolean; aborted?: boolean };
+    }>(ws, (o) => o.type === "res" && o.id === "abort-unknown-1");
+
+    expect(abortRes.ok).toBe(true);
+    expect(abortRes.payload?.aborted).toBe(false);
+
+    ws.close();
+    await server.close();
+  });
+
+  test("chat.abort rejects mismatched sessionKey", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "clawdis-gw-"));
+    testSessionStorePath = path.join(dir, "sessions.json");
+    await fs.writeFile(
+      testSessionStorePath,
+      JSON.stringify(
+        {
+          main: {
+            sessionId: "sess-main",
+            updatedAt: Date.now(),
+          },
+        },
+        null,
+        2,
+      ),
+      "utf-8",
+    );
+
+    const { server, ws } = await startServerWithClient();
+    await connectOk(ws);
+
+    const spy = vi.mocked(agentCommand);
+    let agentStartedResolve: (() => void) | undefined;
+    const agentStartedP = new Promise<void>((resolve) => {
+      agentStartedResolve = resolve;
+    });
+    spy.mockImplementationOnce(async (opts) => {
+      agentStartedResolve?.();
+      const signal = (opts as { abortSignal?: AbortSignal }).abortSignal;
+      await new Promise<void>((resolve) => {
+        if (!signal) return resolve();
+        if (signal.aborted) return resolve();
+        signal.addEventListener("abort", () => resolve(), { once: true });
+      });
+    });
+
+    ws.send(
+      JSON.stringify({
+        type: "req",
+        id: "send-mismatch-1",
+        method: "chat.send",
+        params: {
+          sessionKey: "main",
+          message: "hello",
+          idempotencyKey: "idem-mismatch-1",
+          timeoutMs: 30_000,
+        },
+      }),
+    );
+
+    await agentStartedP;
+
+    ws.send(
+      JSON.stringify({
+        type: "req",
+        id: "abort-mismatch-1",
+        method: "chat.abort",
+        params: { sessionKey: "other", runId: "idem-mismatch-1" },
+      }),
+    );
+
+    const abortRes = await onceMessage(
+      ws,
+      (o) => o.type === "res" && o.id === "abort-mismatch-1",
+    );
+    expect(abortRes.ok).toBe(false);
+    expect(abortRes.error?.code).toBe("INVALID_REQUEST");
+
+    ws.send(
+      JSON.stringify({
+        type: "req",
+        id: "abort-mismatch-2",
+        method: "chat.abort",
+        params: { sessionKey: "main", runId: "idem-mismatch-1" },
+      }),
+    );
+
+    const abortRes2 = await onceMessage(
+      ws,
+      (o) => o.type === "res" && o.id === "abort-mismatch-2",
+    );
+    expect(abortRes2.ok).toBe(true);
+
+    const sendRes = await onceMessage(
+      ws,
+      (o) => o.type === "res" && o.id === "send-mismatch-1",
+    );
+    expect(sendRes.ok).toBe(true);
+
+    ws.close();
+    await server.close();
+  });
+
+  test("chat.abort is a no-op after chat.send completes", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "clawdis-gw-"));
+    testSessionStorePath = path.join(dir, "sessions.json");
+    await fs.writeFile(
+      testSessionStorePath,
+      JSON.stringify(
+        {
+          main: {
+            sessionId: "sess-main",
+            updatedAt: Date.now(),
+          },
+        },
+        null,
+        2,
+      ),
+      "utf-8",
+    );
+
+    const { server, ws } = await startServerWithClient();
+    await connectOk(ws);
+
+    const spy = vi.mocked(agentCommand);
+    spy.mockResolvedValueOnce(undefined);
+
+    ws.send(
+      JSON.stringify({
+        type: "req",
+        id: "send-complete-1",
+        method: "chat.send",
+        params: {
+          sessionKey: "main",
+          message: "hello",
+          idempotencyKey: "idem-complete-1",
+          timeoutMs: 30_000,
+        },
+      }),
+    );
+
+    const sendRes = await onceMessage(
+      ws,
+      (o) => o.type === "res" && o.id === "send-complete-1",
+    );
+    expect(sendRes.ok).toBe(true);
+
+    ws.send(
+      JSON.stringify({
+        type: "req",
+        id: "abort-complete-1",
+        method: "chat.abort",
+        params: { sessionKey: "main", runId: "idem-complete-1" },
+      }),
+    );
+
+    const abortRes = await onceMessage(
+      ws,
+      (o) => o.type === "res" && o.id === "abort-complete-1",
+    );
+    expect(abortRes.ok).toBe(true);
+    expect(abortRes.payload?.aborted).toBe(false);
+
+    ws.close();
+    await server.close();
+  });
+
   test("bridge RPC chat.history returns session messages", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "clawdis-gw-"));
     testSessionStorePath = path.join(dir, "sessions.json");
