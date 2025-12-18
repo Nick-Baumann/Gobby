@@ -1,6 +1,10 @@
 import type { Command } from "commander";
 import { callGateway, randomIdempotencyKey } from "../gateway/call.js";
 import { startGatewayServer } from "../gateway/server.js";
+import {
+  type GatewayWsLogStyle,
+  setGatewayWsLogStyle,
+} from "../gateway/ws-logging.js";
 import { info, setVerbose } from "../globals.js";
 import { GatewayLockError } from "../infra/gateway-lock.js";
 import { defaultRuntime } from "../runtime.js";
@@ -52,8 +56,29 @@ export function registerGatewayCli(program: Command) {
       false,
     )
     .option("--verbose", "Verbose logging to stdout/stderr", false)
+    .option(
+      "--ws-log <style>",
+      'Verbose WebSocket log style ("full"|"compact")',
+      "full",
+    )
+    .option("--compact", 'Alias for "--ws-log compact"', false)
     .action(async (opts) => {
       setVerbose(Boolean(opts.verbose));
+      const wsLogRaw = (opts.compact ? "compact" : opts.wsLog) as
+        | string
+        | undefined;
+      const wsLogStyle: GatewayWsLogStyle =
+        wsLogRaw === "compact" ? "compact" : "full";
+      if (
+        wsLogRaw !== undefined &&
+        wsLogRaw !== "compact" &&
+        wsLogRaw !== "full"
+      ) {
+        defaultRuntime.error('Invalid --ws-log (use "full" or "compact")');
+        defaultRuntime.exit(1);
+      }
+      setGatewayWsLogStyle(wsLogStyle);
+
       const port = Number.parseInt(String(opts.port ?? "18789"), 10);
       if (Number.isNaN(port) || port <= 0) {
         defaultRuntime.error("Invalid port");

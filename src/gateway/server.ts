@@ -90,6 +90,7 @@ import { setHeartbeatsEnabled } from "../web/auto-reply.js";
 import { sendMessageWhatsApp } from "../web/outbound.js";
 import { requestReplyHeartbeatNow } from "../web/reply-heartbeat-wake.js";
 import { buildMessageWithAttachments } from "./chat-attachments.js";
+import { getGatewayWsLogStyle } from "./ws-logging.js";
 import {
   type ConnectParams,
   ErrorCodes,
@@ -475,6 +476,11 @@ function logWs(
   meta?: Record<string, unknown>,
 ) {
   if (!isVerbose()) return;
+  if (getGatewayWsLogStyle() === "compact") {
+    logWsCompact(direction, kind, meta);
+    return;
+  }
+
   const now = Date.now();
   const connId = typeof meta?.connId === "string" ? meta.connId : undefined;
   const id = typeof meta?.id === "string" ? meta.id : undefined;
@@ -531,6 +537,100 @@ function logWs(
   const trailing: string[] = [];
   if (connId) {
     trailing.push(`${chalk.dim("conn")}=${chalk.gray(shortId(connId))}`);
+  }
+  if (id) trailing.push(`${chalk.dim("id")}=${chalk.gray(shortId(id))}`);
+
+  const tokens = [
+    prefix,
+    statusToken,
+    headline,
+    durationToken,
+    ...restMeta,
+    ...trailing,
+  ].filter((t): t is string => Boolean(t));
+
+  console.log(tokens.join(" "));
+}
+
+type WsInflightEntry = {
+  ts: number;
+  method?: string;
+  meta?: Record<string, unknown>;
+};
+
+const wsInflightCompact = new Map<string, WsInflightEntry>();
+let wsLastCompactConnId: string | undefined;
+
+function logWsCompact(
+  direction: "in" | "out",
+  kind: string,
+  meta?: Record<string, unknown>,
+) {
+  const now = Date.now();
+  const connId = typeof meta?.connId === "string" ? meta.connId : undefined;
+  const id = typeof meta?.id === "string" ? meta.id : undefined;
+  const method = typeof meta?.method === "string" ? meta.method : undefined;
+  const ok = typeof meta?.ok === "boolean" ? meta.ok : undefined;
+  const inflightKey = connId && id ? `${connId}:${id}` : undefined;
+
+  // Pair req/res into a single line (printed on response).
+  if (kind === "req" && direction === "in" && inflightKey) {
+    wsInflightCompact.set(inflightKey, { ts: now, method, meta });
+    return;
+  }
+
+  const compactArrow = (() => {
+    if (kind === "req" || kind === "res") return "⇄";
+    return direction === "in" ? "←" : "→";
+  })();
+  const arrowColor =
+    kind === "req" || kind === "res"
+      ? chalk.yellowBright
+      : direction === "in"
+        ? chalk.greenBright
+        : chalk.cyanBright;
+
+  const prefix = `${chalk.gray("[gws]")} ${arrowColor(compactArrow)} ${chalk.bold(kind)}`;
+
+  const statusToken =
+    kind === "res" && ok !== undefined
+      ? ok
+        ? chalk.greenBright("✓")
+        : chalk.redBright("✗")
+      : undefined;
+
+  const startedAt =
+    kind === "res" && direction === "out" && inflightKey
+      ? wsInflightCompact.get(inflightKey)?.ts
+      : undefined;
+  if (kind === "res" && direction === "out" && inflightKey) {
+    wsInflightCompact.delete(inflightKey);
+  }
+  const durationToken =
+    typeof startedAt === "number" ? chalk.dim(`${now - startedAt}ms`) : undefined;
+
+  const headline =
+    (kind === "req" || kind === "res") && method
+      ? chalk.bold(method)
+      : kind === "event" && typeof meta?.event === "string"
+        ? chalk.bold(meta.event)
+        : undefined;
+
+  const restMeta: string[] = [];
+  if (meta) {
+    for (const [key, value] of Object.entries(meta)) {
+      if (value === undefined) continue;
+      if (key === "connId" || key === "id") continue;
+      if (key === "method" || key === "ok") continue;
+      if (key === "event") continue;
+      restMeta.push(`${chalk.dim(key)}=${formatForLog(value)}`);
+    }
+  }
+
+  const trailing: string[] = [];
+  if (connId && connId !== wsLastCompactConnId) {
+    trailing.push(`${chalk.dim("conn")}=${chalk.gray(shortId(connId))}`);
+    wsLastCompactConnId = connId;
   }
   if (id) trailing.push(`${chalk.dim("id")}=${chalk.gray(shortId(id))}`);
 
