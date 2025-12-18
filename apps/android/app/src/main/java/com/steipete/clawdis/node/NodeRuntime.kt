@@ -41,6 +41,7 @@ class NodeRuntime(context: Context) {
 
   private val discovery = BridgeDiscovery(appContext, scope = scope)
   val bridges: StateFlow<List<BridgeEndpoint>> = discovery.bridges
+  val discoveryStatusText: StateFlow<String> = discovery.statusText
 
   private val _isConnected = MutableStateFlow(false)
   val isConnected: StateFlow<Boolean> = _isConnected.asStateFlow()

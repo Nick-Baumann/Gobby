@@ -15,6 +15,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
   val camera: CameraCaptureManager = runtime.camera
 
   val bridges: StateFlow<List<BridgeEndpoint>> = runtime.bridges
+  val discoveryStatusText: StateFlow<String> = runtime.discoveryStatusText
 
   val isConnected: StateFlow<Boolean> = runtime.isConnected
   val statusText: StateFlow<String> = runtime.statusText

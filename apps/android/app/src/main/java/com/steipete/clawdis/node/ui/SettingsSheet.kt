@@ -64,6 +64,7 @@ fun SettingsSheet(viewModel: MainViewModel) {
   val serverName by viewModel.serverName.collectAsState()
   val remoteAddress by viewModel.remoteAddress.collectAsState()
   val bridges by viewModel.bridges.collectAsState()
+  val discoveryStatusText by viewModel.discoveryStatusText.collectAsState()
 
   val listState = rememberLazyListState()
   val (wakeWordsText, setWakeWordsText) = remember { mutableStateOf("") }
@@ -95,7 +96,7 @@ fun SettingsSheet(viewModel: MainViewModel) {
 
   val bridgeDiscoveryFooterText =
     if (bridges.isEmpty()) {
-      "Searching for bridges…"
+      discoveryStatusText
     } else {
       "Discovery active • ${bridges.size} bridge${if (bridges.size == 1) "" else "s"} found"
     }
@@ -309,4 +310,3 @@ fun SettingsSheet(viewModel: MainViewModel) {
     item { Spacer(modifier = Modifier.height(20.dp)) }
   }
 }
-

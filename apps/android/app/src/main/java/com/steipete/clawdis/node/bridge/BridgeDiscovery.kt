@@ -8,7 +8,9 @@ import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
 import android.os.CancellationSignal
+import android.util.Log
 import java.io.IOException
+import java.net.InetSocketAddress
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
@@ -24,11 +26,16 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import org.xbill.DNS.AAAARecord
 import org.xbill.DNS.ARecord
 import org.xbill.DNS.DClass
+import org.xbill.DNS.ExtendedResolver
 import org.xbill.DNS.Message
 import org.xbill.DNS.Name
 import org.xbill.DNS.PTRRecord
+import org.xbill.DNS.Record
+import org.xbill.DNS.Rcode
+import org.xbill.DNS.Resolver
 import org.xbill.DNS.SRVRecord
 import org.xbill.DNS.Section
+import org.xbill.DNS.SimpleResolver
 import org.xbill.DNS.TextParseException
 import org.xbill.DNS.TXTRecord
 import org.xbill.DNS.Type
@@ -44,14 +51,21 @@ class BridgeDiscovery(
   private val dns = DnsResolver.getInstance()
   private val serviceType = "_clawdis-bridge._tcp."
   private val wideAreaDomain = "clawdis.internal."
+  private val logTag = "Clawdis/BridgeDiscovery"
 
   private val localById = ConcurrentHashMap<String, BridgeEndpoint>()
   private val unicastById = ConcurrentHashMap<String, BridgeEndpoint>()
   private val _bridges = MutableStateFlow<List<BridgeEndpoint>>(emptyList())
   val bridges: StateFlow<List<BridgeEndpoint>> = _bridges.asStateFlow()
 
+  private val _statusText = MutableStateFlow("Searching…")
+  val statusText: StateFlow<String> = _statusText.asStateFlow()
+
   private var unicastJob: Job? = null
   private val dnsExecutor: Executor = Executors.newCachedThreadPool()
+
+  @Volatile private var lastWideAreaRcode: Int? = null
+  @Volatile private var lastWideAreaCount: Int = 0
 
   private val discoveryListener =
     object : NsdManager.DiscoveryListener {
@@ -133,6 +147,27 @@ class BridgeDiscovery(
   private fun publish() {
     _bridges.value =
       (localById.values + unicastById.values).sortedBy { it.name.lowercase() }
+    _statusText.value = buildStatusText()
+  }
+
+  private fun buildStatusText(): String {
+    val localCount = localById.size
+    val wideRcode = lastWideAreaRcode
+    val wideCount = lastWideAreaCount
+
+    val wide =
+      when (wideRcode) {
+        null -> "Wide: ?"
+        Rcode.NOERROR -> "Wide: $wideCount"
+        Rcode.NXDOMAIN -> "Wide: NXDOMAIN"
+        else -> "Wide: ${Rcode.string(wideRcode)}"
+      }
+
+    return when {
+      localCount == 0 && wideRcode == null -> "Searching for bridges…"
+      localCount == 0 -> "$wide"
+      else -> "Local: $localCount • $wide"
+    }
   }
 
   private fun stableId(serviceName: String, domain: String): String {
@@ -155,20 +190,40 @@ class BridgeDiscovery(
 
   private suspend fun refreshUnicast(domain: String) {
     val ptrName = "${serviceType}${domain}"
-    val ptrRecords = lookupUnicast(ptrName, Type.PTR).mapNotNull { it as? PTRRecord }
+    val ptrMsg = lookupUnicastMessage(ptrName, Type.PTR) ?: return
+    val ptrRecords = records(ptrMsg, Section.ANSWER).mapNotNull { it as? PTRRecord }
 
     val next = LinkedHashMap<String, BridgeEndpoint>()
     for (ptr in ptrRecords) {
       val instanceFqdn = ptr.target.toString()
       val srv =
-        lookupUnicast(instanceFqdn, Type.SRV).firstOrNull { it is SRVRecord } as? SRVRecord ?: continue
+        recordByName(ptrMsg, instanceFqdn, Type.SRV) as? SRVRecord
+          ?: run {
+            val msg = lookupUnicastMessage(instanceFqdn, Type.SRV) ?: return@run null
+            recordByName(msg, instanceFqdn, Type.SRV) as? SRVRecord
+          }
+          ?: continue
       val port = srv.port
       if (port <= 0) continue
 
       val targetFqdn = srv.target.toString()
-      val host = resolveHostUnicast(targetFqdn) ?: continue
+      val host =
+        resolveHostFromMessage(ptrMsg, targetFqdn)
+          ?: resolveHostFromMessage(lookupUnicastMessage(instanceFqdn, Type.SRV), targetFqdn)
+          ?: resolveHostUnicast(targetFqdn)
+          ?: continue
 
-      val txt = lookupUnicast(instanceFqdn, Type.TXT).mapNotNull { it as? TXTRecord }
+      val txtFromPtr =
+        recordsByName(ptrMsg, Section.ADDITIONAL)[keyName(instanceFqdn)]
+          .orEmpty()
+          .mapNotNull { it as? TXTRecord }
+      val txt =
+        if (txtFromPtr.isNotEmpty()) {
+          txtFromPtr
+        } else {
+          val msg = lookupUnicastMessage(instanceFqdn, Type.TXT)
+          records(msg, Section.ANSWER).mapNotNull { it as? TXTRecord }
+        }
       val instanceName = BonjourEscapes.decode(decodeInstanceName(instanceFqdn, domain))
       val displayName = BonjourEscapes.decode(txtValue(txt, "displayName") ?: instanceName)
       val id = stableId(instanceName, domain)
@@ -177,7 +232,16 @@ class BridgeDiscovery(
 
     unicastById.clear()
     unicastById.putAll(next)
+    lastWideAreaRcode = ptrMsg.header.rcode
+    lastWideAreaCount = next.size
     publish()
+
+    if (next.isEmpty()) {
+      Log.d(
+        logTag,
+        "wide-area discovery: 0 results for $ptrName (rcode=${Rcode.string(ptrMsg.header.rcode)})",
+      )
+    }
   }
 
   private fun decodeInstanceName(instanceFqdn: String, domain: String): String {
@@ -195,7 +259,7 @@ class BridgeDiscovery(
     return raw.removeSuffix(".")
   }
 
-  private suspend fun lookupUnicast(name: String, type: Int): List<org.xbill.DNS.Record> {
+  private suspend fun lookupUnicastMessage(name: String, type: Int): Message? {
     val query =
       try {
         Message.newQuery(
@@ -206,23 +270,71 @@ class BridgeDiscovery(
           ),
         )
       } catch (_: TextParseException) {
-        return emptyList()
+        return null
       }
 
+    val system = queryViaSystemDns(query)
+    if (records(system, Section.ANSWER).any { it.type == type }) return system
+
+    val direct = createDirectResolver() ?: return system
+    return try {
+      val msg = direct.send(query)
+      if (records(msg, Section.ANSWER).any { it.type == type }) msg else system
+    } catch (_: Throwable) {
+      system
+    }
+  }
+
+  private suspend fun queryViaSystemDns(query: Message): Message? {
     val network = preferredDnsNetwork()
     val bytes =
       try {
         rawQuery(network, query.toWire())
       } catch (_: Throwable) {
-        return emptyList()
+        return null
       }
 
     return try {
-      val msg = Message(bytes)
-      msg.getSectionArray(Section.ANSWER)?.toList() ?: emptyList()
+      Message(bytes)
     } catch (_: IOException) {
-      emptyList()
+      null
     }
+  }
+
+  private fun records(msg: Message?, section: Int): List<Record> {
+    return msg?.getSectionArray(section)?.toList() ?: emptyList()
+  }
+
+  private fun keyName(raw: String): String {
+    return raw.trim().lowercase()
+  }
+
+  private fun recordsByName(msg: Message, section: Int): Map<String, List<Record>> {
+    val next = LinkedHashMap<String, MutableList<Record>>()
+    for (r in records(msg, section)) {
+      val name = r.name?.toString() ?: continue
+      next.getOrPut(keyName(name)) { mutableListOf() }.add(r)
+    }
+    return next
+  }
+
+  private fun recordByName(msg: Message, fqdn: String, type: Int): Record? {
+    val key = keyName(fqdn)
+    val byNameAnswer = recordsByName(msg, Section.ANSWER)
+    val fromAnswer = byNameAnswer[key].orEmpty().firstOrNull { it.type == type }
+    if (fromAnswer != null) return fromAnswer
+
+    val byNameAdditional = recordsByName(msg, Section.ADDITIONAL)
+    return byNameAdditional[key].orEmpty().firstOrNull { it.type == type }
+  }
+
+  private fun resolveHostFromMessage(msg: Message?, hostname: String): String? {
+    val m = msg ?: return null
+    val key = keyName(hostname)
+    val additional = recordsByName(m, Section.ADDITIONAL)[key].orEmpty()
+    val a = additional.mapNotNull { it as? ARecord }.mapNotNull { it.address?.hostAddress }
+    val aaaa = additional.mapNotNull { it as? AAAARecord }.mapNotNull { it.address?.hostAddress }
+    return a.firstOrNull() ?: aaaa.firstOrNull()
   }
 
   private fun preferredDnsNetwork(): android.net.Network? {
@@ -235,6 +347,48 @@ class BridgeDiscovery(
     }?.let { return it }
 
     return cm.activeNetwork
+  }
+
+  private fun createDirectResolver(): Resolver? {
+    val cm = connectivity ?: return null
+
+    val candidateNetworks =
+      buildList {
+        cm.allNetworks
+          .firstOrNull { n ->
+            val caps = cm.getNetworkCapabilities(n) ?: return@firstOrNull false
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
+          }?.let(::add)
+        cm.activeNetwork?.let(::add)
+      }.distinct()
+
+    val servers =
+      candidateNetworks
+        .asSequence()
+        .flatMap { n ->
+          cm.getLinkProperties(n)?.dnsServers?.asSequence() ?: emptySequence()
+        }
+        .distinctBy { it.hostAddress ?: it.toString() }
+        .toList()
+    if (servers.isEmpty()) return null
+
+    return try {
+      val resolvers =
+        servers.mapNotNull { addr ->
+          try {
+            SimpleResolver().apply {
+              setAddress(InetSocketAddress(addr, 53))
+              setTimeout(3)
+            }
+          } catch (_: Throwable) {
+            null
+          }
+        }
+      if (resolvers.isEmpty()) return null
+      ExtendedResolver(resolvers.toTypedArray()).apply { setTimeout(3) }
+    } catch (_: Throwable) {
+      null
+    }
   }
 
   private suspend fun rawQuery(network: android.net.Network?, wireQuery: ByteArray): ByteArray =
@@ -281,11 +435,11 @@ class BridgeDiscovery(
 
   private suspend fun resolveHostUnicast(hostname: String): String? {
     val a =
-      lookupUnicast(hostname, Type.A)
+      records(lookupUnicastMessage(hostname, Type.A), Section.ANSWER)
         .mapNotNull { it as? ARecord }
         .mapNotNull { it.address?.hostAddress }
     val aaaa =
-      lookupUnicast(hostname, Type.AAAA)
+      records(lookupUnicastMessage(hostname, Type.AAAA), Section.ANSWER)
         .mapNotNull { it as? AAAARecord }
         .mapNotNull { it.address?.hostAddress }
 
