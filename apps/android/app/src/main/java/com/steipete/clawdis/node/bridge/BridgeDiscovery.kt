@@ -11,6 +11,8 @@ import android.os.CancellationSignal
 import android.util.Log
 import java.io.IOException
 import java.net.InetSocketAddress
+import java.nio.ByteBuffer
+import java.nio.charset.CodingErrorAction
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
@@ -424,13 +426,29 @@ class BridgeDiscovery(
           emptyList()
         }
       for (s in strings) {
-        val trimmed = s.trim()
+        val trimmed = decodeDnsTxtString(s).trim()
         if (trimmed.startsWith(prefix)) {
           return trimmed.removePrefix(prefix).trim().ifEmpty { null }
         }
       }
     }
     return null
+  }
+
+  private fun decodeDnsTxtString(raw: String): String {
+    // dnsjava treats TXT as opaque bytes and decodes as ISO-8859-1 to preserve bytes.
+    // Our TXT payload is UTF-8 (written by the gateway), so re-decode when possible.
+    val bytes = raw.toByteArray(Charsets.ISO_8859_1)
+    val decoder =
+      Charsets.UTF_8
+        .newDecoder()
+        .onMalformedInput(CodingErrorAction.REPORT)
+        .onUnmappableCharacter(CodingErrorAction.REPORT)
+    return try {
+      decoder.decode(ByteBuffer.wrap(bytes)).toString()
+    } catch (_: Throwable) {
+      raw
+    }
   }
 
   private suspend fun resolveHostUnicast(hostname: String): String? {
