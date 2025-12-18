@@ -32,6 +32,9 @@ type NodeListNode = {
   platform?: string;
   version?: string;
   remoteIp?: string;
+  deviceFamily?: string;
+  modelIdentifier?: string;
+  caps?: string[];
   connected?: boolean;
 };
 
@@ -176,6 +179,44 @@ export function registerNodesCli(program: Command) {
   const nodes = program
     .command("nodes")
     .description("Manage gateway-owned node pairing");
+
+  nodesCallOpts(
+    nodes
+      .command("status")
+      .description("List paired nodes with connection status and capabilities")
+      .action(async (opts: NodesRpcOpts) => {
+        try {
+          const result = (await callGatewayCli("node.list", opts, {})) as unknown;
+          if (opts.json) {
+            defaultRuntime.log(JSON.stringify(result, null, 2));
+            return;
+          }
+          const nodes = parseNodeList(result);
+          const connectedCount = nodes.filter((n) => Boolean(n.connected)).length;
+          defaultRuntime.log(
+            `Paired: ${nodes.length} · Connected: ${connectedCount}`,
+          );
+          for (const n of nodes) {
+            const name = n.displayName || n.nodeId;
+            const ip = n.remoteIp ? ` · ${n.remoteIp}` : "";
+            const device = n.deviceFamily ? ` · device: ${n.deviceFamily}` : "";
+            const hw = n.modelIdentifier ? ` · hw: ${n.modelIdentifier}` : "";
+            const caps =
+              Array.isArray(n.caps) && n.caps.length > 0
+                ? `[${n.caps.map(String).filter(Boolean).sort().join(",")}]`
+                : Array.isArray(n.caps)
+                  ? "[]"
+                  : "?";
+            defaultRuntime.log(
+              `- ${name} · ${n.nodeId}${ip}${device}${hw} · ${n.connected ? "connected" : "disconnected"} · caps: ${caps}`,
+            );
+          }
+        } catch (err) {
+          defaultRuntime.error(`nodes status failed: ${String(err)}`);
+          defaultRuntime.exit(1);
+        }
+      }),
+  );
 
   nodesCallOpts(
     nodes
