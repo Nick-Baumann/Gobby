@@ -4,7 +4,7 @@ import SwiftUI
 
 struct GeneralSettings: View {
     @Bindable var state: AppState
-    @AppStorage(cameraEnabledKey) private var cameraEnabled: Bool = true
+    @AppStorage(cameraEnabledKey) private var cameraEnabled: Bool = false
     private let healthStore = HealthStore.shared
     private let gatewayManager = GatewayProcessManager.shared
     // swiftlint:disable:next inclusive_language
