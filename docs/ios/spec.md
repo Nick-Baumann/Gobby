@@ -151,7 +151,7 @@ When iOS is backgrounded:
 ### App structure
 - Single fullscreen Canvas surface (WKWebView).
 - One settings entry point: a **gear button** that opens a settings sheet.
-- All navigation/mode selection is **agent-driven** (no local URL bar).
+- All navigation is **agent-driven** (no local URL bar).
 
 ### Components
 - `BridgeDiscovery`: Bonjour browse + resolve (Network.framework `NWBrowser`)
@@ -232,4 +232,4 @@ open Clawdis.xcodeproj
 ## Open questions
 - Should `connect.params.client.mode` be `"node"` with `platform="ios ..."` or a distinct mode `"ios-node"`? (Presence filtering currently excludes `"cli"` only.)
 - Do we want a “permissions” model per node (voice only vs voice+canvas) at pairing time?
-- Should “website mode” allow arbitrary https, or enforce an allowlist to reduce risk?
+- Should loading arbitrary websites via `canvas.navigate` allow any https URL, or enforce an allowlist to reduce risk?

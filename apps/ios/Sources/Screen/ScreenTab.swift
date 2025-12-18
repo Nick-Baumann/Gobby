@@ -21,5 +21,5 @@ struct ScreenTab: View {
         }
     }
 
-    // Navigation/mode selection is agent-driven; no local controls here.
+    // Navigation is agent-driven; no local URL bar here.
 }

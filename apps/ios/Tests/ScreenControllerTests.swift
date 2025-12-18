@@ -6,7 +6,6 @@ import WebKit
     @Test @MainActor func canvasModeConfiguresWebViewForTouch() {
         let screen = ScreenController()
 
-        #expect(screen.mode == .canvas)
         #expect(screen.webView.isOpaque == true)
         #expect(screen.webView.backgroundColor == .black)
 
@@ -17,11 +16,11 @@ import WebKit
         #expect(scrollView.bounces == false)
     }
 
-    @Test @MainActor func navigateDefaultsToWebMode() {
+    @Test @MainActor func navigateSlashShowsDefaultCanvas() {
         let screen = ScreenController()
-        screen.navigate(to: "not a url")
+        screen.navigate(to: "/")
 
-        #expect(screen.mode == .web)
+        #expect(screen.urlString.isEmpty)
     }
 
     @Test @MainActor func evalExecutesJavaScript() async throws {
@@ -46,6 +45,8 @@ import WebKit
         let screen = ScreenController()
         #expect(screen.isLocalNetworkCanvasURL(URL(string: "http://localhost:18793/")!) == true)
         #expect(screen.isLocalNetworkCanvasURL(URL(string: "http://clawd.local:18793/")!) == true)
+        #expect(screen.isLocalNetworkCanvasURL(URL(string: "http://peters-mac-studio-1:18793/")!) == true)
+        #expect(screen.isLocalNetworkCanvasURL(URL(string: "https://peters-mac-studio-1.ts.net:18793/")!) == true)
         #expect(screen.isLocalNetworkCanvasURL(URL(string: "http://192.168.0.10:18793/")!) == true)
         #expect(screen.isLocalNetworkCanvasURL(URL(string: "http://10.0.0.10:18793/")!) == true)
         #expect(screen.isLocalNetworkCanvasURL(URL(string: "http://100.123.224.76:18793/")!) == true) // Tailscale CGNAT

@@ -6,21 +6,12 @@ import WebKit
 @MainActor
 @Observable
 final class ScreenController {
-    enum Mode: Sendable {
-        case canvas
-        case web
-    }
-
     let webView: WKWebView
     private let navigationDelegate: ScreenNavigationDelegate
     private let a2uiActionHandler: CanvasA2UIActionMessageHandler
 
     var urlString: String = ""
     var errorText: String?
-
-    var mode: Mode {
-        self.urlString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .canvas : .web
-    }
 
     /// Callback invoked when a clawdis:// deep link is tapped in the canvas
     var onDeepLink: ((URL) -> Void)?
@@ -65,10 +56,15 @@ final class ScreenController {
         let trimmed = self.urlString.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
             guard let url = Self.canvasScaffoldURL else { return }
+            self.errorText = nil
             self.webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
             return
         } else {
-            guard let url = URL(string: trimmed) else { return }
+            guard let url = URL(string: trimmed) else {
+                self.errorText = "Invalid URL: \(trimmed)"
+                return
+            }
+            self.errorText = nil
             if url.isFileURL {
                 self.webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
             } else {
@@ -221,6 +217,10 @@ final class ScreenController {
         }
         if host == "localhost" { return true }
         if host.hasSuffix(".local") { return true }
+        if host.hasSuffix(".ts.net") { return true }
+        if host.hasSuffix(".tailscale.net") { return true }
+        // Allow MagicDNS / LAN hostnames like "peters-mac-studio-1".
+        if !host.contains("."), !host.contains(":") { return true }
         if let ipv4 = Self.parseIPv4(host) {
             return Self.isLocalNetworkIPv4(ipv4)
         }
@@ -305,6 +305,22 @@ private final class ScreenNavigationDelegate: NSObject, WKNavigationDelegate {
         }
 
         decisionHandler(.allow)
+    }
+
+    func webView(
+        _: WKWebView,
+        didFailProvisionalNavigation _: WKNavigation?,
+        withError error: any Error)
+    {
+        Task { @MainActor in
+            self.controller?.errorText = error.localizedDescription
+        }
+    }
+
+    func webView(_: WKWebView, didFail _: WKNavigation?, withError error: any Error) {
+        Task { @MainActor in
+            self.controller?.errorText = error.localizedDescription
+        }
     }
 }
 
