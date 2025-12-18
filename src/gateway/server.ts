@@ -501,7 +501,7 @@ function logWs(
 
   const dirArrow = direction === "in" ? "←" : "→";
   const dirColor = direction === "in" ? chalk.greenBright : chalk.cyanBright;
-  const prefix = `${chalk.gray("gateway/ws")} ${dirColor(dirArrow)} ${chalk.bold(kind)}`;
+  const prefix = `${chalk.gray("[gws]")} ${dirColor(dirArrow)} ${chalk.bold(kind)}`;
 
   const headline =
     (kind === "req" || kind === "res") && method
@@ -1856,14 +1856,14 @@ export async function startGatewayServer(port = 18789): Promise<GatewayServer> {
 
     socket.once("error", (err) => {
       logWarn(
-        `gateway/ws error conn=${connId} remote=${remoteAddr ?? "?"}: ${formatError(err)}`,
+        `[gws] error conn=${connId} remote=${remoteAddr ?? "?"}: ${formatError(err)}`,
       );
       close();
     });
     socket.once("close", (code, reason) => {
       if (!client) {
         logWarn(
-          `gateway/ws closed before connect conn=${connId} remote=${remoteAddr ?? "?"} code=${code ?? "n/a"} reason=${reason?.toString() || "n/a"}`,
+          `[gws] closed before connect conn=${connId} remote=${remoteAddr ?? "?"} code=${code ?? "n/a"} reason=${reason?.toString() || "n/a"}`,
         );
       }
       if (client && isWebchatConnect(client.connect)) {
@@ -1897,7 +1897,7 @@ export async function startGatewayServer(port = 18789): Promise<GatewayServer> {
     const handshakeTimer = setTimeout(() => {
       if (!client) {
         logWarn(
-          `gateway/ws handshake timeout conn=${connId} remote=${remoteAddr ?? "?"}`,
+          `[gws] handshake timeout conn=${connId} remote=${remoteAddr ?? "?"}`,
         );
         close();
       }
@@ -1931,7 +1931,7 @@ export async function startGatewayServer(port = 18789): Promise<GatewayServer> {
               });
             } else {
               logWarn(
-                `gateway/ws invalid handshake conn=${connId} remote=${remoteAddr ?? "?"}`,
+                `[gws] invalid handshake conn=${connId} remote=${remoteAddr ?? "?"}`,
               );
             }
             socket.close(1008, "invalid handshake");
@@ -1949,7 +1949,7 @@ export async function startGatewayServer(port = 18789): Promise<GatewayServer> {
             minProtocol > PROTOCOL_VERSION
           ) {
             logWarn(
-              `gateway/ws protocol mismatch conn=${connId} remote=${remoteAddr ?? "?"} client=${connectParams.client.name} ${connectParams.client.mode} v${connectParams.client.version}`,
+              `[gws] protocol mismatch conn=${connId} remote=${remoteAddr ?? "?"} client=${connectParams.client.name} ${connectParams.client.mode} v${connectParams.client.version}`,
             );
             send({
               type: "res",
@@ -1972,7 +1972,7 @@ export async function startGatewayServer(port = 18789): Promise<GatewayServer> {
           const token = getGatewayToken();
           if (token && connectParams.auth?.token !== token) {
             logWarn(
-              `gateway/ws unauthorized conn=${connId} remote=${remoteAddr ?? "?"} client=${connectParams.client.name} ${connectParams.client.mode} v${connectParams.client.version}`,
+              `[gws] unauthorized conn=${connId} remote=${remoteAddr ?? "?"} client=${connectParams.client.name} ${connectParams.client.mode} v${connectParams.client.version}`,
             );
             send({
               type: "res",
