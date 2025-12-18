@@ -62,6 +62,37 @@ describe("cli program", () => {
     expect(runtime.log).toHaveBeenCalledWith("Pending: 0 · Paired: 0");
   });
 
+  it("runs nodes status and calls node.list", async () => {
+    callGateway.mockResolvedValue({
+      ts: Date.now(),
+      nodes: [
+        {
+          nodeId: "ios-node",
+          displayName: "iOS Node",
+          remoteIp: "192.168.0.88",
+          deviceFamily: "iPad",
+          modelIdentifier: "iPad16,6",
+          caps: ["canvas", "camera"],
+          connected: true,
+        },
+      ],
+    });
+    const program = buildProgram();
+    runtime.log.mockClear();
+    await program.parseAsync(["nodes", "status"], { from: "user" });
+
+    expect(callGateway).toHaveBeenCalledWith(
+      expect.objectContaining({ method: "node.list", params: {} }),
+    );
+
+    const output = runtime.log.mock.calls.map((c) => String(c[0] ?? "")).join("\n");
+    expect(output).toContain("Paired: 1 · Connected: 1");
+    expect(output).toContain("iOS Node");
+    expect(output).toContain("device: iPad");
+    expect(output).toContain("hw: iPad16,6");
+    expect(output).toContain("caps: [camera,canvas]");
+  });
+
   it("runs nodes approve and calls node.pair.approve", async () => {
     callGateway.mockResolvedValue({
       requestId: "r1",
