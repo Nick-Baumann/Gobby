@@ -15,6 +15,8 @@ import java.io.BufferedWriter
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.ServerSocket
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 class BridgeSessionTest {
   @Test
@@ -219,6 +221,73 @@ class BridgeSessionTest {
 
     session.disconnect()
     scope.cancel()
+  }
+
+  @Test(timeout = 12_000)
+  fun reconnectsAfterBridgeClosesDuringHello() = runBlocking {
+    val serverSocket = ServerSocket(0)
+    val port = serverSocket.localPort
+
+    val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    val connected = CountDownLatch(1)
+    val connectionsSeen = CountDownLatch(2)
+
+    val session =
+      BridgeSession(
+        scope = scope,
+        onConnected = { _, _ -> connected.countDown() },
+        onDisconnected = { /* ignore */ },
+        onEvent = { _, _ -> /* ignore */ },
+        onInvoke = { BridgeSession.InvokeResult.ok(null) },
+      )
+
+    val server =
+      async(Dispatchers.IO) {
+        serverSocket.use { ss ->
+          // First connection: read hello, then close (no response).
+          val sock1 = ss.accept()
+          sock1.use { s ->
+            val reader = BufferedReader(InputStreamReader(s.getInputStream(), Charsets.UTF_8))
+            reader.readLine() // hello
+            connectionsSeen.countDown()
+          }
+
+          // Second connection: complete hello.
+          val sock2 = ss.accept()
+          sock2.use { s ->
+            val reader = BufferedReader(InputStreamReader(s.getInputStream(), Charsets.UTF_8))
+            val writer = BufferedWriter(OutputStreamWriter(s.getOutputStream(), Charsets.UTF_8))
+            reader.readLine() // hello
+            writer.write("""{"type":"hello-ok","serverName":"Test Bridge"}""")
+            writer.write("\n")
+            writer.flush()
+            connectionsSeen.countDown()
+            Thread.sleep(200)
+          }
+        }
+      }
+
+    session.connect(
+      endpoint = BridgeEndpoint.manual(host = "127.0.0.1", port = port),
+      hello =
+        BridgeSession.Hello(
+          nodeId = "node-1",
+          displayName = "Android Node",
+          token = null,
+          platform = "Android",
+          version = "test",
+          deviceFamily = null,
+          modelIdentifier = null,
+          caps = null,
+        ),
+    )
+
+    assertTrue("expected two connection attempts", connectionsSeen.await(8, TimeUnit.SECONDS))
+    assertTrue("expected session to connect", connected.await(8, TimeUnit.SECONDS))
+
+    session.disconnect()
+    scope.cancel()
+    server.await()
   }
 }
 
