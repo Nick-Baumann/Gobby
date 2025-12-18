@@ -96,9 +96,60 @@ struct ClawdisCLI {
         case "camera":
             return try self.parseCamera(args: &args)
 
+        case "screen":
+            return try self.parseScreen(args: &args)
+
         default:
             throw CLIError.help
         }
+    }
+
+    private static func parseDurationMsArg(_ raw: String?) throws -> Int? {
+        guard let raw else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if trimmed.isEmpty { return nil }
+
+        let regex = try NSRegularExpression(pattern: "^(\\d+(?:\\.\\d+)?)(ms|s|m)?$")
+        let range = NSRange(trimmed.startIndex..<trimmed.endIndex, in: trimmed)
+        guard let match = regex.firstMatch(in: trimmed, range: range) else {
+            throw NSError(domain: "ClawdisCLI", code: 3, userInfo: [
+                NSLocalizedDescriptionKey: "invalid duration: \(raw) (expected 1000, 10s, 1m)",
+            ])
+        }
+
+        guard let valueRange = Range(match.range(at: 1), in: trimmed) else {
+            throw NSError(domain: "ClawdisCLI", code: 3, userInfo: [
+                NSLocalizedDescriptionKey: "invalid duration: \(raw) (expected 1000, 10s, 1m)",
+            ])
+        }
+        let value = Double(trimmed[valueRange]) ?? Double.nan
+        guard value.isFinite, value >= 0 else {
+            throw NSError(domain: "ClawdisCLI", code: 3, userInfo: [
+                NSLocalizedDescriptionKey: "invalid duration: \(raw) (expected 1000, 10s, 1m)",
+            ])
+        }
+
+        let unit: String = {
+            if let unitRange = Range(match.range(at: 2), in: trimmed) {
+                return String(trimmed[unitRange])
+            }
+            return "ms"
+        }()
+
+        let multiplier: Double = switch unit {
+        case "ms": 1
+        case "s": 1000
+        case "m": 60_000
+        default: 1
+        }
+
+        let ms = Int((value * multiplier).rounded())
+        guard ms >= 0 else {
+            throw NSError(domain: "ClawdisCLI", code: 3, userInfo: [
+                NSLocalizedDescriptionKey: "invalid duration: \(raw) (expected 1000, 10s, 1m)",
+            ])
+        }
+        return ms
     }
 
     private static func parseNotify(args: inout [String]) throws -> ParsedCLIRequest {
@@ -392,6 +443,8 @@ struct ClawdisCLI {
                 switch arg {
                 case "--facing":
                     if let val = args.popFirst(), let f = CameraFacing(rawValue: val) { facing = f }
+                case "--duration":
+                    durationMs = try self.parseDurationMsArg(args.popFirst())
                 case "--duration-ms":
                     durationMs = args.popFirst().flatMap(Int.init)
                 case "--no-audio":
@@ -408,6 +461,40 @@ struct ClawdisCLI {
                     durationMs: durationMs,
                     includeAudio: includeAudio,
                     outPath: outPath),
+                kind: .mediaPath)
+
+        default:
+            throw CLIError.help
+        }
+    }
+
+    private static func parseScreen(args: inout [String]) throws -> ParsedCLIRequest {
+        guard let sub = args.popFirst() else { throw CLIError.help }
+        switch sub {
+        case "record":
+            var screenIndex: Int?
+            var durationMs: Int?
+            var fps: Double?
+            var outPath: String?
+            while !args.isEmpty {
+                let arg = args.removeFirst()
+                switch arg {
+                case "--screen":
+                    screenIndex = args.popFirst().flatMap(Int.init)
+                case "--duration":
+                    durationMs = try self.parseDurationMsArg(args.popFirst())
+                case "--duration-ms":
+                    durationMs = args.popFirst().flatMap(Int.init)
+                case "--fps":
+                    fps = args.popFirst().flatMap(Double.init)
+                case "--out":
+                    outPath = args.popFirst()
+                default:
+                    break
+                }
+            }
+            return ParsedCLIRequest(
+                request: .screenRecord(screenIndex: screenIndex, durationMs: durationMs, fps: fps, outPath: outPath),
                 kind: .mediaPath)
 
         default:
@@ -674,7 +761,12 @@ struct ClawdisCLI {
 
           Camera:
             clawdis-mac camera snap [--facing <front|back>] [--max-width <px>] [--quality <0-1>] [--out <path>]
-            clawdis-mac camera clip [--facing <front|back>] [--duration-ms <ms>] [--no-audio] [--out <path>]
+            clawdis-mac camera clip [--facing <front|back>]
+              [--duration <ms|10s|1m>|--duration-ms <ms>] [--no-audio] [--out <path>]
+
+          Screen:
+            clawdis-mac screen record [--screen <index>]
+              [--duration <ms|10s|1m>|--duration-ms <ms>] [--fps <n>] [--out <path>]
 
           Browser (clawd):
             clawdis-mac browser status|start|stop|tabs|open|focus|close|screenshot|eval|query|dom|snapshot
@@ -703,7 +795,7 @@ struct ClawdisCLI {
         Output:
           Default output is text. Use --json for machine-readable output.
           In text mode, `browser screenshot` prints MEDIA:<path>.
-          In text mode, `camera snap` and `camera clip` print MEDIA:<path>.
+          In text mode, `camera snap`, `camera clip`, and `screen record` print MEDIA:<path>.
         """
         print(usage)
     }
@@ -904,10 +996,16 @@ struct ClawdisCLI {
         switch request {
         case let .runShell(_, _, _, timeoutSec, _):
             // Allow longer for commands; still cap overall to a sane bound.
-            min(300, max(10, (timeoutSec ?? 10) + 2))
+            return min(300, max(10, (timeoutSec ?? 10) + 2))
+        case let .cameraClip(_, durationMs, _, _):
+            let ms = durationMs ?? 3000
+            return min(180, max(10, TimeInterval(ms) / 1000.0 + 10))
+        case let .screenRecord(_, durationMs, _, _):
+            let ms = durationMs ?? 10_000
+            return min(180, max(10, TimeInterval(ms) / 1000.0 + 10))
         default:
             // Fail-fast so callers (incl. SSH tool calls) don't hang forever.
-            10
+            return 10
         }
     }
 

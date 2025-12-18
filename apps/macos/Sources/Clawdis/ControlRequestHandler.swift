@@ -5,6 +5,7 @@ import OSLog
 
 enum ControlRequestHandler {
     private static let cameraCapture = CameraCaptureService()
+    @MainActor private static let screenRecorder = ScreenRecordService()
 
     struct NodeListNode: Codable {
         var nodeId: String
@@ -133,6 +134,13 @@ enum ControlRequestHandler {
                 durationMs: durationMs,
                 includeAudio: includeAudio,
                 outPath: outPath)
+
+        case let .screenRecord(screenIndex, durationMs, fps, outPath):
+            return await self.handleScreenRecord(
+                screenIndex: screenIndex,
+                durationMs: durationMs,
+                fps: fps,
+                outPath: outPath)
         }
     }
 
@@ -225,7 +233,7 @@ enum ControlRequestHandler {
     }
 
     private static func cameraEnabled() -> Bool {
-        UserDefaults.standard.object(forKey: cameraEnabledKey) as? Bool ?? true
+        UserDefaults.standard.object(forKey: cameraEnabledKey) as? Bool ?? false
     }
 
     private static func handleCanvasShow(
@@ -530,6 +538,30 @@ enum ControlRequestHandler {
                 includeAudio: includeAudio,
                 outPath: outPath)
             return Response(ok: true, message: res.path)
+        } catch {
+            return Response(ok: false, message: error.localizedDescription)
+        }
+    }
+
+    private static func handleScreenRecord(
+        screenIndex: Int?,
+        durationMs: Int?,
+        fps: Double?,
+        outPath: String?) async -> Response
+    {
+        let authorized = await PermissionManager
+            .ensure([.screenRecording], interactive: false)[.screenRecording] ?? false
+        guard authorized else { return Response(ok: false, message: "screen recording permission missing") }
+
+        do {
+            let path = try await Task { @MainActor in
+                try await self.screenRecorder.record(
+                    screenIndex: screenIndex,
+                    durationMs: durationMs,
+                    fps: fps,
+                    outPath: outPath)
+            }.value
+            return Response(ok: true, message: path)
         } catch {
             return Response(ok: false, message: error.localizedDescription)
         }
