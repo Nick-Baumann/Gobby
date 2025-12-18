@@ -13,6 +13,16 @@ import UIKit
         return window
     }
 
+    @Test @MainActor func statusPillConnectingBuildsAViewHierarchy() {
+        let root = StatusPill(bridge: .connecting, voiceWakeEnabled: true, brighten: true) {}
+        _ = Self.host(root)
+    }
+
+    @Test @MainActor func statusPillDisconnectedBuildsAViewHierarchy() {
+        let root = StatusPill(bridge: .disconnected, voiceWakeEnabled: false) {}
+        _ = Self.host(root)
+    }
+
     @Test @MainActor func settingsTabBuildsAViewHierarchy() {
         let appModel = NodeAppModel()
         let bridgeController = BridgeConnectionController(appModel: appModel, startDiscovery: false)
