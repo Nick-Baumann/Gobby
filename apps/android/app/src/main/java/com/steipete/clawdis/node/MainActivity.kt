@@ -1,9 +1,11 @@
 package com.steipete.clawdis.node
 
 import android.Manifest
+import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import android.os.Build
 import android.view.WindowManager
+import android.webkit.WebView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -25,6 +27,8 @@ class MainActivity : ComponentActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    val isDebuggable = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+    WebView.setWebContentsDebuggingEnabled(isDebuggable)
     applyImmersiveMode()
     requestDiscoveryPermissionsIfNeeded()
     requestNotificationPermissionIfNeeded()

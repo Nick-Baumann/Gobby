@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.view.View
 import android.webkit.WebView
+import android.webkit.WebSettings
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -147,7 +148,9 @@ private fun CanvasView(viewModel: MainViewModel, modifier: Modifier = Modifier) 
     factory = {
       WebView(context).apply {
         settings.javaScriptEnabled = true
-        settings.domStorageEnabled = false
+        // Some embedded web UIs (incl. the "background website") use localStorage/sessionStorage.
+        settings.domStorageEnabled = true
+        settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
         webViewClient = WebViewClient()
         setBackgroundColor(Color.TRANSPARENT)
         setBackgroundResource(0)
