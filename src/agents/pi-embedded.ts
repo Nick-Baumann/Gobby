@@ -140,6 +140,8 @@ async function sanitizeSessionMessagesImages(
   messages: AppMessage[],
   label: string,
 ): Promise<AppMessage[]> {
+  // We sanitize historical session messages because Anthropic can reject a request
+  // if the transcript contains oversized base64 images (see MAX_IMAGE_DIMENSION_PX).
   const out: AppMessage[] = [];
   for (const msg of messages) {
     if (!msg || typeof msg !== "object") {

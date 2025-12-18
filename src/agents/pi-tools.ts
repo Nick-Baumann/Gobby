@@ -11,6 +11,12 @@ type ToolContentBlock = AgentToolResult<unknown>["content"][number];
 type ImageContentBlock = Extract<ToolContentBlock, { type: "image" }>;
 type TextContentBlock = Extract<ToolContentBlock, { type: "text" }>;
 
+// Anthropic Messages API limitation (observed in Clawdis sessions):
+// When sending many images in a single request (e.g. via session history + tool results),
+// Anthropic rejects any image where *either* dimension exceeds 2000px.
+//
+// To keep sessions resilient (and avoid "silent" WhatsApp non-replies), we auto-downscale
+// all base64 image blocks above this limit while preserving aspect ratio.
 const MAX_IMAGE_DIMENSION_PX = 2000;
 
 function sniffMimeFromBase64(base64: string): string | undefined {
