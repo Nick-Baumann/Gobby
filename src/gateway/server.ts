@@ -91,10 +91,6 @@ import { sendMessageWhatsApp } from "../web/outbound.js";
 import { requestReplyHeartbeatNow } from "../web/reply-heartbeat-wake.js";
 import { buildMessageWithAttachments } from "./chat-attachments.js";
 import {
-  DEFAULT_WS_SLOW_MS,
-  getGatewayWsLogStyle,
-} from "./ws-logging.js";
-import {
   type ConnectParams,
   ErrorCodes,
   type ErrorShape,
@@ -131,6 +127,7 @@ import {
   validateSessionsPatchParams,
   validateWakeParams,
 } from "./protocol/index.js";
+import { DEFAULT_WS_SLOW_MS, getGatewayWsLogStyle } from "./ws-logging.js";
 
 type Client = {
   socket: WebSocket;
@@ -606,7 +603,9 @@ function logWsOptimized(
 
   if (direction !== "out" || kind !== "res") return;
 
-  const startedAt = inflightKey ? wsInflightOptimized.get(inflightKey) : undefined;
+  const startedAt = inflightKey
+    ? wsInflightOptimized.get(inflightKey)
+    : undefined;
   if (inflightKey) wsInflightOptimized.delete(inflightKey);
   const durationMs =
     typeof startedAt === "number" ? Date.now() - startedAt : undefined;
@@ -694,7 +693,9 @@ function logWsCompact(
     wsInflightCompact.delete(inflightKey);
   }
   const durationToken =
-    typeof startedAt === "number" ? chalk.dim(`${now - startedAt}ms`) : undefined;
+    typeof startedAt === "number"
+      ? chalk.dim(`${now - startedAt}ms`)
+      : undefined;
 
   const headline =
     (kind === "req" || kind === "res") && method

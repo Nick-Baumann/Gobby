@@ -79,7 +79,9 @@ export function registerGatewayCli(program: Command) {
         wsLogRaw !== "compact" &&
         wsLogRaw !== "full"
       ) {
-        defaultRuntime.error('Invalid --ws-log (use "auto", "full", "compact")');
+        defaultRuntime.error(
+          'Invalid --ws-log (use "auto", "full", "compact")',
+        );
         defaultRuntime.exit(1);
       }
       setGatewayWsLogStyle(wsLogStyle);
