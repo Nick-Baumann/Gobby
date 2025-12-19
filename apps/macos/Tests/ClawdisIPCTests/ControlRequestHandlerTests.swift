@@ -140,7 +140,7 @@ struct ControlRequestHandlerTests {
     func canvasRequestsReturnDisabledWhenCanvasDisabled() async throws {
         let show = try await Self.withDefaultOverride(pauseDefaultsKey, value: false) {
             try await Self.withDefaultOverride(canvasEnabledKey, value: false) {
-                try await ControlRequestHandler.process(request: .canvasShow(session: "s", path: nil, placement: nil))
+                try await ControlRequestHandler.process(request: .canvasPresent(session: "s", path: nil, placement: nil))
             }
         }
         #expect(show.ok == false)

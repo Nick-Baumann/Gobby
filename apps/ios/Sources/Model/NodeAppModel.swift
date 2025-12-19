@@ -387,7 +387,15 @@ final class NodeAppModel {
 
         do {
             switch command {
-            case ClawdisCanvasCommand.show.rawValue:
+            case ClawdisCanvasCommand.present.rawValue:
+                let params = (try? Self.decodeParams(ClawdisCanvasPresentParams.self, from: req.paramsJSON)) ??
+                    ClawdisCanvasPresentParams()
+                let url = params.url?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                if url.isEmpty {
+                    self.screen.showDefaultCanvas()
+                } else {
+                    self.screen.navigate(to: url)
+                }
                 return BridgeInvokeResponse(id: req.id, ok: true)
 
             case ClawdisCanvasCommand.hide.rawValue:

@@ -119,7 +119,7 @@ Add to `src/gateway/protocol/schema.ts` (and regenerate Swift models):
 
 ### Node command set (canvas)
 These are values for `node.invoke.command`:
-- `canvas.show` / `canvas.hide`
+- `canvas.present` / `canvas.hide`
 - `canvas.navigate` with `{ url }` (loads a URL; use `""` or `"/"` to return to the default canvas/A2UI scaffold)
 - `canvas.eval` with `{ javaScript }`
 - `canvas.snapshot` with `{ maxWidth?, quality?, format? }`

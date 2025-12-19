@@ -19,9 +19,19 @@ actor MacNodeRuntime {
         }
         do {
             switch command {
-            case ClawdisCanvasCommand.show.rawValue:
+            case ClawdisCanvasCommand.present.rawValue:
+                let params = (try? Self.decodeParams(ClawdisCanvasPresentParams.self, from: req.paramsJSON)) ??
+                    ClawdisCanvasPresentParams()
+                let urlTrimmed = params.url?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let url = urlTrimmed.isEmpty ? nil : urlTrimmed
+                let placement = params.placement.map {
+                    CanvasPlacement(x: $0.x, y: $0.y, width: $0.width, height: $0.height)
+                }
                 try await MainActor.run {
-                    _ = try CanvasManager.shared.show(sessionKey: "main", path: nil)
+                    _ = try CanvasManager.shared.showDetailed(
+                        sessionKey: "main",
+                        target: url,
+                        placement: placement)
                 }
                 return BridgeInvokeResponse(id: req.id, ok: true)
 

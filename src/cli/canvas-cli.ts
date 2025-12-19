@@ -120,10 +120,11 @@ function pickDefaultNode(nodes: NodeListNode[]): NodeListNode | null {
   const candidates = connected.length > 0 ? connected : withCanvas;
   if (candidates.length === 1) return candidates[0];
 
-  const local = candidates.filter((n) =>
-    n.platform?.toLowerCase().startsWith("mac") &&
-    typeof n.nodeId === "string" &&
-    n.nodeId.startsWith("mac-"),
+  const local = candidates.filter(
+    (n) =>
+      n.platform?.toLowerCase().startsWith("mac") &&
+      typeof n.nodeId === "string" &&
+      n.nodeId.startsWith("mac-"),
   );
   if (local.length === 1) return local[0];
 

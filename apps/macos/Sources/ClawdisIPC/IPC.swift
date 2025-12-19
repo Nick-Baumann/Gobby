@@ -122,7 +122,7 @@ public enum Request: Sendable {
     case status
     case agent(message: String, thinking: String?, session: String?, deliver: Bool, to: String?)
     case rpcStatus
-    case canvasShow(session: String, path: String?, placement: CanvasPlacement?)
+    case canvasPresent(session: String, path: String?, placement: CanvasPlacement?)
     case canvasHide(session: String)
     case canvasEval(session: String, javaScript: String)
     case canvasSnapshot(session: String, outPath: String?)
@@ -185,7 +185,7 @@ extension Request: Codable {
         case status
         case agent
         case rpcStatus
-        case canvasShow
+        case canvasPresent
         case canvasHide
         case canvasEval
         case canvasSnapshot
@@ -236,8 +236,8 @@ extension Request: Codable {
         case .rpcStatus:
             try container.encode(Kind.rpcStatus, forKey: .type)
 
-        case let .canvasShow(session, path, placement):
-            try container.encode(Kind.canvasShow, forKey: .type)
+        case let .canvasPresent(session, path, placement):
+            try container.encode(Kind.canvasPresent, forKey: .type)
             try container.encode(session, forKey: .session)
             try container.encodeIfPresent(path, forKey: .path)
             try container.encodeIfPresent(placement, forKey: .placement)
@@ -338,11 +338,11 @@ extension Request: Codable {
         case .rpcStatus:
             self = .rpcStatus
 
-        case .canvasShow:
+        case .canvasPresent:
             let session = try container.decode(String.self, forKey: .session)
             let path = try container.decodeIfPresent(String.self, forKey: .path)
             let placement = try container.decodeIfPresent(CanvasPlacement.self, forKey: .placement)
-            self = .canvasShow(session: session, path: path, placement: placement)
+            self = .canvasPresent(session: session, path: path, placement: placement)
 
         case .canvasHide:
             let session = try container.decode(String.self, forKey: .session)

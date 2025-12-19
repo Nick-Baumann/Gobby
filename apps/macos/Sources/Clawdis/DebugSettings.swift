@@ -489,7 +489,7 @@ struct DebugSettings: View {
                         .font(.caption.monospaced())
                         .frame(width: 160)
                     Button("Show panel") {
-                        Task { await self.canvasShow() }
+                        Task { await self.canvasPresent() }
                     }
                     .buttonStyle(.borderedProminent)
                     Button("Hide panel") {
@@ -750,7 +750,7 @@ extension DebugSettings {
     // MARK: - Canvas debug actions
 
     @MainActor
-    private func canvasShow() async {
+    private func canvasPresent() async {
         self.canvasError = nil
         let session = self.canvasSessionKey.trimmingCharacters(in: .whitespacesAndNewlines)
         do {

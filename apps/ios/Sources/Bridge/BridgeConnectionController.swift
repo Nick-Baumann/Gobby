@@ -173,7 +173,7 @@ final class BridgeConnectionController {
 
     private func currentCommands() -> [String] {
         var commands: [String] = [
-            ClawdisCanvasCommand.show.rawValue,
+            ClawdisCanvasCommand.present.rawValue,
             ClawdisCanvasCommand.hide.rawValue,
             ClawdisCanvasCommand.navigate.rawValue,
             ClawdisCanvasCommand.evalJS.rawValue,

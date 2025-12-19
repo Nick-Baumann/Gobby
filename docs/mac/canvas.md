@@ -96,7 +96,7 @@ Related:
 
 `clawdis-mac` exposes Canvas via the control socket. For agent use, prefer `--json` so you can read the structured `CanvasShowResult` (including `status`).
 
-- `clawdis-mac canvas show [--session <key>] [--target <...>] [--x/--y/--width/--height]`
+- `clawdis-mac canvas present [--session <key>] [--target <...>] [--x/--y/--width/--height]`
   - Local targets map into the session directory via the custom scheme (directory targets resolve `index.html|index.htm`).
   - If `/` has no index file, Canvas shows the built-in A2UI shell and returns `status: "a2uiShell"`.
 - `clawdis-mac canvas hide [--session <key>]`

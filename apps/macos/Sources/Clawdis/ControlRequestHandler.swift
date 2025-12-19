@@ -95,8 +95,8 @@ enum ControlRequestHandler {
                 deliver: deliver,
                 to: to)
 
-        case let .canvasShow(session, path, placement):
-            return await self.handleCanvasShow(session: session, path: path, placement: placement)
+        case let .canvasPresent(session, path, placement):
+            return await self.handleCanvasPresent(session: session, path: path, placement: placement)
 
         case let .canvasHide(session):
             return await self.handleCanvasHide(session: session)
@@ -235,7 +235,7 @@ enum ControlRequestHandler {
         UserDefaults.standard.object(forKey: cameraEnabledKey) as? Bool ?? false
     }
 
-    private static func handleCanvasShow(
+    private static func handleCanvasPresent(
         session: String,
         path: String?,
         placement: CanvasPlacement?) async -> Response
@@ -243,20 +243,24 @@ enum ControlRequestHandler {
         guard self.canvasEnabled() else { return Response(ok: false, message: "Canvas disabled by user") }
         _ = session
         do {
+            var params: [String: Any] = [:]
             if let path, !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                _ = try await self.invokeLocalNode(
-                    command: ClawdisCanvasCommand.navigate.rawValue,
-                    params: ["url": path],
-                    timeoutMs: 20000)
-            } else {
-                _ = try await self.invokeLocalNode(
-                    command: ClawdisCanvasCommand.show.rawValue,
-                    params: nil,
-                    timeoutMs: 20000)
+                params["url"] = path
             }
-            if placement != nil {
-                return Response(ok: true, message: "Canvas placement ignored (node mode)")
+            if let placement {
+                var placementPayload: [String: Any] = [:]
+                if let x = placement.x { placementPayload["x"] = x }
+                if let y = placement.y { placementPayload["y"] = y }
+                if let width = placement.width { placementPayload["width"] = width }
+                if let height = placement.height { placementPayload["height"] = height }
+                if !placementPayload.isEmpty {
+                    params["placement"] = placementPayload
+                }
             }
+            _ = try await self.invokeLocalNode(
+                command: ClawdisCanvasCommand.present.rawValue,
+                params: params.isEmpty ? nil : params,
+                timeoutMs: 20000)
             return Response(ok: true)
         } catch {
             return Response(ok: false, message: error.localizedDescription)

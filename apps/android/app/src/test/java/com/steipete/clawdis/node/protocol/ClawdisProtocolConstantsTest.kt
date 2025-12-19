@@ -6,7 +6,7 @@ import org.junit.Test
 class ClawdisProtocolConstantsTest {
   @Test
   fun canvasCommandsUseStableStrings() {
-    assertEquals("canvas.show", ClawdisCanvasCommand.Show.rawValue)
+    assertEquals("canvas.present", ClawdisCanvasCommand.Present.rawValue)
     assertEquals("canvas.hide", ClawdisCanvasCommand.Hide.rawValue)
     assertEquals("canvas.navigate", ClawdisCanvasCommand.Navigate.rawValue)
     assertEquals("canvas.eval", ClawdisCanvasCommand.Eval.rawValue)

@@ -319,12 +319,12 @@ struct ClawdisCLI {
     private static func parseCanvas(args: inout [String]) throws -> ParsedCLIRequest {
         guard let sub = args.popFirst() else { throw CLIError.help }
         switch sub {
-        case "show":
+        case "present":
             var session = "main"
             var target: String?
             let placement = self.parseCanvasPlacement(args: &args, session: &session, target: &target)
             return ParsedCLIRequest(
-                request: .canvasShow(session: session, path: target, placement: placement),
+                request: .canvasPresent(session: session, path: target, placement: placement),
                 kind: .generic)
         case "a2ui":
             return try self.parseCanvasA2UI(args: &args)
@@ -542,7 +542,7 @@ struct ClawdisCLI {
             return
         }
 
-        if case .canvasShow = parsed.request {
+        if case .canvasPresent = parsed.request {
             if let message = response.message, !message.isEmpty {
                 FileHandle.standardOutput.write(Data((message + "\n").utf8))
             }
@@ -759,7 +759,7 @@ struct ClawdisCLI {
             clawdis-mac node invoke --node <id> --command <name> [--params-json <json>]
 
           Canvas:
-            clawdis-mac canvas show [--session <key>] [--target </...|https://...|file://...>]
+            clawdis-mac canvas present [--session <key>] [--target </...|https://...|file://...>]
               [--x <screenX> --y <screenY>] [--width <w> --height <h>]
             clawdis-mac canvas a2ui push --jsonl <path> [--session <key>]   # A2UI v0.8 JSONL
             clawdis-mac canvas a2ui reset [--session <key>]

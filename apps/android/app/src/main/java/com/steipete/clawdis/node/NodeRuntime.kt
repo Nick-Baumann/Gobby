@@ -282,7 +282,7 @@ class NodeRuntime(context: Context) {
 
       val invokeCommands =
         buildList {
-          add(ClawdisCanvasCommand.Show.rawValue)
+          add(ClawdisCanvasCommand.Present.rawValue)
           add(ClawdisCanvasCommand.Hide.rawValue)
           add(ClawdisCanvasCommand.Navigate.rawValue)
           add(ClawdisCanvasCommand.Eval.rawValue)
@@ -558,7 +558,11 @@ class NodeRuntime(context: Context) {
     }
 
     return when (command) {
-      ClawdisCanvasCommand.Show.rawValue -> BridgeSession.InvokeResult.ok(null)
+      ClawdisCanvasCommand.Present.rawValue -> {
+        val url = CanvasController.parseNavigateUrl(paramsJson)
+        canvas.navigate(url)
+        BridgeSession.InvokeResult.ok(null)
+      }
       ClawdisCanvasCommand.Hide.rawValue -> BridgeSession.InvokeResult.ok(null)
       ClawdisCanvasCommand.Navigate.rawValue -> {
         val url = CanvasController.parseNavigateUrl(paramsJson)

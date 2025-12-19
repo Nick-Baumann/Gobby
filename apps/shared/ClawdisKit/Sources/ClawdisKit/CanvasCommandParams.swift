@@ -8,6 +8,30 @@ public struct ClawdisCanvasNavigateParams: Codable, Sendable, Equatable {
     }
 }
 
+public struct ClawdisCanvasPlacement: Codable, Sendable, Equatable {
+    public var x: Double?
+    public var y: Double?
+    public var width: Double?
+    public var height: Double?
+
+    public init(x: Double? = nil, y: Double? = nil, width: Double? = nil, height: Double? = nil) {
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+    }
+}
+
+public struct ClawdisCanvasPresentParams: Codable, Sendable, Equatable {
+    public var url: String?
+    public var placement: ClawdisCanvasPlacement?
+
+    public init(url: String? = nil, placement: ClawdisCanvasPlacement? = nil) {
+        self.url = url
+        self.placement = placement
+    }
+}
+
 public struct ClawdisCanvasEvalParams: Codable, Sendable, Equatable {
     public var javaScript: String
 
