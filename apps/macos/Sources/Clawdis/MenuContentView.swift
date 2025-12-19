@@ -44,6 +44,11 @@ struct MenuContent: View {
             Button("Open Chat") {
                 WebChatManager.shared.show(sessionKey: WebChatManager.shared.preferredSessionKey())
             }
+            Button("Open Dashboard") {
+                Task { @MainActor in
+                    await self.openDashboard()
+                }
+            }
             Toggle(
                 isOn: Binding(
                     get: { self.browserControlEnabled },
@@ -223,6 +228,40 @@ struct MenuContent: View {
         NSApp.activate(ignoringOtherApps: true)
         self.openSettings()
         NotificationCenter.default.post(name: .clawdisSelectSettingsTab, object: tab)
+    }
+
+    @MainActor
+    private func openDashboard() async {
+        do {
+            let config = try await GatewayEndpointStore.shared.requireConfig()
+            let wsURL = config.url
+            guard var components = URLComponents(url: wsURL, resolvingAgainstBaseURL: false) else {
+                throw NSError(domain: "Dashboard", code: 1, userInfo: [
+                    NSLocalizedDescriptionKey: "Invalid gateway URL",
+                ])
+            }
+            switch components.scheme?.lowercased() {
+            case "ws":
+                components.scheme = "http"
+            case "wss":
+                components.scheme = "https"
+            default:
+                components.scheme = "http"
+            }
+            components.path = "/ui/"
+            components.query = nil
+            guard let url = components.url else {
+                throw NSError(domain: "Dashboard", code: 2, userInfo: [
+                    NSLocalizedDescriptionKey: "Failed to build dashboard URL",
+                ])
+            }
+            NSWorkspace.shared.open(url)
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = "Dashboard unavailable"
+            alert.informativeText = error.localizedDescription
+            alert.runModal()
+        }
     }
 
     private var healthStatus: (label: String, color: Color) {
