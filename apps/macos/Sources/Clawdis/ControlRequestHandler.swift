@@ -582,7 +582,7 @@ enum ControlRequestHandler {
     private static func invokeLocalNode(
         command: String,
         params: [String: Any]?,
-        timeoutMs: Int) async throws -> Any?
+        timeoutMs: Double) async throws -> Any?
     {
         var gatewayParams: [String: AnyCodable] = [
             "nodeId": AnyCodable(Self.localNodeId()),
