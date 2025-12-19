@@ -11,6 +11,7 @@ final class MacNodeModeCoordinator {
     private var task: Task<Void, Never>?
     private let runtime = MacNodeRuntime()
     private let session = MacNodeBridgeSession()
+    private var tunnel: RemotePortTunnel?
 
     func start() {
         guard self.task == nil else { return }
@@ -23,17 +24,30 @@ final class MacNodeModeCoordinator {
         self.task?.cancel()
         self.task = nil
         Task { await self.session.disconnect() }
+        self.tunnel?.terminate()
+        self.tunnel = nil
     }
 
     private func run() async {
         var retryDelay: UInt64 = 1_000_000_000
+        var lastCameraEnabled: Bool? = nil
+        let defaults = UserDefaults.standard
         while !Task.isCancelled {
             if await MainActor.run(body: { AppStateStore.shared.isPaused }) {
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
                 continue
             }
 
-            guard let endpoint = await Self.discoverBridgeEndpoint(timeoutSeconds: 5) else {
+            let cameraEnabled = defaults.object(forKey: cameraEnabledKey) as? Bool ?? false
+            if lastCameraEnabled == nil {
+                lastCameraEnabled = cameraEnabled
+            } else if lastCameraEnabled != cameraEnabled {
+                lastCameraEnabled = cameraEnabled
+                await self.session.disconnect()
+                try? await Task.sleep(nanoseconds: 200_000_000)
+            }
+
+            guard let endpoint = await self.resolveBridgeEndpoint(timeoutSeconds: 5) else {
                 try? await Task.sleep(nanoseconds: min(retryDelay, 5_000_000_000))
                 retryDelay = min(retryDelay * 2, 10_000_000_000)
                 continue
@@ -101,6 +115,7 @@ final class MacNodeModeCoordinator {
             ClawdisCanvasA2UICommand.push.rawValue,
             ClawdisCanvasA2UICommand.pushJSONL.rawValue,
             ClawdisCanvasA2UICommand.reset.rawValue,
+            MacNodeScreenCommand.record.rawValue,
         ]
 
         let capsSet = Set(caps)
@@ -136,6 +151,30 @@ final class MacNodeModeCoordinator {
 
     private static func nodeId() -> String {
         "mac-\(InstanceIdentity.instanceId)"
+    }
+
+    private func resolveBridgeEndpoint(timeoutSeconds: Double) async -> NWEndpoint? {
+        let mode = await MainActor.run(body: { AppStateStore.shared.connectionMode })
+        if mode == .remote {
+            do {
+                if self.tunnel == nil || self.tunnel?.process.isRunning == false {
+                    self.tunnel = try await RemotePortTunnel.create(remotePort: 18790)
+                }
+                if let localPort = self.tunnel?.localPort,
+                   let port = NWEndpoint.Port(rawValue: localPort)
+                {
+                    return .hostPort(host: "127.0.0.1", port: port)
+                }
+            } catch {
+                self.logger.error("mac node bridge tunnel failed: \(error.localizedDescription, privacy: .public)")
+                self.tunnel?.terminate()
+                self.tunnel = nil
+            }
+        } else if let tunnel = self.tunnel {
+            tunnel.terminate()
+            self.tunnel = nil
+        }
+        return await Self.discoverBridgeEndpoint(timeoutSeconds: timeoutSeconds)
     }
 
     private static func discoverBridgeEndpoint(timeoutSeconds: Double) async -> NWEndpoint? {

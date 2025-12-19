@@ -68,6 +68,19 @@ Notes:
 - Clip duration is clamped (currently `<= 60s`) to avoid oversized base64 payloads.
 - Android will prompt for `CAMERA`/`RECORD_AUDIO` permissions when possible; denied permissions fail with `*_PERMISSION_REQUIRED`.
 
+## Screen recordings (mac node)
+
+Mac node mode exposes `screen.record` (mp4). Example:
+
+```bash
+clawdis nodes screen record --node <idOrNameOrIp> --duration 10s --fps 10
+```
+
+## Mac node mode
+
+- The macOS menubar app connects to the Gateway bridge as a node (so `clawdis nodes …` works against this Mac).
+- In remote mode, the app opens an SSH tunnel for the bridge port and connects to `localhost`.
+
 ## Where to look in code
 
 - CLI wiring: `src/cli/nodes-cli.ts`

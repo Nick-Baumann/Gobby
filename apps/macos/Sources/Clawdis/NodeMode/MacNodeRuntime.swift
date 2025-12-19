@@ -5,6 +5,7 @@ import Foundation
 
 actor MacNodeRuntime {
     private let cameraCapture = CameraCaptureService()
+    @MainActor private let screenRecorder = ScreenRecordService()
 
     func handleInvoke(_ req: BridgeInvokeRequest) async -> BridgeInvokeResponse {
         let command = req.command
@@ -113,6 +114,31 @@ actor MacNodeRuntime {
                     base64: data.base64EncodedString(),
                     durationMs: res.durationMs,
                     hasAudio: res.hasAudio))
+                return BridgeInvokeResponse(id: req.id, ok: true, payloadJSON: payload)
+
+            case MacNodeScreenCommand.record.rawValue:
+                let params = (try? Self.decodeParams(MacNodeScreenRecordParams.self, from: req.paramsJSON)) ??
+                    MacNodeScreenRecordParams()
+                let path = try await self.screenRecorder.record(
+                    screenIndex: params.screenIndex,
+                    durationMs: params.durationMs,
+                    fps: params.fps,
+                    outPath: nil)
+                defer { try? FileManager.default.removeItem(atPath: path) }
+                let data = try Data(contentsOf: URL(fileURLWithPath: path))
+                struct ScreenPayload: Encodable {
+                    var format: String
+                    var base64: String
+                    var durationMs: Int?
+                    var fps: Double?
+                    var screenIndex: Int?
+                }
+                let payload = try Self.encodePayload(ScreenPayload(
+                    format: params.format ?? "mp4",
+                    base64: data.base64EncodedString(),
+                    durationMs: params.durationMs,
+                    fps: params.fps,
+                    screenIndex: params.screenIndex))
                 return BridgeInvokeResponse(id: req.id, ok: true, payloadJSON: payload)
 
             default:
