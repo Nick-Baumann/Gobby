@@ -425,6 +425,7 @@ public struct NodePairRequestParams: Codable {
     public let caps: [String]?
     public let commands: [String]?
     public let remoteip: String?
+    public let silent: Bool?
 
     public init(
         nodeid: String,
@@ -435,7 +436,8 @@ public struct NodePairRequestParams: Codable {
         modelidentifier: String?,
         caps: [String]?,
         commands: [String]?,
-        remoteip: String?
+        remoteip: String?,
+        silent: Bool?
     ) {
         self.nodeid = nodeid
         self.displayname = displayname
@@ -446,6 +448,7 @@ public struct NodePairRequestParams: Codable {
         self.caps = caps
         self.commands = commands
         self.remoteip = remoteip
+        self.silent = silent
     }
     private enum CodingKeys: String, CodingKey {
         case nodeid = "nodeId"
@@ -457,6 +460,7 @@ public struct NodePairRequestParams: Codable {
         case caps
         case commands
         case remoteip = "remoteIp"
+        case silent
     }
 }
 
@@ -594,6 +598,22 @@ public struct SessionsPatchParams: Codable {
         case key
         case thinkinglevel = "thinkingLevel"
         case verboselevel = "verboseLevel"
+    }
+}
+
+public struct ConfigGetParams: Codable {
+}
+
+public struct ConfigSetParams: Codable {
+    public let raw: String
+
+    public init(
+        raw: String
+    ) {
+        self.raw = raw
+    }
+    private enum CodingKeys: String, CodingKey {
+        case raw
     }
 }
 
