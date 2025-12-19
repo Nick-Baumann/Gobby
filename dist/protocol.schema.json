@@ -917,6 +917,9 @@
         "remoteIp": {
           "minLength": 1,
           "type": "string"
+        },
+        "silent": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -1071,6 +1074,24 @@
       },
       "required": [
         "key"
+      ]
+    },
+    "ConfigGetParams": {
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {}
+    },
+    "ConfigSetParams": {
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "raw": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "raw"
       ]
     },
     "CronJob": {
