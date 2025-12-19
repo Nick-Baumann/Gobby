@@ -92,12 +92,14 @@ export class ClawdisApp extends LitElement {
       max-height: 60vh;
       overflow: auto;
       padding: 8px;
+      min-width: 0;
     }
     .msg {
       border: 1px solid var(--border);
       background: rgba(0, 0, 0, 0.2);
       border-radius: 14px;
       padding: 10px 12px;
+      min-width: 0;
     }
     .msg .meta {
       font-size: 12px;
@@ -113,6 +115,11 @@ export class ClawdisApp extends LitElement {
     .msg.assistant {
       border-color: rgba(255, 69, 0, 0.25);
       background: rgba(255, 69, 0, 0.08);
+    }
+    .msgContent {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
     .compose {
       display: grid;
@@ -670,7 +677,7 @@ function renderMessage(message: unknown) {
         <span class="mono">${role}</span>
         <span class="mono">${ts}</span>
       </div>
-      <div style="white-space: pre-wrap;">${text}</div>
+      <div class="msgContent">${text}</div>
     </div>
   `;
 }
@@ -692,4 +699,3 @@ function extractText(message: unknown): string | null {
   if (typeof m.text === "string") return m.text;
   return null;
 }
-
