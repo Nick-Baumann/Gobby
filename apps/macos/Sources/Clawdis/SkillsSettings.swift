@@ -91,13 +91,11 @@ struct SkillsSettings: View {
                                 envKey: envKey,
                                 isPrimary: isPrimary)
                         })
-                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 }
                 if !self.model.skills.isEmpty, self.filteredSkills.isEmpty {
                     Text("No skills match this filter.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
-                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 }
             }
             .listStyle(.inset)
@@ -185,11 +183,8 @@ private struct SkillRow: View {
                 .font(.title2)
 
             VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(self.skill.name)
-                        .font(.headline)
-                    self.statusBadge
-                }
+                Text(self.skill.name)
+                    .font(.headline)
                 Text(self.skill.description)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -200,7 +195,7 @@ private struct SkillRow: View {
                     Text("Disabled in config")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                } else if !self.skill.eligible {
+                } else if !self.requirementsMet, self.shouldShowMissingSummary {
                     self.missingSummary
                 }
 
@@ -235,22 +230,6 @@ private struct SkillRow: View {
         }
     }
 
-    private var statusBadge: some View {
-        Group {
-            if self.skill.disabled {
-                Label("Disabled", systemImage: "slash.circle")
-                    .foregroundStyle(.secondary)
-            } else if self.skill.eligible {
-                Label("Ready", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-            } else {
-                Label("Needs setup", systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.orange)
-            }
-        }
-        .font(.caption)
-    }
-
     private var metaRow: some View {
         HStack(spacing: 10) {
             SkillTag(text: self.sourceLabel)
@@ -282,7 +261,7 @@ private struct SkillRow: View {
     @ViewBuilder
     private var missingSummary: some View {
         VStack(alignment: .leading, spacing: 4) {
-            if !self.missingBins.isEmpty {
+            if self.shouldShowMissingBins {
                 Text("Missing binaries: \(self.missingBins.joined(separator: ", "))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -336,7 +315,7 @@ private struct SkillRow: View {
         VStack(alignment: .trailing, spacing: 8) {
             if !self.installOptions.isEmpty {
                 ForEach(self.installOptions) { option in
-                    Button(option.label) { self.onInstall(option) }
+                    Button("Install") { self.onInstall(option) }
                         .buttonStyle(.borderedProminent)
                         .disabled(self.isBusy)
                 }
@@ -344,7 +323,7 @@ private struct SkillRow: View {
                 Toggle("", isOn: self.enabledBinding)
                     .toggleStyle(.switch)
                     .labelsHidden()
-                    .disabled(self.isBusy)
+                    .disabled(self.isBusy || !self.requirementsMet)
             }
 
             if self.isBusy {
@@ -361,6 +340,20 @@ private struct SkillRow: View {
             if option.bins.isEmpty { return true }
             return !missing.isDisjoint(with: option.bins)
         }
+    }
+
+    private var requirementsMet: Bool {
+        self.missingBins.isEmpty && self.missingEnv.isEmpty && self.missingConfig.isEmpty
+    }
+
+    private var shouldShowMissingBins: Bool {
+        !self.missingBins.isEmpty && self.installOptions.isEmpty
+    }
+
+    private var shouldShowMissingSummary: Bool {
+        self.shouldShowMissingBins ||
+            !self.missingEnv.isEmpty ||
+            !self.missingConfig.isEmpty
     }
 
     private func formatConfigValue(_ value: AnyCodable?) -> String {
