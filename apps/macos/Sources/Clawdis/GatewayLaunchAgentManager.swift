@@ -78,8 +78,6 @@ enum GatewayLaunchAgentManager {
           <dict>
             <key>PATH</key>
             <string>\(preferredPath)</string>
-            <key>CLAWDIS_SKIP_BROWSER_CONTROL_SERVER</key>
-            <string>1</string>
             <key>CLAWDIS_IMAGE_BACKEND</key>
             <string>sips</string>
           </dict>

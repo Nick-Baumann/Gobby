@@ -144,14 +144,12 @@ let stopBrowserControlServerIfStarted: (() => Promise<void>) | null = null;
 
 async function startBrowserControlServerIfEnabled(): Promise<void> {
   if (process.env.CLAWDIS_SKIP_BROWSER_CONTROL_SERVER === "1") return;
-  // Lazy import to keep optional heavyweight deps (playwright/electron) out of
-  // embedded/daemon builds.
-  const spec =
-    process.env.CLAWDIS_BROWSER_CONTROL_MODULE ??
-    // Intentionally not a static string literal so bun bundling can omit it.
-    // (The embedded gateway sets CLAWDIS_SKIP_BROWSER_CONTROL_SERVER=1.)
-    ["..", "browser", "server.js"].join("/");
-  const mod = await import(spec);
+  // Lazy import: keeps startup fast, but still bundles for the embedded
+  // gateway (bun --compile) via the static specifier path.
+  const override = process.env.CLAWDIS_BROWSER_CONTROL_MODULE?.trim();
+  const mod = override
+    ? await import(override)
+    : await import("../browser/server.js");
   stopBrowserControlServerIfStarted = mod.stopBrowserControlServer;
   await mod.startBrowserControlServerFromConfig(defaultRuntime);
 }
