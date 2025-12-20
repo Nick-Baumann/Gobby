@@ -7,16 +7,19 @@ read_when:
 <!-- {% raw %} -->
 # Skills (Clawdis)
 
-Clawdis uses **AgentSkills-compatible** skill folders to teach the agent how to use tools. Each skill is a directory containing a `SKILL.md` with YAML frontmatter and instructions. Clawdis loads **managed skills** plus **workspace skills**, and filters them at load time based on environment, config, and binary presence.
+Clawdis uses **AgentSkills-compatible** skill folders to teach the agent how to use tools. Each skill is a directory containing a `SKILL.md` with YAML frontmatter and instructions. Clawdis loads **bundled skills** plus optional local overrides, and filters them at load time based on environment, config, and binary presence.
 
 ## Locations and precedence
 
-Skills are loaded from **two** places:
+Skills are loaded from **three** places:
 
-1) **Managed skills**: `~/.clawdis/skills`
-2) **Workspace skills**: `<workspace>/skills`
+1) **Bundled skills**: shipped with the install (npm package or Clawdis.app)
+2) **Managed/local skills**: `~/.clawdis/skills`
+3) **Workspace skills**: `<workspace>/skills`
 
-If a skill name conflicts, the **workspace** version wins (user overrides managed).
+If a skill name conflicts, precedence is:
+
+`<workspace>/skills` (highest) → `~/.clawdis/skills` → bundled skills (lowest)
 
 ## Format (AgentSkills + Pi-compatible)
 
@@ -58,7 +61,7 @@ If no `metadata.clawdis` is present, the skill is always eligible (unless disabl
 
 ## Config overrides (`~/.clawdis/clawdis.json`)
 
-Managed skills can be toggled and supplied with env values:
+Bundled/managed skills can be toggled and supplied with env values:
 
 ```json5
 {
@@ -81,7 +84,7 @@ Note: if the skill name contains hyphens, quote the key (JSON5 allows quoted key
 Config keys match the **skill name**. We don’t require a custom `skillKey`.
 
 Rules:
-- `enabled: false` disables the managed skill even if installed.
+- `enabled: false` disables the skill even if it’s bundled/installed.
 - `env`: injected **only if** the variable isn’t already set in the process.
 - `apiKey`: convenience for skills that declare `metadata.clawdis.primaryEnv`.
 
@@ -101,7 +104,7 @@ Clawdis snapshots the eligible skills **when a session starts** and reuses that 
 
 ## Managed skills lifecycle
 
-Managed skills are owned by Clawdis (not user-editable). Workspace skills are user-owned and override managed ones by name. The macOS app or installer should copy bundled skills into `~/.clawdis/skills` on install/update.
+Clawdis ships a baseline set of skills as **bundled skills** as part of the install (npm package or Clawdis.app). `~/.clawdis/skills` exists for local overrides (for example, pinning/patching a skill without changing the bundled copy). Workspace skills are user-owned and override both on name conflicts.
 
 ---
 <!-- {% endraw %} -->
