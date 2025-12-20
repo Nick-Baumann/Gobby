@@ -1,7 +1,7 @@
 ---
 name: bird
 description: X/Twitter CLI for reading, searching, and posting via cookies or Sweetistics.
-metadata: {"clawdis":{"requires":{"bins":["bird"]}}}
+metadata: {"clawdis":{"requires":{"bins":["bird"]},"install":[{"id":"pnpm-build","kind":"shell","command":"if [ ! -d ~/Projects/bird ]; then git clone https://github.com/steipete/bird.git ~/Projects/bird; fi && cd ~/Projects/bird && pnpm install && pnpm run binary","bins":["bird"],"label":"Clone + build bird (pnpm)"}]}}
 ---
 
 # bird
