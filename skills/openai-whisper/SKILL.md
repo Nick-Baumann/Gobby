@@ -1,7 +1,7 @@
 ---
 name: openai-whisper
 description: Local speech-to-text with the Whisper CLI (no API key).
-metadata: {"clawdis":{"requires":{"bins":["whisper"]}}}
+metadata: {"clawdis":{"requires":{"bins":["whisper"]},"install":[{"id":"brew","kind":"brew","formula":"openai-whisper","bins":["whisper"],"label":"Install OpenAI Whisper (brew)"}]}}
 ---
 
 # Whisper (CLI)
