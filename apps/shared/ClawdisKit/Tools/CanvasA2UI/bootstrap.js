@@ -1,4 +1,4 @@
-import { html, css, LitElement } from "lit";
+import { html, css, LitElement, unsafeCSS } from "lit";
 import { repeat } from "lit/directives/repeat.js";
 import { ContextProvider } from "@lit/context";
 
@@ -169,9 +169,9 @@ class ClawdisA2UIHost extends LitElement {
       color: rgba(255, 255, 255, 0.92);
       font: 13px/1.2 system-ui, -apple-system, BlinkMacSystemFont, "Roboto", sans-serif;
       pointer-events: none;
-      backdrop-filter: blur(${statusBlur});
-      -webkit-backdrop-filter: blur(${statusBlur});
-      box-shadow: ${statusShadow};
+      backdrop-filter: blur(${unsafeCSS(statusBlur)});
+      -webkit-backdrop-filter: blur(${unsafeCSS(statusBlur)});
+      box-shadow: ${unsafeCSS(statusShadow)};
       z-index: 5;
     }
 
@@ -190,9 +190,9 @@ class ClawdisA2UIHost extends LitElement {
       color: rgba(255, 255, 255, 0.92);
       font: 13px/1.2 system-ui, -apple-system, BlinkMacSystemFont, "Roboto", sans-serif;
       pointer-events: none;
-      backdrop-filter: blur(${statusBlur});
-      -webkit-backdrop-filter: blur(${statusBlur});
-      box-shadow: ${statusShadow};
+      backdrop-filter: blur(${unsafeCSS(statusBlur)});
+      -webkit-backdrop-filter: blur(${unsafeCSS(statusBlur)});
+      box-shadow: ${unsafeCSS(statusShadow)};
       z-index: 5;
     }
 

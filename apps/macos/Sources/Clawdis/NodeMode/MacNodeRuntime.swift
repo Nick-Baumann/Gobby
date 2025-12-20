@@ -6,6 +6,7 @@ import Foundation
 actor MacNodeRuntime {
     private let cameraCapture = CameraCaptureService()
     @MainActor private let screenRecorder = ScreenRecordService()
+    private static let a2uiShellPath = "/__clawdis__/a2ui/"
 
     // swiftlint:disable:next function_body_length
     func handleInvoke(_ req: BridgeInvokeRequest) async -> BridgeInvokeResponse {
@@ -200,15 +201,7 @@ actor MacNodeRuntime {
     }
 
     private func handleA2UIReset(_ req: BridgeInvokeRequest) async throws -> BridgeInvokeResponse {
-        _ = try await MainActor.run {
-            try CanvasManager.shared.show(sessionKey: "main", path: nil)
-        }
-        let ready = try await CanvasManager.shared.eval(sessionKey: "main", javaScript: """
-        (() => Boolean(globalThis.clawdisA2UI))
-        """)
-        if ready != "true", ready != "true\n" {
-            return Self.errorResponse(req, code: .unavailable, message: "A2UI not ready")
-        }
+        try await self.ensureA2UIHost()
 
         let json = try await CanvasManager.shared.eval(sessionKey: "main", javaScript: """
         (() => {
@@ -235,9 +228,7 @@ actor MacNodeRuntime {
             }
         }
 
-        _ = try await MainActor.run {
-            try CanvasManager.shared.show(sessionKey: "main", path: nil)
-        }
+        try await self.ensureA2UIHost()
 
         let messagesJSON = try ClawdisCanvasA2UIJSONL.encodeMessagesJSONArray(messages)
         let js = """
@@ -253,6 +244,35 @@ actor MacNodeRuntime {
         """
         let resultJSON = try await CanvasManager.shared.eval(sessionKey: "main", javaScript: js)
         return BridgeInvokeResponse(id: req.id, ok: true, payloadJSON: resultJSON)
+    }
+
+    private func ensureA2UIHost() async throws {
+        if await self.isA2UIReady() { return }
+        _ = try await MainActor.run {
+            try CanvasManager.shared.show(sessionKey: "main", path: Self.a2uiShellPath)
+        }
+        if await self.isA2UIReady(poll: true) { return }
+        throw NSError(domain: "Canvas", code: 31, userInfo: [
+            NSLocalizedDescriptionKey: "A2UI not ready",
+        ])
+    }
+
+    private func isA2UIReady(poll: Bool = false) async -> Bool {
+        let deadline = poll ? Date().addingTimeInterval(6.0) : Date()
+        while true {
+            do {
+                let ready = try await CanvasManager.shared.eval(sessionKey: "main", javaScript: """
+                (() => String(Boolean(globalThis.clawdisA2UI)))()
+                """)
+                let trimmed = ready.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed == "true" { return true }
+            } catch {
+                // Ignore transient eval failures while the page is loading.
+            }
+
+            guard poll, Date() < deadline else { return false }
+            try? await Task.sleep(nanoseconds: 120_000_000)
+        }
     }
 
     private func handleSystemRun(_ req: BridgeInvokeRequest) async throws -> BridgeInvokeResponse {
