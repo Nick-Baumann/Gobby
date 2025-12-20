@@ -45,6 +45,10 @@ Session transcripts are stored as JSONL at:
 
 The session ID is stable and chosen by CLAWDIS.
 
+## Steering while streaming
+
+Incoming user messages are queued while the agent is streaming. The queue is checked **after each tool call**. If a queued message is present, remaining tool calls from the current assistant message are skipped (error tool results with "Skipped due to queued user message."), then the queued user message is injected before the next assistant response.
+
 ## Configuration (minimal)
 
 At minimum, set:
