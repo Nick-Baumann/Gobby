@@ -526,7 +526,7 @@ extension GeneralSettings {
             timeout: 8)
 
         guard sshResult.ok else {
-            self.remoteStatus = .failed(self.formatSSHFailure(sshResult))
+            self.remoteStatus = .failed(self.formatSSHFailure(sshResult, target: settings.target))
             return
         }
 
@@ -558,7 +558,13 @@ extension GeneralSettings {
     }
 
     private static func sshCheckCommand(target: String, identity: String) -> [String] {
-        var args: [String] = ["/usr/bin/ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5"]
+        var args: [String] = [
+            "/usr/bin/ssh",
+            "-o", "BatchMode=yes",
+            "-o", "ConnectTimeout=5",
+            "-o", "StrictHostKeyChecking=accept-new",
+            "-o", "UpdateHostKeys=yes",
+        ]
         if !identity.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             args.append(contentsOf: ["-i", identity])
         }
@@ -567,12 +573,18 @@ extension GeneralSettings {
         return args
     }
 
-    private func formatSSHFailure(_ response: Response) -> String {
+    private func formatSSHFailure(_ response: Response, target: String) -> String {
         let payload = response.payload.flatMap { String(data: $0, encoding: .utf8) }
         let trimmed = payload?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .split(whereSeparator: \.isNewline)
             .joined(separator: " ")
+        if let trimmed,
+           trimmed.localizedCaseInsensitiveContains("host key verification failed")
+        {
+            let host = CommandResolver.parseSSHTarget(target)?.host ?? target
+            return "SSH check failed: Host key verification failed. Remove the old key with `ssh-keygen -R \(host)` and try again."
+        }
         if let trimmed, !trimmed.isEmpty {
             if let message = response.message, message.hasPrefix("exit ") {
                 return "SSH check failed: \(trimmed) (\(message))"

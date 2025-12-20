@@ -469,7 +469,12 @@ enum CommandResolver {
         guard !settings.target.isEmpty else { return nil }
         guard let parsed = self.parseSSHTarget(settings.target) else { return nil }
 
-        var args: [String] = ["-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes"]
+        var args: [String] = [
+            "-o", "BatchMode=yes",
+            "-o", "IdentitiesOnly=yes",
+            "-o", "StrictHostKeyChecking=accept-new",
+            "-o", "UpdateHostKeys=yes",
+        ]
         if parsed.port > 0 { args.append(contentsOf: ["-p", String(parsed.port)]) }
         if !settings.identity.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             args.append(contentsOf: ["-i", settings.identity])

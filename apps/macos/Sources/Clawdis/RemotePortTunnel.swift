@@ -52,6 +52,8 @@ final class RemotePortTunnel {
             "-o", "BatchMode=yes",
             "-o", "IdentitiesOnly=yes",
             "-o", "ExitOnForwardFailure=yes",
+            "-o", "StrictHostKeyChecking=accept-new",
+            "-o", "UpdateHostKeys=yes",
             "-o", "ServerAliveInterval=15",
             "-o", "ServerAliveCountMax=3",
             "-o", "TCPKeepAlive=yes",
