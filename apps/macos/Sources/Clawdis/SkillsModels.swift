@@ -15,6 +15,7 @@ struct SkillStatus: Codable, Identifiable {
     let baseDir: String
     let skillKey: String
     let primaryEnv: String?
+    let emoji: String?
     let always: Bool
     let disabled: Bool
     let eligible: Bool

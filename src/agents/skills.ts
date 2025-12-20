@@ -13,7 +13,7 @@ import { CONFIG_DIR, resolveUserPath } from "../utils.js";
 
 export type SkillInstallSpec = {
   id?: string;
-  kind: "brew" | "node" | "go" | "pnpm" | "git" | "shell";
+  kind: "brew" | "node" | "go" | "pnpm" | "shell";
   label?: string;
   bins?: string[];
   formula?: string;
@@ -21,8 +21,6 @@ export type SkillInstallSpec = {
   module?: string;
   repoPath?: string;
   script?: string;
-  url?: string;
-  destination?: string;
   command?: string;
 };
 
@@ -30,12 +28,18 @@ export type ClawdisSkillMetadata = {
   always?: boolean;
   skillKey?: string;
   primaryEnv?: string;
+  emoji?: string;
   requires?: {
     bins?: string[];
     env?: string[];
     config?: string[];
   };
   install?: SkillInstallSpec[];
+};
+
+export type SkillsInstallPreferences = {
+  preferBrew: boolean;
+  nodeManager: "npm" | "pnpm" | "bun";
 };
 
 type ParsedSkillFrontmatter = Record<string, string>;
@@ -141,7 +145,6 @@ function parseInstallSpec(input: unknown): SkillInstallSpec | undefined {
     kind !== "node" &&
     kind !== "go" &&
     kind !== "pnpm" &&
-    kind !== "git" &&
     kind !== "shell"
   ) {
     return undefined;
@@ -160,8 +163,6 @@ function parseInstallSpec(input: unknown): SkillInstallSpec | undefined {
   if (typeof raw.module === "string") spec.module = raw.module;
   if (typeof raw.repoPath === "string") spec.repoPath = raw.repoPath;
   if (typeof raw.script === "string") spec.script = raw.script;
-  if (typeof raw.url === "string") spec.url = raw.url;
-  if (typeof raw.destination === "string") spec.destination = raw.destination;
   if (typeof raw.command === "string") spec.command = raw.command;
 
   return spec;
@@ -178,6 +179,21 @@ function isTruthy(value: unknown): boolean {
 const DEFAULT_CONFIG_VALUES: Record<string, boolean> = {
   "browser.enabled": true,
 };
+
+export function resolveSkillsInstallPreferences(
+  config?: ClawdisConfig,
+): SkillsInstallPreferences {
+  const raw = config?.skillsInstall;
+  const preferBrew = raw?.preferBrew ?? true;
+  const managerRaw =
+    typeof raw?.nodeManager === "string" ? raw.nodeManager.trim() : "";
+  const manager = managerRaw.toLowerCase();
+  const nodeManager =
+    manager === "pnpm" || manager === "bun" || manager === "npm"
+      ? (manager as SkillsInstallPreferences["nodeManager"])
+      : "npm";
+  return { preferBrew, nodeManager };
+}
 
 export function resolveConfigPath(
   config: ClawdisConfig | undefined,
@@ -253,6 +269,8 @@ function resolveClawdisMetadata(
     return {
       always:
         typeof clawdisObj.always === "boolean" ? clawdisObj.always : undefined,
+      emoji:
+        typeof clawdisObj.emoji === "string" ? clawdisObj.emoji : undefined,
       skillKey:
         typeof clawdisObj.skillKey === "string"
           ? clawdisObj.skillKey

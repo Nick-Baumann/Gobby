@@ -54,11 +54,12 @@ metadata: {"clawdis":{"requires":{"bins":["uv"],"env":["GEMINI_API_KEY"],"config
 
 Fields under `metadata.clawdis`:
 - `always: true` — always include the skill (skip other gates).
+- `emoji` — optional emoji used by the macOS Skills UI.
 - `requires.bins` — list; each must exist on `PATH`.
 - `requires.env` — list; env var must exist **or** be provided in config.
 - `requires.config` — list of `clawdis.json` paths that must be truthy.
 - `primaryEnv` — env var name associated with `skills.<name>.apiKey`.
-- `install` — optional array of installer specs used by the macOS Skills UI (brew/node/go/pnpm/git/shell).
+- `install` — optional array of installer specs used by the macOS Skills UI (brew/node/go/pnpm/shell).
 
 Installer example:
 
@@ -66,9 +67,13 @@ Installer example:
 ---
 name: gemini
 description: Use Gemini CLI for coding assistance and Google search lookups.
-metadata: {"clawdis":{"requires":{"bins":["gemini"]},"install":[{"id":"brew","kind":"brew","formula":"gemini-cli","bins":["gemini"],"label":"Install Gemini CLI (brew)"}]}}
+metadata: {"clawdis":{"emoji":"♊️","requires":{"bins":["gemini"]},"install":[{"id":"brew","kind":"brew","formula":"gemini-cli","bins":["gemini"],"label":"Install Gemini CLI (brew)"}]}}
 ---
 ```
+
+Notes:
+- If multiple installers are listed, the gateway picks a **single** preferred option (brew when available, otherwise node).
+- Node installs honor `skillsInstall.nodeManager` in `clawdis.json` (default: npm).
 
 If no `metadata.clawdis` is present, the skill is always eligible (unless disabled in config).
 

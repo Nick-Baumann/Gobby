@@ -1,7 +1,7 @@
 ---
 name: openai-whisper-api
 description: Transcribe audio via OpenAI Audio Transcriptions API (Whisper).
-metadata: {"clawdis":{"requires":{"bins":["curl"],"env":["OPENAI_API_KEY"]},"primaryEnv":"OPENAI_API_KEY"}}
+metadata: {"clawdis":{"emoji":"☁️","requires":{"bins":["curl"],"env":["OPENAI_API_KEY"]},"primaryEnv":"OPENAI_API_KEY"}}
 ---
 
 # OpenAI Whisper API (curl)

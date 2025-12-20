@@ -96,32 +96,30 @@ private struct SkillRow: View {
     private var missingConfig: [String] { self.skill.missing.config }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(self.skill.name)
-                        .font(.headline)
+                Text(self.skill.emoji ?? "✨")
+                    .font(.title2)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(self.skill.name)
+                            .font(.headline)
+                        self.statusBadge
+                    }
                     Text(self.skill.description)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    Text(self.sourceLabel)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    self.metaRow
                 }
                 Spacer()
-                self.statusBadge
             }
 
             if self.skill.disabled {
                 Text("Disabled in config")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            } else if self.skill.eligible {
-                Text("Enabled")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
+            } else if !self.skill.eligible {
                 self.missingSummary
             }
 
@@ -140,7 +138,18 @@ private struct SkillRow: View {
     }
 
     private var sourceLabel: String {
-        self.skill.source.replacingOccurrences(of: "clawdis-", with: "")
+        switch self.skill.source {
+        case "clawdis-bundled":
+            return "Bundled"
+        case "clawdis-managed":
+            return "Managed"
+        case "clawdis-workspace":
+            return "Workspace"
+        case "clawdis-extra":
+            return "Extra"
+        default:
+            return self.skill.source
+        }
     }
 
     private var statusBadge: some View {
@@ -156,7 +165,33 @@ private struct SkillRow: View {
                     .foregroundStyle(.orange)
             }
         }
-        .font(.subheadline)
+        .font(.caption)
+    }
+
+    private var metaRow: some View {
+        HStack(spacing: 10) {
+            SkillTag(text: self.sourceLabel)
+            HStack(spacing: 6) {
+                Text(self.enabledLabel)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Toggle("", isOn: self.enabledBinding)
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+                    .disabled(self.isBusy)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var enabledLabel: String {
+        self.skill.disabled ? "Disabled" : "Enabled"
+    }
+
+    private var enabledBinding: Binding<Bool> {
+        Binding(
+            get: { !self.skill.disabled },
+            set: { self.onToggleEnabled($0) })
     }
 
     @ViewBuilder
@@ -199,16 +234,6 @@ private struct SkillRow: View {
 
     private var actionRow: some View {
         HStack(spacing: 8) {
-            if self.skill.disabled {
-                Button("Enable") { self.onToggleEnabled(true) }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(self.isBusy)
-            } else {
-                Button("Disable") { self.onToggleEnabled(false) }
-                    .buttonStyle(.bordered)
-                    .disabled(self.isBusy)
-            }
-
             ForEach(self.installOptions) { option in
                 Button(option.label) { self.onInstall(option) }
                     .buttonStyle(.borderedProminent)
@@ -251,6 +276,20 @@ private struct SkillRow: View {
         default:
             return ""
         }
+    }
+}
+
+private struct SkillTag: View {
+    let text: String
+
+    var body: some View {
+        Text(self.text)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 2)
+            .background(Color.secondary.opacity(0.12))
+            .clipShape(Capsule())
     }
 }
 

@@ -8,8 +8,10 @@ import {
   loadWorkspaceSkillEntries,
   resolveConfigPath,
   resolveSkillConfig,
+  resolveSkillsInstallPreferences,
   type SkillEntry,
   type SkillInstallSpec,
+  type SkillsInstallPreferences,
 } from "./skills.js";
 
 export type SkillStatusConfigCheck = {
@@ -33,6 +35,7 @@ export type SkillStatusEntry = {
   baseDir: string;
   skillKey: string;
   primaryEnv?: string;
+  emoji?: string;
   always: boolean;
   disabled: boolean;
   eligible: boolean;
@@ -60,45 +63,78 @@ function resolveSkillKey(entry: SkillEntry): string {
   return entry.clawdis?.skillKey ?? entry.skill.name;
 }
 
-function normalizeInstallOptions(entry: SkillEntry): SkillInstallOption[] {
+function selectPreferredInstallSpec(
+  install: SkillInstallSpec[],
+  prefs: SkillsInstallPreferences,
+): { spec: SkillInstallSpec; index: number } | undefined {
+  if (install.length === 0) return undefined;
+  const indexed = install.map((spec, index) => ({ spec, index }));
+  const findKind = (kind: SkillInstallSpec["kind"]) =>
+    indexed.find((item) => item.spec.kind === kind);
+
+  const brewSpec = findKind("brew");
+  const nodeSpec = findKind("node");
+  const goSpec = findKind("go");
+  const pnpmSpec = findKind("pnpm");
+  const shellSpec = findKind("shell");
+
+  if (prefs.preferBrew && hasBinary("brew") && brewSpec) return brewSpec;
+  if (nodeSpec) return nodeSpec;
+  if (brewSpec) return brewSpec;
+  if (goSpec) return goSpec;
+  if (pnpmSpec) return pnpmSpec;
+  if (shellSpec) return shellSpec;
+  return indexed[0];
+}
+
+function normalizeInstallOptions(
+  entry: SkillEntry,
+  prefs: SkillsInstallPreferences,
+): SkillInstallOption[] {
   const install = entry.clawdis?.install ?? [];
   if (install.length === 0) return [];
-  return install.map((spec, index) => {
-    const id = (spec.id ?? `${spec.kind}-${index}`).trim();
-    const bins = spec.bins ?? [];
-    let label = (spec.label ?? "").trim();
-    if (!label) {
-      if (spec.kind === "brew" && spec.formula) {
-        label = `Install ${spec.formula} (brew)`;
-      } else if (spec.kind === "node" && spec.package) {
-        label = `Install ${spec.package} (node)`;
-      } else if (spec.kind === "go" && spec.module) {
-        label = `Install ${spec.module} (go)`;
-      } else if (spec.kind === "pnpm" && spec.repoPath) {
-        label = `Install ${spec.repoPath} (pnpm)`;
-      } else if (spec.kind === "git" && spec.url) {
-        label = `Clone ${spec.url}`;
-      } else {
-        label = "Run installer";
-      }
+  const preferred = selectPreferredInstallSpec(install, prefs);
+  if (!preferred) return [];
+  const { spec, index } = preferred;
+  const id = (spec.id ?? `${spec.kind}-${index}`).trim();
+  const bins = spec.bins ?? [];
+  let label = (spec.label ?? "").trim();
+  if (spec.kind === "node" && spec.package) {
+    label = `Install ${spec.package} (${prefs.nodeManager})`;
+  }
+  if (!label) {
+    if (spec.kind === "brew" && spec.formula) {
+      label = `Install ${spec.formula} (brew)`;
+    } else if (spec.kind === "node" && spec.package) {
+      label = `Install ${spec.package} (${prefs.nodeManager})`;
+    } else if (spec.kind === "go" && spec.module) {
+      label = `Install ${spec.module} (go)`;
+    } else if (spec.kind === "pnpm" && spec.repoPath) {
+      label = `Install ${spec.repoPath} (pnpm)`;
+    } else {
+      label = "Run installer";
     }
-    return {
+  }
+  return [
+    {
       id,
       kind: spec.kind,
       label,
       bins,
-    };
-  });
+    },
+  ];
 }
 
 function buildSkillStatus(
   entry: SkillEntry,
   config?: ClawdisConfig,
+  prefs?: SkillsInstallPreferences,
 ): SkillStatusEntry {
   const skillKey = resolveSkillKey(entry);
   const skillConfig = resolveSkillConfig(config, skillKey);
   const disabled = skillConfig?.enabled === false;
   const always = entry.clawdis?.always === true;
+  const emoji = entry.clawdis?.emoji ?? entry.frontmatter.emoji;
 
   const requiredBins = entry.clawdis?.requires?.bins ?? [];
   const requiredEnv = entry.clawdis?.requires?.env ?? [];
@@ -145,6 +181,7 @@ function buildSkillStatus(
     baseDir: entry.skill.baseDir,
     skillKey,
     primaryEnv: entry.clawdis?.primaryEnv,
+    emoji,
     always,
     disabled,
     eligible,
@@ -155,7 +192,10 @@ function buildSkillStatus(
     },
     missing,
     configChecks,
-    install: normalizeInstallOptions(entry),
+    install: normalizeInstallOptions(
+      entry,
+      prefs ?? resolveSkillsInstallPreferences(config),
+    ),
   };
 }
 
@@ -171,9 +211,12 @@ export function buildWorkspaceSkillStatus(
     opts?.managedSkillsDir ?? path.join(CONFIG_DIR, "skills");
   const skillEntries =
     opts?.entries ?? loadWorkspaceSkillEntries(workspaceDir, opts);
+  const prefs = resolveSkillsInstallPreferences(opts?.config);
   return {
     workspaceDir,
     managedSkillsDir,
-    skills: skillEntries.map((entry) => buildSkillStatus(entry, opts?.config)),
+    skills: skillEntries.map((entry) =>
+      buildSkillStatus(entry, opts?.config, prefs),
+    ),
   };
 }

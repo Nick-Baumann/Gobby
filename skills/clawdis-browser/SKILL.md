@@ -1,7 +1,7 @@
 ---
 name: clawdis-browser
 description: Control clawd's dedicated browser (tabs, snapshots, actions) via the clawdis CLI.
-metadata: {"clawdis":{"requires":{"config":["browser.enabled"]}}}
+metadata: {"clawdis":{"emoji":"🧭","requires":{"config":["browser.enabled"]}}}
 ---
 
 # Clawdis Browser

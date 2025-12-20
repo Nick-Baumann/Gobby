@@ -1,7 +1,7 @@
 ---
 name: qmd
 description: Local search/indexing CLI (BM25 + vectors + rerank) with MCP mode.
-metadata: {"clawdis":{"requires":{"bins":["qmd"]},"install":[{"id":"node","kind":"node","package":"https://github.com/tobi/qmd","bins":["qmd"],"label":"Install qmd (node)"}]}}
+metadata: {"clawdis":{"emoji":"📝","requires":{"bins":["qmd"]},"install":[{"id":"node","kind":"node","package":"https://github.com/tobi/qmd","bins":["qmd"],"label":"Install qmd (node)"}]}}
 ---
 
 # qmd

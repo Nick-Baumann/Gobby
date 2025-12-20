@@ -2,15 +2,19 @@ import { runCommandWithTimeout } from "../process/exec.js";
 import { resolveUserPath } from "../utils.js";
 import {
   loadWorkspaceSkillEntries,
+  resolveSkillsInstallPreferences,
   type SkillEntry,
   type SkillInstallSpec,
+  type SkillsInstallPreferences,
 } from "./skills.js";
+import type { ClawdisConfig } from "../config/config.js";
 
 export type SkillInstallRequest = {
   workspaceDir: string;
   skillName: string;
   installId: string;
   timeoutMs?: number;
+  config?: ClawdisConfig;
 };
 
 export type SkillInstallResult = {
@@ -40,7 +44,24 @@ function runShell(command: string, timeoutMs: number) {
   return runCommandWithTimeout(["/bin/zsh", "-lc", command], { timeoutMs });
 }
 
-function buildInstallCommand(spec: SkillInstallSpec): {
+function buildNodeInstallCommand(
+  packageName: string,
+  prefs: SkillsInstallPreferences,
+): string[] {
+  switch (prefs.nodeManager) {
+    case "pnpm":
+      return ["pnpm", "add", "-g", packageName];
+    case "bun":
+      return ["bun", "add", "-g", packageName];
+    default:
+      return ["npm", "install", "-g", packageName];
+  }
+}
+
+function buildInstallCommand(
+  spec: SkillInstallSpec,
+  prefs: SkillsInstallPreferences,
+): {
   argv: string[] | null;
   shell: string | null;
   cwd?: string;
@@ -55,7 +76,10 @@ function buildInstallCommand(spec: SkillInstallSpec): {
     case "node": {
       if (!spec.package)
         return { argv: null, shell: null, error: "missing node package" };
-      return { argv: ["npm", "install", "-g", spec.package], shell: null };
+      return {
+        argv: buildNodeInstallCommand(spec.package, prefs),
+        shell: null,
+      };
     }
     case "go": {
       if (!spec.module)
@@ -72,18 +96,6 @@ function buildInstallCommand(spec: SkillInstallSpec): {
       }
       const repoPath = resolveUserPath(spec.repoPath);
       const cmd = `cd ${JSON.stringify(repoPath)} && pnpm install && pnpm run ${JSON.stringify(spec.script)}`;
-      return { argv: null, shell: cmd };
-    }
-    case "git": {
-      if (!spec.url || !spec.destination) {
-        return {
-          argv: null,
-          shell: null,
-          error: "missing git url/destination",
-        };
-      }
-      const dest = resolveUserPath(spec.destination);
-      const cmd = `if [ -d ${JSON.stringify(dest)} ]; then echo "Already cloned"; else git clone ${JSON.stringify(spec.url)} ${JSON.stringify(dest)}; fi`;
       return { argv: null, shell: cmd };
     }
     case "shell": {
@@ -127,7 +139,8 @@ export async function installSkill(
     };
   }
 
-  const command = buildInstallCommand(spec);
+  const prefs = resolveSkillsInstallPreferences(params.config);
+  const command = buildInstallCommand(spec, prefs);
   if (command.error) {
     return {
       ok: false,
