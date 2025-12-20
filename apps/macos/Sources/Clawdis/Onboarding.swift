@@ -167,7 +167,7 @@ struct OnboardingView: View {
 
             self.navigationBar
         }
-        .frame(width: self.pageWidth, height: 845)
+        .frame(width: self.pageWidth, height: 915)
         .background(Color(NSColor.windowBackgroundColor))
         .onAppear {
             self.currentPage = 0
@@ -1134,7 +1134,7 @@ struct OnboardingView: View {
             .buttonStyle(.borderedProminent)
         }
         .padding(.horizontal, 28)
-        .padding(.bottom, 6)
+        .padding(.bottom, 0)
         .frame(minHeight: 60)
     }
 
@@ -1176,6 +1176,7 @@ struct OnboardingView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .padding(.vertical, 4)
     }
 
     private func featureActionRow(
@@ -1200,6 +1201,7 @@ struct OnboardingView: View {
             }
             Spacer(minLength: 0)
         }
+        .padding(.vertical, 4)
     }
 
     private func handleBack() {
