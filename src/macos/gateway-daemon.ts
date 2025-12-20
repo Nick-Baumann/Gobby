@@ -29,6 +29,15 @@ async function main() {
     process.exit(0);
   }
 
+  // Bun runtime ships a global `Long` that protobufjs detects, but it does not
+  // implement the long.js API that Baileys/WAProto expects (fromBits, ...).
+  // Ensure we use long.js so the embedded gateway doesn't crash at startup.
+  if (typeof process.versions.bun === "string") {
+    const mod = await import("long");
+    const Long = (mod as unknown as { default?: unknown }).default ?? mod;
+    (globalThis as unknown as { Long?: unknown }).Long = Long;
+  }
+
   const [
     { loadConfig },
     { startGatewayServer },
