@@ -61,6 +61,20 @@ final class GatewayProcessManager {
         }
     }
 
+    func ensureLaunchAgentEnabledIfNeeded() async {
+        guard !CommandResolver.connectionModeIsRemote() else { return }
+        guard !AppStateStore.attachExistingGatewayOnly else { return }
+        let enabled = await GatewayLaunchAgentManager.status()
+        guard !enabled else { return }
+        let bundlePath = Bundle.main.bundleURL.path
+        let port = GatewayEnvironment.gatewayPort()
+        self.appendLog("[gateway] auto-enabling launchd job (\(gatewayLaunchdLabel)) on port \(port)\n")
+        let err = await GatewayLaunchAgentManager.set(enabled: true, bundlePath: bundlePath, port: port)
+        if let err {
+            self.appendLog("[gateway] launchd auto-enable failed: \(err)\n")
+        }
+    }
+
     func startIfNeeded() {
         guard self.desiredActive else { return }
         // Do not spawn in remote mode (the gateway should run on the remote host).

@@ -29,10 +29,18 @@ final class ConnectionModeCoordinator {
                 self.logger.error(
                     "control channel local configure failed: \(error.localizedDescription, privacy: .public)")
             }
-            if paused {
-                GatewayProcessManager.shared.stop()
-            } else {
+            let shouldStart = GatewayAutostartPolicy.shouldStartGateway(mode: .local, paused: paused)
+            if shouldStart {
                 GatewayProcessManager.shared.setActive(true)
+                if GatewayAutostartPolicy.shouldEnsureLaunchAgent(
+                    mode: .local,
+                    paused: paused,
+                    attachExistingOnly: AppStateStore.attachExistingGatewayOnly)
+                {
+                    Task { await GatewayProcessManager.shared.ensureLaunchAgentEnabledIfNeeded() }
+                }
+            } else {
+                GatewayProcessManager.shared.stop()
             }
             Task.detached { await PortGuardian.shared.sweep(mode: .local) }
 

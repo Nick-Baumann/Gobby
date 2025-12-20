@@ -72,9 +72,6 @@ struct OnboardingView: View {
     @State private var identityEmoji: String = ""
     @State private var identityStatus: String?
     @State private var identityApplying = false
-    @State private var gatewayStatus: GatewayEnvironmentStatus = .checking
-    @State private var gatewayInstalling = false
-    @State private var gatewayInstallMessage: String?
     @State private var showAdvancedConnection = false
     @State private var preferredGatewayID: String?
     @State private var gatewayDiscovery: GatewayDiscoveryModel
@@ -98,7 +95,7 @@ struct OnboardingView: View {
         case .unconfigured:
             [0, 1, 9]
         case .local:
-            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+            [0, 1, 2, 3, 5, 6, 7, 8, 9]
         }
     }
 
@@ -175,7 +172,6 @@ struct OnboardingView: View {
         .task {
             await self.refreshPerms()
             self.refreshCLIStatus()
-            self.refreshGatewayStatus()
             self.loadWorkspaceDefaults()
             self.refreshAnthropicOAuthStatus()
             self.loadIdentityDefaults()
@@ -212,8 +208,6 @@ struct OnboardingView: View {
             self.anthropicAuthPage()
         case 3:
             self.identityPage()
-        case 4:
-            self.gatewayPage()
         case 5:
             self.permissionsPage()
         case 6:
@@ -291,7 +285,7 @@ struct OnboardingView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     let localSubtitle: String = {
                         guard let probe = self.localGatewayProbe else {
-                            return "Run the Gateway locally."
+                            return "Gateway starts automatically on this Mac."
                         }
                         let base = probe.expected
                             ? "Existing gateway detected"
@@ -795,85 +789,6 @@ struct OnboardingView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-    }
-
-    private func gatewayPage() -> some View {
-        self.onboardingPage {
-            Text("Install the gateway")
-                .font(.largeTitle.weight(.semibold))
-            Text(
-                "The Gateway is the WebSocket service that keeps Clawdis connected. " +
-                    "Clawdis bundles it and runs it via launchd so it stays running.")
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 520)
-                .fixedSize(horizontal: false, vertical: true)
-
-            self.onboardingCard(spacing: 10, padding: 14) {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 10) {
-                        Circle()
-                            .fill(self.gatewayStatusColor)
-                            .frame(width: 10, height: 10)
-                        Text(self.gatewayStatus.message)
-                            .font(.callout.weight(.semibold))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-
-                    if let gatewayVersion = self.gatewayStatus.gatewayVersion,
-                       let required = self.gatewayStatus.requiredGateway,
-                       gatewayVersion != required
-                    {
-                        Text("Installed: \(gatewayVersion) · Required: \(required)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else if let gatewayVersion = self.gatewayStatus.gatewayVersion {
-                        Text("Gateway \(gatewayVersion) detected")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    if let node = self.gatewayStatus.nodeVersion {
-                        Text("Node \(node)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    HStack(spacing: 12) {
-                        Button {
-                            Task { await self.installGateway() }
-                        } label: {
-                            if self.gatewayInstalling {
-                                ProgressView()
-                            } else {
-                                Text("Enable Gateway daemon")
-                            }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(self.gatewayInstalling)
-
-                        Button("Recheck") { self.refreshGatewayStatus() }
-                            .buttonStyle(.bordered)
-                            .disabled(self.gatewayInstalling)
-                    }
-
-                    if let gatewayInstallMessage {
-                        Text(gatewayInstallMessage)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                    } else {
-                        Text(
-                            "Installs a per-user LaunchAgent (\(gatewayLaunchdLabel)). " +
-                                "The gateway listens on port 18789.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                    }
                 }
             }
         }
@@ -1412,16 +1327,6 @@ struct OnboardingView: View {
         self.cliInstalled = installLocation != nil
     }
 
-    private func refreshGatewayStatus() {
-        Task {
-            let status = await Task.detached(priority: .utility) {
-                GatewayEnvironment.check()
-            }.value
-            self.gatewayStatus = status
-            await self.refreshLocalGatewayProbe()
-        }
-    }
-
     private func refreshLocalGatewayProbe() async {
         let port = GatewayEnvironment.gatewayPort()
         let desc = await PortGuardian.shared.describe(port: port)
@@ -1439,26 +1344,6 @@ struct OnboardingView: View {
                 pid: desc.pid,
                 command: command,
                 expected: expected)
-        }
-    }
-
-    private func installGateway() async {
-        guard !self.gatewayInstalling else { return }
-        self.gatewayInstalling = true
-        defer { self.gatewayInstalling = false }
-        self.gatewayInstallMessage = nil
-        let port = GatewayEnvironment.gatewayPort()
-        let bundlePath = Bundle.main.bundleURL.path
-        let err = await GatewayLaunchAgentManager.set(enabled: true, bundlePath: bundlePath, port: port)
-        self.gatewayInstallMessage = err ?? "Gateway enabled and started on port \(port)"
-        self.refreshGatewayStatus()
-    }
-
-    private var gatewayStatusColor: Color {
-        switch self.gatewayStatus.kind {
-        case .ok: .green
-        case .checking: .secondary
-        case .missingNode, .missingGateway, .incompatible, .error: .orange
         }
     }
 

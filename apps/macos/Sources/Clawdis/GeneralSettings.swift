@@ -14,8 +14,6 @@ struct GeneralSettings: View {
     @State private var cliInstalled = false
     @State private var cliInstallLocation: String?
     @State private var gatewayStatus: GatewayEnvironmentStatus = .checking
-    @State private var gatewayInstallMessage: String?
-    @State private var gatewayInstalling = false
     @State private var remoteStatus: RemoteStatus = .idle
     @State private var showRemoteAdvanced = false
     private let isPreview = ProcessInfo.processInfo.isPreview
@@ -347,27 +345,10 @@ struct GeneralSettings: View {
                     .foregroundStyle(.red)
             }
 
-            HStack(spacing: 10) {
-                Button {
-                    Task { await self.installGateway() }
-                } label: {
-                    if self.gatewayInstalling {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Text("Enable Gateway daemon")
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(self.gatewayInstalling)
+            Button("Recheck") { self.refreshGatewayStatus() }
+                .buttonStyle(.bordered)
 
-                Button("Recheck") { self.refreshGatewayStatus() }
-                    .buttonStyle(.bordered)
-                    .disabled(self.gatewayInstalling)
-            }
-
-            Text(self
-                .gatewayInstallMessage ??
-                "Enables the bundled Gateway via launchd (\(gatewayLaunchdLabel)). No Node install required.")
+            Text("Gateway auto-starts in local mode via launchd (\(gatewayLaunchdLabel)).")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
@@ -402,18 +383,6 @@ struct GeneralSettings: View {
             }.value
             self.gatewayStatus = status
         }
-    }
-
-    private func installGateway() async {
-        guard !self.gatewayInstalling else { return }
-        self.gatewayInstalling = true
-        defer { self.gatewayInstalling = false }
-        self.gatewayInstallMessage = nil
-        let port = GatewayEnvironment.gatewayPort()
-        let bundlePath = Bundle.main.bundleURL.path
-        let err = await GatewayLaunchAgentManager.set(enabled: true, bundlePath: bundlePath, port: port)
-        self.gatewayInstallMessage = err ?? "Gateway enabled and started on port \(port)"
-        self.refreshGatewayStatus()
     }
 
     private var gatewayStatusColor: Color {

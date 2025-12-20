@@ -52,6 +52,7 @@ Author: steipete · Status: draft spec · Date: 2025-12-20
 ## Onboarding
 - Install CLI (symlink) → Permissions checklist → Test notification → Done.
 - Remote mode skips local gateway/CLI steps.
+- Selecting Local auto-enables the bundled Gateway via launchd (unless “Attach only” debug mode is enabled).
 
 ## Deep links (URL scheme)
 
