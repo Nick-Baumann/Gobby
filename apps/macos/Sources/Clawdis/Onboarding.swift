@@ -146,8 +146,8 @@ struct OnboardingView: View {
     var body: some View {
         VStack(spacing: 0) {
             GlowingClawdisIcon(size: 156, glowIntensity: 0.28)
-                .offset(y: 58)
-                .frame(height: 226)
+                .offset(y: 33)
+                .frame(height: 201)
 
             GeometryReader { _ in
                 HStack(spacing: 0) {
