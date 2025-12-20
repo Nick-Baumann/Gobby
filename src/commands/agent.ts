@@ -10,6 +10,7 @@ import {
   DEFAULT_AGENT_WORKSPACE_DIR,
   ensureAgentWorkspace,
 } from "../agents/workspace.js";
+import { buildWorkspaceSkillSnapshot } from "../agents/skills.js";
 import { chunkText } from "../auto-reply/chunk.js";
 import type { MsgContext } from "../auto-reply/templating.js";
 import {
@@ -205,10 +206,31 @@ export async function agentCommand(
     persistedVerbose ??
     (agentCfg?.verboseDefault as VerboseLevel | undefined);
 
+  const needsSkillsSnapshot = isNewSession || !sessionEntry?.skillsSnapshot;
+  const skillsSnapshot = needsSkillsSnapshot
+    ? buildWorkspaceSkillSnapshot(workspaceDir, { config: cfg })
+    : sessionEntry?.skillsSnapshot;
+
+  if (skillsSnapshot && sessionStore && sessionKey && needsSkillsSnapshot) {
+    const current = sessionEntry ?? {
+      sessionId,
+      updatedAt: Date.now(),
+    };
+    const next: SessionEntry = {
+      ...current,
+      sessionId,
+      updatedAt: Date.now(),
+      skillsSnapshot,
+    };
+    sessionStore[sessionKey] = next;
+    await saveSessionStore(storePath, sessionStore);
+    sessionEntry = next;
+  }
+
   // Persist explicit /command overrides to the session store when we have a key.
   if (sessionStore && sessionKey) {
-    const entry = sessionEntry ??
-      sessionStore[sessionKey] ?? { sessionId, updatedAt: Date.now() };
+    const entry =
+      sessionStore[sessionKey] ?? sessionEntry ?? { sessionId, updatedAt: Date.now() };
     const next: SessionEntry = { ...entry, sessionId, updatedAt: Date.now() };
     if (thinkOverride) {
       if (thinkOverride === "off") delete next.thinkingLevel;
@@ -245,6 +267,8 @@ export async function agentCommand(
       sessionId,
       sessionFile,
       workspaceDir,
+      config: cfg,
+      skillsSnapshot,
       prompt: body,
       provider,
       model,

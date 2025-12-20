@@ -11,6 +11,7 @@ import {
   DEFAULT_AGENT_WORKSPACE_DIR,
   ensureAgentWorkspace,
 } from "../agents/workspace.js";
+import { buildWorkspaceSkillSnapshot } from "../agents/skills.js";
 import { type ClawdisConfig, loadConfig } from "../config/config.js";
 import {
   DEFAULT_IDLE_MINUTES,
@@ -659,15 +660,46 @@ export async function getReplyFromConfig(
         sessionId: sessionId ?? crypto.randomUUID(),
         updatedAt: Date.now(),
       };
+    const skillSnapshot =
+      isFirstTurnInSession || !current.skillsSnapshot
+        ? buildWorkspaceSkillSnapshot(workspaceDir, { config: cfg })
+        : current.skillsSnapshot;
     sessionEntry = {
       ...current,
       sessionId: sessionId ?? current.sessionId ?? crypto.randomUUID(),
       updatedAt: Date.now(),
       systemSent: true,
+      skillsSnapshot: skillSnapshot,
     };
     sessionStore[sessionKey] = sessionEntry;
     await saveSessionStore(storePath, sessionStore);
     systemSent = true;
+  }
+
+  const skillsSnapshot =
+    sessionEntry?.skillsSnapshot ??
+    (isFirstTurnInSession
+      ? undefined
+      : buildWorkspaceSkillSnapshot(workspaceDir, { config: cfg }));
+  if (
+    skillsSnapshot &&
+    sessionStore &&
+    sessionKey &&
+    !isFirstTurnInSession &&
+    !sessionEntry?.skillsSnapshot
+  ) {
+    const current = sessionEntry ?? {
+      sessionId: sessionId ?? crypto.randomUUID(),
+      updatedAt: Date.now(),
+    };
+    sessionEntry = {
+      ...current,
+      sessionId: sessionId ?? current.sessionId ?? crypto.randomUUID(),
+      updatedAt: Date.now(),
+      skillsSnapshot,
+    };
+    sessionStore[sessionKey] = sessionEntry;
+    await saveSessionStore(storePath, sessionStore);
   }
 
   const prefixedBody = transcribedText
@@ -709,6 +741,8 @@ export async function getReplyFromConfig(
       sessionId: sessionIdFinal,
       sessionFile,
       workspaceDir,
+      config: cfg,
+      skillsSnapshot,
       prompt: commandBody,
       provider,
       model,

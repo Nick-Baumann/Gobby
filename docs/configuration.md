@@ -131,6 +131,32 @@ Controls session scoping, idle expiry, reset triggers, and where the session sto
 }
 ```
 
+### `skills` (managed skills config/env)
+
+Configure **managed** skills (loaded from `~/.clawdis/skills`). Workspace skills always win on name conflicts.
+
+Common fields per skill:
+- `enabled`: set `false` to disable a managed skill even if it’s installed.
+- `env`: environment variables injected for the agent run (only if not already set).
+- `apiKey`: optional convenience for skills that declare a primary env var (e.g. `nano-banana-pro` → `GEMINI_API_KEY`).
+
+Example:
+
+```json5
+{
+  skills: {
+    "nano-banana-pro": {
+      apiKey: "GEMINI_KEY_HERE",
+      env: {
+        GEMINI_API_KEY: "GEMINI_KEY_HERE"
+      }
+    },
+    peekaboo: { enabled: true },
+    sag: { enabled: false }
+  }
+}
+```
+
 ### `browser` (clawd-managed Chrome)
 
 Clawdis can start a **dedicated, isolated** Chrome/Chromium instance for clawd and expose a small loopback control server.
