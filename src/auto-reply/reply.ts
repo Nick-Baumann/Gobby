@@ -330,6 +330,20 @@ export async function getReplyFromConfig(
     inlineVerbose ??
     (sessionEntry?.verboseLevel as VerboseLevel | undefined) ??
     (agentCfg?.verboseDefault as VerboseLevel | undefined);
+  const shouldEmitToolResult = () => {
+    if (!sessionKey || !storePath) {
+      return resolvedVerboseLevel === "on";
+    }
+    try {
+      const store = loadSessionStore(storePath);
+      const entry = store[sessionKey];
+      const current = normalizeVerboseLevel(entry?.verboseLevel);
+      if (current) return current === "on";
+    } catch {
+      // ignore store read failures
+    }
+    return resolvedVerboseLevel === "on";
+  };
 
   const combinedDirectiveOnly =
     hasThinkDirective &&
@@ -760,6 +774,7 @@ export async function getReplyFromConfig(
               mediaUrls: payload.mediaUrls,
             })
         : undefined,
+      shouldEmitToolResult,
       onToolResult: opts?.onToolResult
         ? (payload) =>
             opts.onToolResult?.({

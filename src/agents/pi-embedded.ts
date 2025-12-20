@@ -217,6 +217,7 @@ export async function runEmbeddedPiAgent(params: {
   timeoutMs: number;
   runId: string;
   abortSignal?: AbortSignal;
+  shouldEmitToolResult?: () => boolean;
   onPartialReply?: (payload: {
     text?: string;
     mediaUrls?: string[];
@@ -419,7 +420,11 @@ export async function runEmbeddedPiAgent(params: {
                 isError,
               },
             });
-            if (params.verboseLevel === "on" && params.onToolResult) {
+            const emitToolResult =
+              typeof params.shouldEmitToolResult === "function"
+                ? params.shouldEmitToolResult()
+                : params.verboseLevel === "on";
+            if (emitToolResult && params.onToolResult) {
               const agg = formatToolAggregate(
                 toolName,
                 meta ? [meta] : undefined,

@@ -2,13 +2,18 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../agents/pi-embedded.js", () => ({
   runEmbeddedPiAgent: vi.fn(),
 }));
 
 import { runEmbeddedPiAgent } from "../agents/pi-embedded.js";
+import {
+  loadSessionStore,
+  resolveSessionKey,
+  saveSessionStore,
+} from "../config/sessions.js";
 import {
   extractThinkDirective,
   extractVerboseDirective,
@@ -28,6 +33,10 @@ async function withTempHome<T>(fn: (home: string) => Promise<T>): Promise<T> {
 }
 
 describe("directive parsing", () => {
+  beforeEach(() => {
+    vi.mocked(runEmbeddedPiAgent).mockReset();
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -91,8 +100,10 @@ describe("directive parsing", () => {
         },
       );
 
-      const text = Array.isArray(res) ? res[0]?.text : res?.text;
-      expect(text).toBe("done");
+      const texts = (Array.isArray(res) ? res : [res])
+        .map((entry) => entry?.text)
+        .filter(Boolean);
+      expect(texts).toContain("done");
       expect(runEmbeddedPiAgent).toHaveBeenCalledOnce();
     });
   });
@@ -116,6 +127,120 @@ describe("directive parsing", () => {
       const text = Array.isArray(res) ? res[0]?.text : res?.text;
       expect(text).toMatch(/^⚙️ Verbose logging enabled\./);
       expect(runEmbeddedPiAgent).not.toHaveBeenCalled();
+    });
+  });
+
+  it("updates tool verbose during an in-flight run (toggle on)", async () => {
+    await withTempHome(async (home) => {
+      const storePath = path.join(home, "sessions.json");
+      const ctx = { Body: "please do the thing", From: "+1004", To: "+2000" };
+      const sessionKey = resolveSessionKey(
+        "per-sender",
+        { From: ctx.From, To: ctx.To, Body: ctx.Body },
+        "main",
+      );
+
+      vi.mocked(runEmbeddedPiAgent).mockImplementation(async (params) => {
+        const shouldEmit = params.shouldEmitToolResult;
+        expect(shouldEmit?.()).toBe(false);
+        const store = loadSessionStore(storePath);
+        const entry = store[sessionKey] ?? {
+          sessionId: "s",
+          updatedAt: Date.now(),
+        };
+        store[sessionKey] = {
+          ...entry,
+          verboseLevel: "on",
+          updatedAt: Date.now(),
+        };
+        await saveSessionStore(storePath, store);
+        expect(shouldEmit?.()).toBe(true);
+        return {
+          payloads: [{ text: "done" }],
+          meta: {
+            durationMs: 5,
+            agentMeta: { sessionId: "s", provider: "p", model: "m" },
+          },
+        };
+      });
+
+      const res = await getReplyFromConfig(
+        ctx,
+        {},
+        {
+          inbound: {
+            allowFrom: ["*"],
+            workspace: path.join(home, "clawd"),
+            agent: { provider: "anthropic", model: "claude-opus-4-5" },
+            session: { store: storePath },
+          },
+        },
+      );
+
+      const texts = (Array.isArray(res) ? res : [res])
+        .map((entry) => entry?.text)
+        .filter(Boolean);
+      expect(texts).toContain("done");
+      expect(runEmbeddedPiAgent).toHaveBeenCalledOnce();
+    });
+  });
+
+  it("updates tool verbose during an in-flight run (toggle off)", async () => {
+    await withTempHome(async (home) => {
+      const storePath = path.join(home, "sessions.json");
+      const ctx = {
+        Body: "please do the thing /verbose on",
+        From: "+1004",
+        To: "+2000",
+      };
+      const sessionKey = resolveSessionKey(
+        "per-sender",
+        { From: ctx.From, To: ctx.To, Body: ctx.Body },
+        "main",
+      );
+
+      vi.mocked(runEmbeddedPiAgent).mockImplementation(async (params) => {
+        const shouldEmit = params.shouldEmitToolResult;
+        expect(shouldEmit?.()).toBe(true);
+        const store = loadSessionStore(storePath);
+        const entry = store[sessionKey] ?? {
+          sessionId: "s",
+          updatedAt: Date.now(),
+        };
+        store[sessionKey] = {
+          ...entry,
+          verboseLevel: "off",
+          updatedAt: Date.now(),
+        };
+        await saveSessionStore(storePath, store);
+        expect(shouldEmit?.()).toBe(false);
+        return {
+          payloads: [{ text: "done" }],
+          meta: {
+            durationMs: 5,
+            agentMeta: { sessionId: "s", provider: "p", model: "m" },
+          },
+        };
+      });
+
+      const res = await getReplyFromConfig(
+        ctx,
+        {},
+        {
+          inbound: {
+            allowFrom: ["*"],
+            workspace: path.join(home, "clawd"),
+            agent: { provider: "anthropic", model: "claude-opus-4-5" },
+            session: { store: storePath },
+          },
+        },
+      );
+
+      const texts = (Array.isArray(res) ? res : [res])
+        .map((entry) => entry?.text)
+        .filter(Boolean);
+      expect(texts).toContain("done");
+      expect(runEmbeddedPiAgent).toHaveBeenCalledOnce();
     });
   });
 });
