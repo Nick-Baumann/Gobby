@@ -40,4 +40,16 @@ import Testing
         #expect(js.contains("clawdisCanvasA2UIAction"))
         #expect(js.contains("globalThis.clawdisCanvasA2UIAction"))
     }
+
+    @Test func a2uiBundleWrapsDynamicCssValues() throws {
+        guard let url = ClawdisKitResources.bundle.url(forResource: "a2ui.bundle", withExtension: "js")
+        else {
+            throw NSError(domain: "Tests", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: "Missing resource a2ui.bundle.js",
+            ])
+        }
+        let js = try String(contentsOf: url, encoding: .utf8)
+        #expect(js.contains("blur(${r(statusBlur)})"))
+        #expect(js.contains("box-shadow: ${r(statusShadow)}"))
+    }
 }
