@@ -25,6 +25,12 @@ export type SessionEntry = {
   lastTo?: string;
   // Optional flag to mirror Mac app UI and future sync states.
   syncing?: boolean | string;
+  skillsSnapshot?: SessionSkillSnapshot;
+};
+
+export type SessionSkillSnapshot = {
+  prompt: string;
+  skills: Array<{ name: string; primaryEnv?: string }>;
 };
 
 export function resolveSessionTranscriptsDir(): string {
@@ -125,6 +131,7 @@ export async function updateLastRoute(params: {
     model: existing?.model,
     contextTokens: existing?.contextTokens,
     syncing: existing?.syncing,
+    skillsSnapshot: existing?.skillsSnapshot,
     lastChannel: channel,
     lastTo: to?.trim() ? to.trim() : undefined,
   };

@@ -120,6 +120,13 @@ export type GatewayConfig = {
   controlUi?: GatewayControlUiConfig;
 };
 
+export type SkillConfig = {
+  enabled?: boolean;
+  apiKey?: string;
+  env?: Record<string, string>;
+  [key: string]: unknown;
+};
+
 export type ClawdisConfig = {
   identity?: {
     name?: string;
@@ -168,6 +175,7 @@ export type ClawdisConfig = {
   discovery?: DiscoveryConfig;
   canvasHost?: CanvasHostConfig;
   gateway?: GatewayConfig;
+  skills?: Record<string, SkillConfig>;
 };
 
 // New branding path (preferred)
@@ -348,6 +356,17 @@ const ClawdisSchema = z.object({
         })
         .optional(),
     })
+    .optional(),
+  skills: z
+    .record(
+      z
+        .object({
+          enabled: z.boolean().optional(),
+          apiKey: z.string().optional(),
+          env: z.record(z.string()).optional(),
+        })
+        .passthrough(),
+    )
     .optional(),
 });
 

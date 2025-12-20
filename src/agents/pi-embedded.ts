@@ -24,6 +24,7 @@ import {
   SessionManager,
   SettingsManager,
 } from "@mariozechner/pi-coding-agent";
+import type { ClawdisConfig } from "../config/config.js";
 import type { ThinkLevel, VerboseLevel } from "../auto-reply/thinking.js";
 import {
   createToolDebouncer,
@@ -43,7 +44,13 @@ import {
   createClawdisCodingTools,
   sanitizeContentBlocksImages,
 } from "./pi-tools.js";
-import { buildWorkspaceSkillsPrompt } from "./skills.js";
+import {
+  applySkillEnvOverrides,
+  applySkillEnvOverridesFromSnapshot,
+  buildWorkspaceSkillSnapshot,
+  type SkillSnapshot,
+  loadWorkspaceSkillEntries,
+} from "./skills.js";
 import { buildAgentSystemPrompt } from "./system-prompt.js";
 import { loadWorkspaceBootstrapFiles } from "./workspace.js";
 
@@ -200,6 +207,8 @@ export async function runEmbeddedPiAgent(params: {
   sessionId: string;
   sessionFile: string;
   workspaceDir: string;
+  config?: ClawdisConfig;
+  skillsSnapshot?: SkillSnapshot;
   prompt: string;
   provider?: string;
   model?: string;
@@ -244,8 +253,30 @@ export async function runEmbeddedPiAgent(params: {
       thinkingLevel,
     });
 
+    let restoreSkillEnv: (() => void) | undefined;
     process.chdir(resolvedWorkspace);
     try {
+      const skillEntries = params.skillsSnapshot
+        ? undefined
+        : loadWorkspaceSkillEntries(resolvedWorkspace, {
+            config: params.config,
+          });
+      const skillsSnapshot =
+        params.skillsSnapshot ??
+        buildWorkspaceSkillSnapshot(resolvedWorkspace, {
+          config: params.config,
+          entries: skillEntries,
+        });
+      restoreSkillEnv = params.skillsSnapshot
+        ? applySkillEnvOverridesFromSnapshot({
+            snapshot: params.skillsSnapshot,
+            config: params.config,
+          })
+        : applySkillEnvOverrides({
+            skills: skillEntries ?? [],
+            config: params.config,
+          });
+
       const bootstrapFiles =
         await loadWorkspaceBootstrapFiles(resolvedWorkspace);
       const systemPrompt = buildAgentSystemPrompt({
@@ -258,8 +289,7 @@ export async function runEmbeddedPiAgent(params: {
         })),
         defaultThinkLevel: params.thinkLevel,
       });
-      const systemPromptWithSkills =
-        systemPrompt + buildWorkspaceSkillsPrompt(resolvedWorkspace);
+      const systemPromptWithSkills = systemPrompt + skillsSnapshot.prompt;
 
       const sessionManager = new SessionManager(false, params.sessionFile);
       const settingsManager = new SettingsManager();
@@ -576,6 +606,7 @@ export async function runEmbeddedPiAgent(params: {
         },
       };
     } finally {
+      restoreSkillEnv?.();
       process.chdir(prevCwd);
     }
   });

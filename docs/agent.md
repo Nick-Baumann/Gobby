@@ -29,6 +29,14 @@ If a file is missing, CLAWDIS injects a single “missing file” marker line (a
 
 Pi’s embedded core tools (read/bash/edit/write and related internals) are defined in code and always available. `TOOLS.md` does **not** control which tools exist; it’s guidance for how *you* want them used.
 
+## Skills
+
+Clawdis loads skills from two locations (workspace wins on name conflict):
+- Managed: `~/.clawdis/skills`
+- Workspace: `<workspace>/skills`
+
+Managed skills can be gated by config/env (see `skills.*` in `docs/configuration.md`).
+
 ## Sessions
 
 Session transcripts are stored as JSONL at:

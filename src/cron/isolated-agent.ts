@@ -10,6 +10,7 @@ import {
   DEFAULT_AGENT_WORKSPACE_DIR,
   ensureAgentWorkspace,
 } from "../agents/workspace.js";
+import { buildWorkspaceSkillSnapshot } from "../agents/skills.js";
 import { chunkText } from "../auto-reply/chunk.js";
 import { normalizeThinkLevel } from "../auto-reply/thinking.js";
 import type { CliDeps } from "../cli/deps.js";
@@ -204,6 +205,21 @@ export async function runCronIsolatedAgentTurn(params: {
 
   const commandBody = base;
 
+  const needsSkillsSnapshot =
+    cronSession.isNewSession || !cronSession.sessionEntry.skillsSnapshot;
+  const skillsSnapshot = needsSkillsSnapshot
+    ? buildWorkspaceSkillSnapshot(workspaceDir, { config: params.cfg })
+    : cronSession.sessionEntry.skillsSnapshot;
+  if (needsSkillsSnapshot && skillsSnapshot) {
+    cronSession.sessionEntry = {
+      ...cronSession.sessionEntry,
+      updatedAt: Date.now(),
+      skillsSnapshot,
+    };
+    cronSession.store[params.sessionKey] = cronSession.sessionEntry;
+    await saveSessionStore(cronSession.storePath, cronSession.store);
+  }
+
   // Persist systemSent before the run, mirroring the inbound auto-reply behavior.
   if (isFirstTurnInSession) {
     cronSession.sessionEntry.systemSent = true;
@@ -223,6 +239,8 @@ export async function runCronIsolatedAgentTurn(params: {
       sessionId: cronSession.sessionEntry.sessionId,
       sessionFile,
       workspaceDir,
+      config: params.cfg,
+      skillsSnapshot,
       prompt: commandBody,
       provider,
       model,

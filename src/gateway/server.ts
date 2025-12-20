@@ -3857,6 +3857,7 @@ export async function startGatewayServer(
                   thinkingLevel: entry?.thinkingLevel,
                   verboseLevel: entry?.verboseLevel,
                   systemSent: entry?.systemSent,
+                  skillsSnapshot: entry?.skillsSnapshot,
                   lastChannel: entry?.lastChannel,
                   lastTo: entry?.lastTo,
                 };
