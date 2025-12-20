@@ -13,7 +13,7 @@ import {
 
 const STATIC_RESOURCE_TYPES = new Set(["image", "font", "stylesheet", "media"]);
 
-const tracingContexts = new WeakSet<unknown>();
+const tracingContexts = new WeakSet<object>();
 
 function consolePriority(level: string) {
   switch (level) {

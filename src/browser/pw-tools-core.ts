@@ -232,7 +232,12 @@ export async function fileUploadViaPlaywright(opts: {
   const timeout = Math.max(500, Math.min(60_000, opts.timeoutMs ?? 10_000));
   const fileChooser = await page.waitForEvent("filechooser", { timeout });
   if (!opts.paths?.length) {
-    await fileChooser.cancel();
+    // Playwright removed `FileChooser.cancel()`; best-effort close the chooser instead.
+    try {
+      await page.keyboard.press("Escape");
+    } catch {
+      // Best-effort.
+    }
     return;
   }
   await fileChooser.setFiles(opts.paths);

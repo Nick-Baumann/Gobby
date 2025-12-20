@@ -851,8 +851,7 @@ export async function monitorWebProvider(
       const tsDisplay = msg.timestamp
         ? new Date(msg.timestamp).toISOString()
         : new Date().toISOString();
-      const fromDisplay =
-        msg.chatType === "group" ? conversationId : msg.from;
+      const fromDisplay = msg.chatType === "group" ? conversationId : msg.from;
       console.log(
         `\n[${tsDisplay}] ${fromDisplay} -> ${msg.to}: ${combinedBody}`,
       );
@@ -956,9 +955,7 @@ export async function monitorWebProvider(
           }
 
           const fromDisplay =
-            msg.chatType === "group"
-              ? conversationId
-              : (msg.from ?? "unknown");
+            msg.chatType === "group" ? conversationId : (msg.from ?? "unknown");
           if (isVerbose()) {
             console.log(
               success(

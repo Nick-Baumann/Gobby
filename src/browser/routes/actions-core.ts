@@ -27,6 +27,29 @@ import {
   toStringOrEmpty,
 } from "./utils.js";
 
+type MouseButton = "left" | "right" | "middle";
+type KeyboardModifier = "Alt" | "Control" | "ControlOrMeta" | "Meta" | "Shift";
+
+function normalizeMouseButton(value: unknown): MouseButton | undefined {
+  const raw = toStringOrEmpty(value);
+  if (raw === "left" || raw === "right" || raw === "middle") return raw;
+  return undefined;
+}
+
+function normalizeModifiers(value: unknown): KeyboardModifier[] | undefined {
+  const raw = toStringArray(value);
+  if (!raw?.length) return undefined;
+  const normalized = raw.filter(
+    (m): m is KeyboardModifier =>
+      m === "Alt" ||
+      m === "Control" ||
+      m === "ControlOrMeta" ||
+      m === "Meta" ||
+      m === "Shift",
+  );
+  return normalized.length ? normalized : undefined;
+}
+
 export type BrowserActionCore =
   | "back"
   | "click"
@@ -228,10 +251,8 @@ export async function handleBrowserActionCore(
         return true;
       }
       const doubleClick = toBoolean(args.doubleClick) ?? false;
-      const button = toStringOrEmpty(args.button) || undefined;
-      const modifiers = Array.isArray(args.modifiers)
-        ? (args.modifiers as string[])
-        : undefined;
+      const button = normalizeMouseButton(args.button);
+      const modifiers = normalizeModifiers(args.modifiers);
       const tab = await ctx.ensureTabAvailable(target);
       await clickViaPlaywright({
         cdpPort,

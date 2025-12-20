@@ -25,7 +25,7 @@ async function readStdin(): Promise<string> {
   const chunks: string[] = [];
   return await new Promise((resolve, reject) => {
     process.stdin.setEncoding("utf8");
-    process.stdin.on("data", (chunk) => chunks.push(chunk));
+    process.stdin.on("data", (chunk) => chunks.push(String(chunk)));
     process.stdin.on("end", () => resolve(chunks.join("")));
     process.stdin.on("error", reject);
   });

@@ -27,6 +27,14 @@ import {
   toStringOrEmpty,
 } from "./utils.js";
 
+type MouseButton = "left" | "right" | "middle";
+
+function normalizeMouseButton(value: unknown): MouseButton | undefined {
+  const raw = toStringOrEmpty(value);
+  if (raw === "left" || raw === "right" || raw === "middle") return raw;
+  return undefined;
+}
+
 export type BrowserActionExtra =
   | "console"
   | "locator"
@@ -223,7 +231,7 @@ export async function handleBrowserActionExtra(
         jsonError(res, 400, "x and y are required");
         return true;
       }
-      const button = toStringOrEmpty(args.button) || undefined;
+      const button = normalizeMouseButton(args.button);
       const tab = await ctx.ensureTabAvailable(target);
       await mouseClickViaPlaywright({
         cdpPort,
