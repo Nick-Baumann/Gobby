@@ -1,4 +1,5 @@
 import AppKit
+import ClawdisChatUI
 import ClawdisIPC
 import Combine
 import Observation
@@ -72,9 +73,12 @@ struct OnboardingView: View {
     @State private var identityEmoji: String = ""
     @State private var identityStatus: String?
     @State private var identityApplying = false
+    @State private var hasIdentity = false
+    @State private var didAutoKickoff = false
     @State private var showAdvancedConnection = false
     @State private var preferredGatewayID: String?
     @State private var gatewayDiscovery: GatewayDiscoveryModel
+    @State private var onboardingChatModel: ClawdisChatViewModel
     @State private var localGatewayProbe: LocalGatewayProbe?
     @Bindable private var state: AppState
     private var permissionMonitor: PermissionMonitor
@@ -83,24 +87,28 @@ struct OnboardingView: View {
     private let contentHeight: CGFloat = 520
     private let connectionPageIndex = 1
     private let anthropicAuthPageIndex = 2
+    private let onboardingChatPageIndex = 8
 
     private static let clipboardPoll = Timer.publish(every: 0.4, on: .main, in: .common).autoconnect()
     private let permissionsPageIndex = 5
-    static func pageOrder(for mode: AppState.ConnectionMode) -> [Int] {
+    static func pageOrder(
+        for mode: AppState.ConnectionMode,
+        hasIdentity: Bool) -> [Int]
+    {
         switch mode {
         case .remote:
             // Remote setup doesn't need local gateway/CLI/workspace setup pages,
             // and WhatsApp/Telegram setup is optional.
-            [0, 1, 5, 9]
+            return hasIdentity ? [0, 1, 5, 9] : [0, 1, 5, 8, 9]
         case .unconfigured:
-            [0, 1, 9]
+            return hasIdentity ? [0, 1, 9] : [0, 1, 8, 9]
         case .local:
-            [0, 1, 2, 5, 6, 8, 9]
+            return hasIdentity ? [0, 1, 2, 5, 6, 9] : [0, 1, 2, 5, 6, 8, 9]
         }
     }
 
     private var pageOrder: [Int] {
-        Self.pageOrder(for: self.state.connectionMode)
+        Self.pageOrder(for: self.state.connectionMode, hasIdentity: self.hasIdentity)
     }
 
     private var pageCount: Int { self.pageOrder.count }
@@ -129,6 +137,10 @@ struct OnboardingView: View {
         self.state = state
         self.permissionMonitor = permissionMonitor
         self._gatewayDiscovery = State(initialValue: discoveryModel)
+        self._onboardingChatModel = State(
+            initialValue: ClawdisChatViewModel(
+                sessionKey: "onboarding",
+                transport: MacGatewayChatTransport()))
     }
 
     var body: some View {
@@ -168,6 +180,11 @@ struct OnboardingView: View {
             let oldActive = self.activePageIndex
             self.reconcilePageForModeChange(previousActivePageIndex: oldActive)
             self.updateDiscoveryMonitoring(for: self.activePageIndex)
+        }
+        .onChange(of: self.hasIdentity) { _, _ in
+            if self.currentPage >= self.pageOrder.count {
+                self.currentPage = max(0, self.pageOrder.count - 1)
+            }
         }
         .onDisappear {
             self.stopPermissionMonitoring()
@@ -219,7 +236,7 @@ struct OnboardingView: View {
         case 6:
             self.cliPage()
         case 8:
-            self.whatsappPage()
+            self.onboardingChatPage()
         case 9:
             self.readyPage()
         default:
@@ -988,58 +1005,22 @@ struct OnboardingView: View {
         }
     }
 
-    private func whatsappPage() -> some View {
+    private func onboardingChatPage() -> some View {
         self.onboardingPage {
-            Text("Connect WhatsApp or Telegram")
+            Text("Meet your agent")
                 .font(.largeTitle.weight(.semibold))
             Text(
-                "Optional: WhatsApp uses a QR login for your personal account. Telegram uses a bot token. " +
-                    "Configure them on the machine where the gateway runs.")
+                "This is a dedicated onboarding chat. Your agent will introduce itself, " +
+                    "learn who you are, and help you connect WhatsApp or Telegram if you want.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 520)
                 .fixedSize(horizontal: false, vertical: true)
 
-            self.onboardingCard {
-                self.featureRow(
-                    title: "Open a terminal",
-                    subtitle: "Use the machine where the gateway runs. If remote, SSH in first.",
-                    systemImage: "terminal")
-
-                Text("WhatsApp")
-                    .font(.headline)
-                self.featureRow(
-                    title: "Run `clawdis login --verbose`",
-                    subtitle: """
-                    Scan the QR code with WhatsApp on your phone.
-                    This links your personal session; no cloud gateway involved.
-                    """,
-                    systemImage: "qrcode.viewfinder")
-                self.featureRow(
-                    title: "Re-link after timeouts",
-                    subtitle: """
-                    If Baileys auth expires, re-run login on that host.
-                    Settings → General shows remote/local mode so you know where to run it.
-                    """,
-                    systemImage: "clock.arrow.circlepath")
-
-                Divider()
-                    .padding(.vertical, 6)
-
-                Text("Telegram")
-                    .font(.headline)
-                self.featureRow(
-                    title: "Set `TELEGRAM_BOT_TOKEN`",
-                    subtitle: """
-                    Create a bot with @BotFather and set the token as an env var,
-                    (or `telegram.botToken` in `~/.clawdis/clawdis.json`).
-                    """,
-                    systemImage: "key")
-                self.featureRow(
-                    title: "Verify with `clawdis status --deep`",
-                    subtitle: "This probes both WhatsApp and the Telegram API and prints what’s configured.",
-                    systemImage: "checkmark.shield")
+            self.onboardingCard(padding: 8) {
+                ClawdisChatView(viewModel: self.onboardingChatModel, style: .onboarding)
+                    .frame(height: 420)
             }
         }
     }
@@ -1288,6 +1269,7 @@ struct OnboardingView: View {
         self.updatePermissionMonitoring(for: pageIndex)
         self.updateDiscoveryMonitoring(for: pageIndex)
         self.updateAuthMonitoring(for: pageIndex)
+        self.maybeKickoffOnboardingChat(for: pageIndex)
     }
 
     private func stopPermissionMonitoring() {
@@ -1399,9 +1381,11 @@ struct OnboardingView: View {
             self.identityName = identity.name
             self.identityTheme = identity.theme
             self.identityEmoji = identity.emoji
+            self.hasIdentity = !identity.isEmpty
             return
         }
 
+        self.hasIdentity = false
         if self.identityName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             self.identityName = "Clawd"
         }
@@ -1466,6 +1450,27 @@ struct OnboardingView: View {
             self.identityStatus = "Saved identity to AGENTS.md and ~/.clawdis/clawdis.json"
         } catch {
             self.identityStatus = "Failed to save identity: \(error.localizedDescription)"
+        }
+    }
+
+    private func maybeKickoffOnboardingChat(for pageIndex: Int) {
+        guard pageIndex == self.onboardingChatPageIndex else { return }
+        guard !self.hasIdentity else { return }
+        guard !self.didAutoKickoff else { return }
+        self.didAutoKickoff = true
+
+        Task { @MainActor in
+            for _ in 0..<20 {
+                if !self.onboardingChatModel.isLoading { break }
+                try? await Task.sleep(nanoseconds: 200_000_000)
+            }
+            guard self.onboardingChatModel.messages.isEmpty else { return }
+            let kickoff =
+                "Hi! I just installed Clawdis and you’re my brand‑new agent. " +
+                "Please start the first‑run ritual from BOOTSTRAP.md, ask one question at a time, " +
+                "and guide me through choosing how we should talk (web‑only, WhatsApp, or Telegram)."
+            self.onboardingChatModel.input = kickoff
+            self.onboardingChatModel.send()
         }
     }
 }
