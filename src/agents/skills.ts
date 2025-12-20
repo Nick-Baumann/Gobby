@@ -437,11 +437,11 @@ function loadSkillEntries(
   const managedSkills = loadSkillsFromDir({
     dir: managedSkillsDir,
     source: "clawdis-managed",
-  }).skills;
+  });
   const workspaceSkills = loadSkillsFromDir({
     dir: workspaceSkillsDir,
     source: "clawdis-workspace",
-  }).skills;
+  });
 
   const merged = new Map<string, Skill>();
   // Precedence: extra < bundled < managed < workspace
