@@ -1,15 +1,24 @@
 ---
 name: imsg
-description: Send or read iMessage/SMS using the imsg CLI.
+description: iMessage/SMS CLI for listing chats, history, watch, and sending.
 metadata: {"clawdis":{"requires":{"bins":["imsg"]}}}
 ---
 
 # imsg
 
-Use `imsg` for iMessage/SMS. Start with:
+Use `imsg` to read and send Messages.app iMessage/SMS on macOS.
 
-```bash
-imsg --help
-```
+Requirements
+- Messages.app signed in
+- Full Disk Access for your terminal
+- Automation permission to control Messages.app (for sending)
 
-Confirm recipients and message text before sending.
+Common commands
+- List chats: `imsg chats --limit 10`
+- History: `imsg history --chat-id 1 --limit 20 --attachments --json`
+- Watch: `imsg watch --chat-id 1 --attachments`
+- Send: `imsg send --to "+14155551212" --text "hi" --file /path/pic.jpg`
+
+Notes
+- `--service imessage|sms|auto` controls delivery.
+- Confirm recipient + message before sending.

@@ -1,21 +1,22 @@
 ---
 name: gemini
-description: Use Gemini CLI for coding assistance and Google search lookups.
+description: Gemini CLI for one-shot Q&A, summaries, and generation.
 metadata: {"clawdis":{"requires":{"bins":["gemini"]}}}
 ---
 
-# Gemini
+# Gemini CLI
 
-Use `gemini` in **one-shot mode** via the positional prompt (avoid interactive mode).
+Use Gemini in one-shot mode with a positional prompt (avoid interactive mode).
 
-Good for:
-- Coding agent Q&A and fixes.
-- Google search style lookups (ask for sources, dates, and summaries).
+Quick start
+- `gemini "Answer this question..."`
+- `gemini --model <name> "Prompt..."`
+- `gemini --output-format json "Return JSON"`
 
-Examples:
+Extensions
+- List: `gemini --list-extensions`
+- Manage: `gemini extensions <command>`
 
-```bash
-gemini "Search Google for the latest X. Return top 5 results with title, URL, date, and 1-line summary."
-```
-
-If you need structured output, add `--output-format json`.
+Notes
+- If auth is required, run `gemini` once interactively and follow the login flow.
+- Avoid `--yolo` for safety.

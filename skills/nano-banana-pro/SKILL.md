@@ -1,42 +1,28 @@
 ---
 name: nano-banana-pro
 description: Generate or edit images via Gemini 3 Pro Image (Nano Banana Pro).
-metadata: {"clawdis":{"requires":{"env":["GEMINI_API_KEY"]},"primaryEnv":"GEMINI_API_KEY"}}
+metadata: {"clawdis":{"requires":{"bins":["uv"],"env":["GEMINI_API_KEY"]},"primaryEnv":"GEMINI_API_KEY"}}
 ---
 
-# Nano Banana Pro Image Generation & Editing
+# Nano Banana Pro (Gemini 3 Pro Image)
 
-Generate new images or edit existing ones using Google's Nano Banana Pro API.
+Use the bundled script to generate or edit images.
 
-## Usage (always run from the current working directory)
-
-**Generate new image:**
+Generate
 ```bash
-uv run {baseDir}/scripts/generate_image.py --prompt "your image description" --filename "output-name.png" [--resolution 1K|2K|4K]
+uv run {baseDir}/scripts/generate_image.py --prompt "your image description" --filename "output.png" --resolution 1K
 ```
 
-**Edit existing image:**
+Edit
 ```bash
-uv run {baseDir}/scripts/generate_image.py --prompt "editing instructions" --filename "output-name.png" --input-image "path/to/input.png" [--resolution 1K|2K|4K]
+uv run {baseDir}/scripts/generate_image.py --prompt "edit instructions" --filename "output.png" --input-image "/path/in.png" --resolution 2K
 ```
 
-## API key
+API key
+- `GEMINI_API_KEY` env var
+- Or set `skills."nano-banana-pro".apiKey` / `skills."nano-banana-pro".env.GEMINI_API_KEY` in `~/.clawdis/clawdis.json`
 
-The script uses:
-1) `GEMINI_API_KEY` environment variable
-2) `--api-key` argument (optional)
-
-If the key is missing, check `skills."nano-banana-pro".apiKey` or `skills."nano-banana-pro".env.GEMINI_API_KEY` in `~/.clawdis/clawdis.json`, or ask the user to provide one.
-
-## Resolution
-
-- `1K` (default), `2K`, `4K`
-- Map user intent: low/1080 → `1K`, medium/2K → `2K`, high/ultra/4K → `4K`
-
-## Filename
-
-Use `{timestamp}-{short-name}.png` (yyyy-mm-dd-hh-mm-ss, lowercase, hyphens).
-
-## Output
-
-Do **not** read the image back; just report the saved path.
+Notes
+- Resolutions: `1K` (default), `2K`, `4K`.
+- Use timestamps in filenames: `yyyy-mm-dd-hh-mm-ss-name.png`.
+- Do not read the image back; report the saved path only.

@@ -1,15 +1,25 @@
 ---
 name: qmd
-description: Search notes/content with qmd (BM25 + vectors + rerank).
+description: Local search/indexing CLI (BM25 + vectors + rerank) with MCP mode.
 metadata: {"clawdis":{"requires":{"bins":["qmd"]}}}
 ---
 
 # qmd
 
-Use `qmd` to search local content. Start with:
+Use `qmd` to index local files and search them.
 
-```bash
-qmd --help
-```
+Indexing
+- Add collection: `qmd collection add /path --name docs --mask "**/*.md"`
+- Update index: `qmd update`
+- Status: `qmd status`
 
-Use concise queries and refine with filters if available.
+Search
+- BM25: `qmd search "query"`
+- Vector: `qmd vsearch "query"`
+- Hybrid: `qmd query "query"`
+- Get doc: `qmd get docs/path.md:10 -l 40`
+
+Notes
+- Embeddings/rerank use Ollama at `OLLAMA_URL` (default `http://localhost:11434`).
+- Index lives under `~/.cache/qmd` by default.
+- MCP mode: `qmd mcp`.

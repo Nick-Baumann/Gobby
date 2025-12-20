@@ -1,20 +1,21 @@
 ---
 name: peekaboo
-description: Capture and inspect macOS UI via the Peekaboo CLI.
+description: Capture and automate macOS UI with the Peekaboo CLI.
 metadata: {"clawdis":{"requires":{"bins":["peekaboo"]}}}
 ---
 
 # Peekaboo
 
-Fast UI capture and inspection.
+Use `peekaboo` to capture, inspect, and interact with macOS UI.
 
-## Common commands
-
+Core commands
 - Capture: `peekaboo capture`
-- Inspect: `peekaboo see`
-- Click: `peekaboo click`
+- Inspect: `peekaboo see --annotate`
+- Click: `peekaboo click --target "..."`
 - List windows: `peekaboo list`
 - Tool info: `peekaboo tools`
 - Permissions: `peekaboo permissions status`
 
-Requires Screen Recording + Accessibility permissions.
+Notes
+- Requires Screen Recording + Accessibility permissions.
+- Use `peekaboo see --annotate` to identify targets before clicking.

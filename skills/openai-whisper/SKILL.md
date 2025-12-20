@@ -1,15 +1,18 @@
 ---
 name: openai-whisper
-description: Local speech-to-text using OpenAI Whisper CLI.
+description: Local speech-to-text with the Whisper CLI (no API key).
 metadata: {"clawdis":{"requires":{"bins":["whisper"]}}}
 ---
 
-# OpenAI Whisper (CLI)
+# Whisper (CLI)
 
-Use `whisper` for local speech-to-text. Start with:
+Use `whisper` to transcribe audio locally.
 
-```bash
-whisper --help
-```
+Quick start
+- `whisper /path/audio.mp3 --model medium --output_format txt --output_dir .`
+- `whisper /path/audio.m4a --task translate --output_format srt`
 
-Prefer small files first; keep outputs in the current working directory.
+Notes
+- Models download to `~/.cache/whisper` on first run.
+- `--model` defaults to `turbo` on this install.
+- Use smaller models for speed, larger for accuracy.

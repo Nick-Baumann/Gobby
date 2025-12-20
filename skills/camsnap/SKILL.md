@@ -6,10 +6,19 @@ metadata: {"clawdis":{"requires":{"bins":["camsnap"]}}}
 
 # camsnap
 
-Use `camsnap` to grab frames or clips from configured cameras. Start with:
+Use `camsnap` to grab snapshots, clips, or motion events from configured cameras.
 
-```bash
-camsnap --help
-```
+Setup
+- Config file: `~/.config/camsnap/config.yaml`
+- Add camera: `camsnap add --name kitchen --host 192.168.0.10 --user user --pass pass`
 
-Prefer small test captures before longer clips.
+Common commands
+- Discover: `camsnap discover --info`
+- Snapshot: `camsnap snap kitchen --out shot.jpg`
+- Clip: `camsnap clip kitchen --dur 5s --out clip.mp4`
+- Motion watch: `camsnap watch kitchen --threshold 0.2 --action '...'`
+- Doctor: `camsnap doctor --probe`
+
+Notes
+- Requires `ffmpeg` on PATH.
+- Prefer a short test capture before longer clips.

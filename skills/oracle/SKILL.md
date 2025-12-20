@@ -6,10 +6,17 @@ metadata: {"clawdis":{"requires":{"bins":["oracle"]}}}
 
 # oracle
 
-Use `oracle` to run a second-model review or debugging pass.
+Use `oracle` to bundle prompts + files for a second model.
 
-```bash
-oracle --help
-```
+Quick start
+- `oracle --help`
+- `oracle -p "Review this" --file "src/**/*.ts"`
+- `oracle --render --copy -p "Summarize" --file docs/README.md`
 
-If the binary is missing, use `npx -y @steipete/oracle --help`.
+Engines
+- API: requires `OPENAI_API_KEY` (plus `GEMINI_API_KEY` / `ANTHROPIC_API_KEY` for those models)
+- Browser: `oracle --engine browser ...` (uses logged-in Chrome)
+
+Notes
+- If missing, run `npx -y @steipete/oracle --help`.
+- For long runs, add `--wait` to block until done.

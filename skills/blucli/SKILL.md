@@ -1,15 +1,26 @@
 ---
 name: blucli
-description: Control BluOS players from the CLI.
-metadata: {"clawdis":{"requires":{"bins":["blucli"]}}}
+description: BluOS CLI (blu) for discovery, playback, grouping, and volume.
+metadata: {"clawdis":{"requires":{"bins":["blu"]}}}
 ---
 
-# blucli
+# blucli (blu)
 
-Use `blucli` to control BluOS players. Start with:
+Use `blu` to control Bluesound/NAD players.
 
-```bash
-blucli --help
-```
+Quick start
+- `blu devices` (pick target)
+- `blu --device <id> status`
+- `blu play|pause|stop`
+- `blu volume set 15`
 
-Confirm target player before changing playback.
+Target selection (in priority order)
+- `--device <id|name|alias>`
+- `BLU_DEVICE`
+- config default (if set)
+
+Common tasks
+- Grouping: `blu group status|add|remove`
+- TuneIn search/play: `blu tunein search "query"`, `blu tunein play "query"`
+
+Prefer `--json` for scripts. Confirm the target device before changing playback.

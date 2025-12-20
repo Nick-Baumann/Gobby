@@ -6,13 +6,26 @@ metadata: {"clawdis":{"requires":{"config":["browser.enabled"]}}}
 
 # Clawdis Browser
 
-Use the clawd-managed Chrome/Chromium instance through `clawdis browser` commands.
+Use the clawd-managed Chrome/Chromium instance through `clawdis browser`.
+Only available when `browser.enabled` is true.
 
-## Common commands
+Core flow
+- `clawdis browser status`
+- `clawdis browser start` (if stopped)
+- `clawdis browser tabs`
+- `clawdis browser open <url>`
 
-- Status/start/stop: `clawdis browser status|start|stop`
-- Tabs: `clawdis browser tabs|open <url>|focus <id>|close <id>`
-- Snapshot/screenshot: `clawdis browser snapshot --format ai|aria`, `clawdis browser screenshot [--full-page]`
-- Actions: `clawdis browser click|type|hover|drag|select|upload|press|wait|navigate|back|evaluate|run`
+Inspection
+- `clawdis browser snapshot --format ai|aria [--limit N]`
+- `clawdis browser screenshot [--full-page]`
 
-If disabled, ask the user to enable `browser.enabled` in `~/.clawdis/clawdis.json`.
+Actions
+- `clawdis browser click <ref>`
+- `clawdis browser type <ref> "text" --submit`
+- `clawdis browser press Enter`
+- `clawdis browser navigate <url>`
+- `clawdis browser wait --text "Done"`
+
+Notes
+- This is a dedicated profile; do not use the user's personal browser.
+- If disabled, ask the user to enable `browser.enabled` in `~/.clawdis/clawdis.json`.

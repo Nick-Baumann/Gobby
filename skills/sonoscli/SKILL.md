@@ -6,12 +6,20 @@ metadata: {"clawdis":{"requires":{"bins":["sonos"]}}}
 
 # Sonos CLI
 
-Use `sonos` to control Sonos speakers.
+Use `sonos` to control Sonos speakers on the local network.
 
-- Discover: `sonos discover`
-- Status: `sonos status`
-- Playback: `sonos play|pause|stop`
-- Volume: `sonos volume set <0-100>`
-- Group: `sonos group <leader> <member>`
+Quick start
+- `sonos discover`
+- `sonos status --name "Kitchen"`
+- `sonos play|pause|stop --name "Kitchen"`
+- `sonos volume set 15 --name "Kitchen"`
 
-If SSDP fails, specify `--ip <speaker-ip>`.
+Common tasks
+- Grouping: `sonos group status|join|unjoin|party|solo`
+- Favorites: `sonos favorites list|open`
+- Queue: `sonos queue list|play|clear`
+- Spotify search (via SMAPI): `sonos smapi search --service "Spotify" --category tracks "query"`
+
+Notes
+- If SSDP fails, specify `--ip <speaker-ip>`.
+- Spotify Web API search is optional and requires `SPOTIFY_CLIENT_ID/SECRET`.

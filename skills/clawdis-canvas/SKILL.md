@@ -8,15 +8,16 @@ metadata: {"clawdis":{"always":true}}
 
 Use Canvas to render HTML/JS or A2UI surfaces and capture snapshots.
 
-## Core commands
-
-- Show/hide: `clawdis canvas present [--node <id>] [--target <path>]`, `clawdis canvas hide`
-- JS eval: `clawdis canvas eval --js "..."`
+Core commands
+- Present: `clawdis canvas present [--node <id>] [--target <path>]`
+- Hide: `clawdis canvas hide`
+- Eval JS: `clawdis canvas eval --js "..."`
 - Snapshot: `clawdis canvas snapshot`
 
-## A2UI
-
+A2UI
 - Push JSONL: `clawdis canvas a2ui push --jsonl /path/to/file.jsonl`
 - Reset: `clawdis canvas a2ui reset`
 
-If targeting remote nodes, use the canvas host (LAN/tailnet) and keep HTML under `~/clawd/canvas`.
+Notes
+- Keep HTML under `~/clawd/canvas` when targeting remote nodes.
+- Use snapshot after renders to verify UI state.

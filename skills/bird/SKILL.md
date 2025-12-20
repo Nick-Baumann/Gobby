@@ -1,19 +1,24 @@
 ---
 name: bird
-description: X/Twitter CLI to tweet, reply, read threads, and search.
+description: X/Twitter CLI for reading, searching, and posting via cookies or Sweetistics.
 metadata: {"clawdis":{"requires":{"bins":["bird"]}}}
 ---
 
 # bird
 
-Use `bird` to interact with X/Twitter.
+Use `bird` to read/search X and post tweets/replies.
 
-- Tweet: `bird tweet "..."`
-- Reply: `bird reply <tweet-id> "..."`
-- Read: `bird read <tweet-id>`
-- Thread: `bird thread <tweet-id>`
-- Search: `bird search "query"`
-- Mentions: `bird mentions`
-- Whoami: `bird whoami`
+Quick start
+- `bird whoami`
+- `bird read <url-or-id>`
+- `bird thread <url-or-id>`
+- `bird search "query" -n 5`
 
-Confirm before posting publicly.
+Posting (confirm with user first)
+- `bird tweet "text"`
+- `bird reply <id-or-url> "text"`
+
+Auth sources
+- Browser cookies (default: Firefox/Chrome)
+- Sweetistics API: set `SWEETISTICS_API_KEY` or use `--engine sweetistics`
+- Check sources: `bird check`

@@ -1,15 +1,26 @@
 ---
 name: mcporter
-description: Manage MCP servers (install, list, sync) with mcporter.
+description: Manage and call MCP servers (list, call, auth, daemon).
 metadata: {"clawdis":{"requires":{"bins":["mcporter"]}}}
 ---
 
 # mcporter
 
-Use the `mcporter` CLI to install, list, and sync MCP servers. Start with:
+Use `mcporter` to list MCP servers and call tools.
 
-```bash
-mcporter --help
-```
+Quick start
+- `mcporter list`
+- `mcporter list <server> --schema`
+- `mcporter call <server.tool> arg=value`
 
-If the tool is missing, ask the user to install it from the Tools tab.
+Auth + lifecycle
+- OAuth: `mcporter auth <server>`
+- Daemon: `mcporter daemon status|start|stop`
+
+Ad-hoc servers
+- HTTP: `mcporter list --http-url https://host/mcp --name <name>`
+- STDIO: `mcporter call --stdio "bun run ./server.ts" --name <name>`
+
+Notes
+- Config sources: `~/.mcporter/mcporter.json[c]` and `config/mcporter.json`.
+- Prefer `--json` when you need machine-readable output.

@@ -1,15 +1,24 @@
 ---
 name: spotify-player
-description: Control Spotify playback from the terminal.
-metadata: {"clawdis":{"requires":{"bins":["spotify-player"]}}}
+description: Terminal Spotify client (TUI + CLI commands) for playback and search.
+metadata: {"clawdis":{"requires":{"bins":["spotify_player"]}}}
 ---
 
-# spotify-player
+# spotify_player
 
-Use `spotify-player` to search, queue, and control playback.
+Use `spotify_player` for Spotify playback/search in the terminal.
 
-```bash
-spotify-player --help
-```
+Requirements
+- Spotify Premium account.
+- First-time auth: `spotify_player authenticate`.
 
-Confirm the device/target if multiple are available.
+Common CLI commands
+- Search: `spotify_player search "query"`
+- Playback: `spotify_player playback play|pause|next|previous`
+- Connect device: `spotify_player connect`
+- Like track: `spotify_player like`
+
+Notes
+- Config folder: `~/.config/spotify-player` (e.g., `app.toml`).
+- For Spotify Connect integration, set a user `client_id` in config.
+- TUI shortcuts are available via `?` in the app.
