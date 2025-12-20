@@ -197,15 +197,15 @@ struct GeneralSettings: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Control channel")
                     .font(.caption.weight(.semibold))
-                if !self.isControlStatusDuplicate {
-                    Text(self.controlStatusLine)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                if let ping = ControlChannel.shared.lastPingMs {
-                    Text("Last ping: \(Int(ping)) ms")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                if !self.isControlStatusDuplicate || ControlChannel.shared.lastPingMs != nil {
+                    let status = self.isControlStatusDuplicate ? nil : self.controlStatusLine
+                    let ping = ControlChannel.shared.lastPingMs.map { "Ping \(Int($0)) ms" }
+                    let line = [status, ping].compactMap { $0 }.joined(separator: " · ")
+                    if !line.isEmpty {
+                        Text(line)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 if let hb = HeartbeatStore.shared.lastEvent {
                     let ageText = age(from: Date(timeIntervalSince1970: hb.ts / 1000))
