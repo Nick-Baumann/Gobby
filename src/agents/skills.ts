@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   formatSkillsForPrompt,
@@ -49,6 +50,32 @@ export type SkillSnapshot = {
   prompt: string;
   skills: Array<{ name: string; primaryEnv?: string }>;
 };
+
+function resolveBundledSkillsDir(): string | undefined {
+  const override = process.env.CLAWDIS_BUNDLED_SKILLS_DIR?.trim();
+  if (override) return override;
+
+  // bun --compile: ship a sibling `skills/` next to the executable.
+  try {
+    const execDir = path.dirname(process.execPath);
+    const sibling = path.join(execDir, "skills");
+    if (fs.existsSync(sibling)) return sibling;
+  } catch {
+    // ignore
+  }
+
+  // npm/dev: resolve `<packageRoot>/skills` relative to this module.
+  try {
+    const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+    const root = path.resolve(moduleDir, "..", "..");
+    const candidate = path.join(root, "skills");
+    if (fs.existsSync(candidate)) return candidate;
+  } catch {
+    // ignore
+  }
+
+  return undefined;
+}
 
 function getFrontmatterValue(
   frontmatter: ParsedSkillFrontmatter,
@@ -380,12 +407,20 @@ function loadSkillEntries(
   opts?: {
     config?: ClawdisConfig;
     managedSkillsDir?: string;
+    bundledSkillsDir?: string;
   },
 ): SkillEntry[] {
   const managedSkillsDir =
     opts?.managedSkillsDir ?? path.join(CONFIG_DIR, "skills");
   const workspaceSkillsDir = path.join(workspaceDir, "skills");
+  const bundledSkillsDir = opts?.bundledSkillsDir ?? resolveBundledSkillsDir();
 
+  const bundledSkills = bundledSkillsDir
+    ? loadSkillsFromDir({
+        dir: bundledSkillsDir,
+        source: "clawdis-bundled",
+      })
+    : [];
   const managedSkills = loadSkillsFromDir({
     dir: managedSkillsDir,
     source: "clawdis-managed",
@@ -396,6 +431,8 @@ function loadSkillEntries(
   });
 
   const merged = new Map<string, Skill>();
+  // Precedence: bundled < managed < workspace
+  for (const skill of bundledSkills) merged.set(skill.name, skill);
   for (const skill of managedSkills) merged.set(skill.name, skill);
   for (const skill of workspaceSkills) merged.set(skill.name, skill);
 
@@ -423,6 +460,7 @@ export function buildWorkspaceSkillSnapshot(
   opts?: {
     config?: ClawdisConfig;
     managedSkillsDir?: string;
+    bundledSkillsDir?: string;
     entries?: SkillEntry[];
   },
 ): SkillSnapshot {
@@ -442,6 +480,7 @@ export function buildWorkspaceSkillsPrompt(
   opts?: {
     config?: ClawdisConfig;
     managedSkillsDir?: string;
+    bundledSkillsDir?: string;
     entries?: SkillEntry[];
   },
 ): string {
@@ -455,6 +494,7 @@ export function loadWorkspaceSkillEntries(
   opts?: {
     config?: ClawdisConfig;
     managedSkillsDir?: string;
+    bundledSkillsDir?: string;
   },
 ): SkillEntry[] {
   return loadSkillEntries(workspaceDir, opts);

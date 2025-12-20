@@ -31,11 +31,12 @@ Pi’s embedded core tools (read/bash/edit/write and related internals) are defi
 
 ## Skills
 
-Clawdis loads skills from two locations (workspace wins on name conflict):
-- Managed: `~/.clawdis/skills`
+Clawdis loads skills from three locations (workspace wins on name conflict):
+- Bundled (shipped with the install)
+- Managed/local: `~/.clawdis/skills`
 - Workspace: `<workspace>/skills`
 
-Managed skills can be gated by config/env (see `skills.*` in `docs/configuration.md`).
+Skills can be gated by config/env (see `skills.*` in `docs/configuration.md`).
 
 ## Sessions
 

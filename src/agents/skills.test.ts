@@ -40,9 +40,31 @@ describe("buildWorkspaceSkillsPrompt", () => {
 
     const prompt = buildWorkspaceSkillsPrompt(workspaceDir, {
       managedSkillsDir: path.join(workspaceDir, ".managed"),
+      bundledSkillsDir: path.join(workspaceDir, ".bundled"),
     });
 
     expect(prompt).toBe("");
+  });
+
+  it("loads bundled skills when present", async () => {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "clawdis-"));
+    const bundledDir = path.join(workspaceDir, ".bundled");
+    const bundledSkillDir = path.join(bundledDir, "peekaboo");
+
+    await writeSkill({
+      dir: bundledSkillDir,
+      name: "peekaboo",
+      description: "Capture UI",
+      body: "# Peekaboo\n",
+    });
+
+    const prompt = buildWorkspaceSkillsPrompt(workspaceDir, {
+      managedSkillsDir: path.join(workspaceDir, ".managed"),
+      bundledSkillsDir: bundledDir,
+    });
+    expect(prompt).toContain("peekaboo");
+    expect(prompt).toContain("Capture UI");
+    expect(prompt).toContain(path.join(bundledSkillDir, "SKILL.md"));
   });
 
   it("loads skills from workspace skills/", async () => {
@@ -100,9 +122,17 @@ describe("buildWorkspaceSkillsPrompt", () => {
   it("prefers workspace skills over managed skills", async () => {
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "clawdis-"));
     const managedDir = path.join(workspaceDir, ".managed");
+    const bundledDir = path.join(workspaceDir, ".bundled");
     const managedSkillDir = path.join(managedDir, "demo-skill");
+    const bundledSkillDir = path.join(bundledDir, "demo-skill");
     const workspaceSkillDir = path.join(workspaceDir, "skills", "demo-skill");
 
+    await writeSkill({
+      dir: bundledSkillDir,
+      name: "demo-skill",
+      description: "Bundled version",
+      body: "# Bundled\n",
+    });
     await writeSkill({
       dir: managedSkillDir,
       name: "demo-skill",
@@ -118,11 +148,13 @@ describe("buildWorkspaceSkillsPrompt", () => {
 
     const prompt = buildWorkspaceSkillsPrompt(workspaceDir, {
       managedSkillsDir: managedDir,
+      bundledSkillsDir: bundledDir,
     });
 
     expect(prompt).toContain("Workspace version");
     expect(prompt).toContain(path.join(workspaceSkillDir, "SKILL.md"));
     expect(prompt).not.toContain(path.join(managedSkillDir, "SKILL.md"));
+    expect(prompt).not.toContain(path.join(bundledSkillDir, "SKILL.md"));
   });
 
   it("gates by bins, config, and always", async () => {
@@ -212,6 +244,7 @@ describe("buildWorkspaceSkillSnapshot", () => {
 
     const snapshot = buildWorkspaceSkillSnapshot(workspaceDir, {
       managedSkillsDir: path.join(workspaceDir, ".managed"),
+      bundledSkillsDir: path.join(workspaceDir, ".bundled"),
     });
 
     expect(snapshot.prompt).toBe("");
