@@ -17,8 +17,8 @@ private struct ChatBubbleShape: InsettableShape {
     let tail: Tail
     var insetAmount: CGFloat = 0
 
-    private let tailWidth: CGFloat = 9
-    private let tailBaseHeight: CGFloat = 10
+    private let tailWidth: CGFloat = 7
+    private let tailBaseHeight: CGFloat = 9
 
     func inset(by amount: CGFloat) -> ChatBubbleShape {
         var copy = self
@@ -47,7 +47,7 @@ private struct ChatBubbleShape: InsettableShape {
 
         let available = max(4, bubbleMaxY - bubbleMinY - 2 * r)
         let baseH = min(tailBaseHeight, available)
-        let baseBottomY = bubbleMaxY - r
+        let baseBottomY = bubbleMaxY - max(r * 0.45, 6)
         let baseTopY = baseBottomY - baseH
         let midY = (baseTopY + baseBottomY) / 2
 
@@ -60,13 +60,15 @@ private struct ChatBubbleShape: InsettableShape {
         path.addQuadCurve(
             to: CGPoint(x: bubbleMaxX, y: bubbleMinY + r),
             control: CGPoint(x: bubbleMaxX, y: bubbleMinY))
-        path.addLine(to: CGPoint(x: bubbleMaxX, y: baseTopY))
-        path.addQuadCurve(
+        path.addLine(to: baseTop)
+        path.addCurve(
             to: tip,
-            control: CGPoint(x: bubbleMaxX + tailWidth * 0.85, y: baseTopY + baseH * 0.15))
-        path.addQuadCurve(
+            control1: CGPoint(x: bubbleMaxX + tailWidth * 0.2, y: baseTopY + baseH * 0.05),
+            control2: CGPoint(x: bubbleMaxX + tailWidth * 0.95, y: midY - baseH * 0.15))
+        path.addCurve(
             to: baseBottom,
-            control: CGPoint(x: bubbleMaxX + tailWidth * 0.6, y: baseBottomY))
+            control1: CGPoint(x: bubbleMaxX + tailWidth * 0.95, y: midY + baseH * 0.15),
+            control2: CGPoint(x: bubbleMaxX + tailWidth * 0.2, y: baseBottomY - baseH * 0.05))
         path.addQuadCurve(
             to: CGPoint(x: bubbleMaxX - r, y: bubbleMaxY),
             control: CGPoint(x: bubbleMaxX, y: bubbleMaxY))
@@ -91,7 +93,7 @@ private struct ChatBubbleShape: InsettableShape {
 
         let available = max(4, bubbleMaxY - bubbleMinY - 2 * r)
         let baseH = min(tailBaseHeight, available)
-        let baseBottomY = bubbleMaxY - r
+        let baseBottomY = bubbleMaxY - max(r * 0.45, 6)
         let baseTopY = baseBottomY - baseH
         let midY = (baseTopY + baseBottomY) / 2
 
@@ -112,13 +114,15 @@ private struct ChatBubbleShape: InsettableShape {
         path.addQuadCurve(
             to: CGPoint(x: bubbleMinX, y: bubbleMaxY - r),
             control: CGPoint(x: bubbleMinX, y: bubbleMaxY))
-        path.addLine(to: CGPoint(x: bubbleMinX, y: baseBottomY))
-        path.addQuadCurve(
+        path.addLine(to: baseBottom)
+        path.addCurve(
             to: tip,
-            control: CGPoint(x: bubbleMinX - tailWidth * 0.6, y: baseBottomY))
-        path.addQuadCurve(
+            control1: CGPoint(x: bubbleMinX - tailWidth * 0.2, y: baseBottomY - baseH * 0.05),
+            control2: CGPoint(x: bubbleMinX - tailWidth * 0.95, y: midY + baseH * 0.15))
+        path.addCurve(
             to: baseTop,
-            control: CGPoint(x: bubbleMinX - tailWidth * 0.85, y: baseTopY + baseH * 0.15))
+            control1: CGPoint(x: bubbleMinX - tailWidth * 0.95, y: midY - baseH * 0.15),
+            control2: CGPoint(x: bubbleMinX - tailWidth * 0.2, y: baseTopY + baseH * 0.05))
         path.addLine(to: CGPoint(x: bubbleMinX, y: bubbleMinY + r))
         path.addQuadCurve(
             to: CGPoint(x: bubbleMinX + r, y: bubbleMinY),
@@ -257,11 +261,11 @@ private struct ChatMessageBody: View {
     }
 
     private var tailPaddingLeading: CGFloat {
-        self.style == .onboarding && !self.isUser ? 10 : 0
+        self.style == .onboarding && !self.isUser ? 8 : 0
     }
 
     private var tailPaddingTrailing: CGFloat {
-        self.style == .onboarding && self.isUser ? 10 : 0
+        self.style == .onboarding && self.isUser ? 8 : 0
     }
 
     private var bubbleShadowColor: Color {
@@ -410,7 +414,7 @@ private struct MarkdownTextView: View {
     var body: some View {
         let normalized = self.text.replacingOccurrences(
             of: "(?<!\\n)\\n(?!\\n)",
-            with: " \\n",
+            with: " ",
             options: .regularExpression)
         let options = AttributedString.MarkdownParsingOptions(
             interpretedSyntax: .inlineOnlyPreservingWhitespace)
