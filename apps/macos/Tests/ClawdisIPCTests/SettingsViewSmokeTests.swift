@@ -145,7 +145,7 @@ struct SettingsViewSmokeTests {
     }
 
     @Test func skillsSettingsBuildsBody() {
-        let view = SkillsSettings()
+        let view = SkillsSettings(state: .preview)
         _ = view.body
     }
 }

@@ -41,7 +41,7 @@ struct SettingsRootView: View {
                 .tabItem { Label("Cron", systemImage: "calendar") }
                 .tag(SettingsTab.cron)
 
-            SkillsSettings()
+            SkillsSettings(state: self.state)
                 .tabItem { Label("Skills", systemImage: "sparkles") }
                 .tag(SettingsTab.skills)
 

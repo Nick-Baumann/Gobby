@@ -3,10 +3,15 @@ import Observation
 import SwiftUI
 
 struct SkillsSettings: View {
+    @Bindable var state: AppState
     @State private var model = SkillsSettingsModel()
     @State private var envEditor: EnvEditorState?
     @State private var searchQuery = ""
     @State private var filter: SkillsFilter = .all
+
+    init(state: AppState = AppStateStore.shared) {
+        self.state = state
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -78,11 +83,13 @@ struct SkillsSettings: View {
                     SkillRow(
                         skill: skill,
                         isBusy: self.model.isBusy(skill: skill),
+                        canInstallLocally: self.state.connectionMode == .local,
+                        defaultInstallTarget: self.defaultInstallTarget(for: skill),
                         onToggleEnabled: { enabled in
                             Task { await self.model.setEnabled(skillKey: skill.skillKey, enabled: enabled) }
                         },
-                        onInstall: { option in
-                            Task { await self.model.install(skill: skill, option: option) }
+                        onInstall: { option, target in
+                            Task { await self.model.install(skill: skill, option: option, target: target) }
                         },
                         onSetEnv: { envKey, isPrimary in
                             self.envEditor = EnvEditorState(
@@ -136,6 +143,11 @@ struct SkillsSettings: View {
             }
         }
     }
+
+    private func defaultInstallTarget(for skill: SkillStatus) -> InstallTarget {
+        let localPreferred = ["imsg", "peekaboo", "spotify-player"]
+        return localPreferred.contains(skill.skillKey) ? .local : .gateway
+    }
 }
 
 private enum SkillsFilter: String, CaseIterable, Identifiable {
@@ -160,16 +172,44 @@ private enum SkillsFilter: String, CaseIterable, Identifiable {
     }
 }
 
+private enum InstallTarget: String, CaseIterable {
+    case gateway
+    case local
+}
+
 private struct SkillRow: View {
     let skill: SkillStatus
     let isBusy: Bool
+    let canInstallLocally: Bool
     let onToggleEnabled: (Bool) -> Void
-    let onInstall: (SkillInstallOption) -> Void
+    let onInstall: (SkillInstallOption, InstallTarget) -> Void
     let onSetEnv: (String, Bool) -> Void
+    @State private var installTarget: InstallTarget
 
     private var missingBins: [String] { self.skill.missing.bins }
     private var missingEnv: [String] { self.skill.missing.env }
     private var missingConfig: [String] { self.skill.missing.config }
+
+    init(
+        skill: SkillStatus,
+        isBusy: Bool,
+        canInstallLocally: Bool,
+        defaultInstallTarget: InstallTarget,
+        onToggleEnabled: @escaping (Bool) -> Void,
+        onInstall: @escaping (SkillInstallOption, InstallTarget) -> Void,
+        onSetEnv: @escaping (String, Bool) -> Void)
+    {
+        self.skill = skill
+        self.isBusy = isBusy
+        self.canInstallLocally = canInstallLocally
+        self.onToggleEnabled = onToggleEnabled
+        self.onInstall = onInstall
+        self.onSetEnv = onSetEnv
+        let initialTarget: InstallTarget = (defaultInstallTarget == .local && !canInstallLocally)
+            ? .gateway
+            : defaultInstallTarget
+        self._installTarget = State(initialValue: initialTarget)
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -308,10 +348,28 @@ private struct SkillRow: View {
     private var trailingActions: some View {
         VStack(alignment: .trailing, spacing: 8) {
             if !self.installOptions.isEmpty {
+                HStack(spacing: 6) {
+                    Text("Install on")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Picker("Install on", selection: self.$installTarget) {
+                        Text("Gateway")
+                            .tag(InstallTarget.gateway)
+                        Text("This Mac")
+                            .tag(InstallTarget.local)
+                            .disabled(!self.canInstallLocally)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .frame(width: 160)
+                    .controlSize(.small)
+                    .help(self.canInstallLocally ? "" : "Local install requires a local gateway connection.")
+                }
                 ForEach(self.installOptions) { option in
-                    Button("Install") { self.onInstall(option) }
+                    Button("Install") { self.onInstall(option, self.installTarget) }
                         .buttonStyle(.borderedProminent)
-                        .disabled(self.isBusy)
+                        .disabled(self.isBusy || self.installBlocked)
+                        .help(self.installBlocked ? "Local install requires a local gateway connection." : "")
                 }
             } else {
                 Toggle("", isOn: self.enabledBinding)
@@ -348,6 +406,10 @@ private struct SkillRow: View {
         self.shouldShowMissingBins ||
             !self.missingEnv.isEmpty ||
             !self.missingConfig.isEmpty
+    }
+
+    private var installBlocked: Bool {
+        self.installTarget == .local && !self.canInstallLocally
     }
 
     private func formatConfigValue(_ value: AnyCodable?) -> String {
@@ -455,9 +517,13 @@ final class SkillsSettingsModel {
         self.isLoading = false
     }
 
-    func install(skill: SkillStatus, option: SkillInstallOption) async {
+    func install(skill: SkillStatus, option: SkillInstallOption, target: InstallTarget) async {
         await self.withBusy(skill.skillKey) {
             do {
+                if target == .local, AppStateStore.shared.connectionMode != .local {
+                    self.statusMessage = "Local install requires a local gateway connection"
+                    return
+                }
                 let result = try await GatewayConnection.shared.skillsInstall(
                     name: skill.name,
                     installId: option.id,
@@ -515,7 +581,7 @@ final class SkillsSettingsModel {
 #if DEBUG
 struct SkillsSettings_Previews: PreviewProvider {
     static var previews: some View {
-        SkillsSettings()
+        SkillsSettings(state: .preview)
             .frame(width: SettingsTab.windowWidth, height: SettingsTab.windowHeight)
     }
 }
