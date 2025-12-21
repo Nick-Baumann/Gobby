@@ -73,6 +73,7 @@ import {
   requestNodePairing,
   verifyNodeToken,
 } from "../infra/node-pairing.js";
+import { getPamAvailability } from "../infra/pam.js";
 import { ensureClawdisCliOnPath } from "../infra/path-env.js";
 import {
   enqueueSystemEvent,
@@ -87,7 +88,13 @@ import {
   pickPrimaryTailnetIPv4,
   pickPrimaryTailnetIPv6,
 } from "../infra/tailnet.js";
-import { getTailnetHostname } from "../infra/tailscale.js";
+import {
+  disableTailscaleFunnel,
+  disableTailscaleServe,
+  enableTailscaleFunnel,
+  enableTailscaleServe,
+  getTailnetHostname,
+} from "../infra/tailscale.js";
 import {
   defaultVoiceWakeTriggers,
   loadVoiceWakeConfig,
@@ -115,6 +122,11 @@ import { startWebLoginWithQr, waitForWebLogin } from "../web/login-qr.js";
 import { sendMessageWhatsApp } from "../web/outbound.js";
 import { requestReplyHeartbeatNow } from "../web/reply-heartbeat-wake.js";
 import { getWebAuthAgeMs, logoutWeb, readWebSelfId } from "../web/session.js";
+import {
+  assertGatewayAuthConfigured,
+  authorizeGatewayConnect,
+  type ResolvedGatewayAuth,
+} from "./auth.js";
 import { buildMessageWithAttachments } from "./chat-attachments.js";
 import { handleControlUiHttpRequest } from "./control-ui.js";
 
@@ -420,6 +432,14 @@ export type GatewayServerOptions = {
    * Default: config `gateway.controlUi.enabled` (or true when absent).
    */
   controlUiEnabled?: boolean;
+  /**
+   * Override gateway auth configuration (merges with config).
+   */
+  auth?: import("../config/config.js").GatewayAuthConfig;
+  /**
+   * Override gateway Tailscale exposure configuration (merges with config).
+   */
+  tailscale?: import("../config/config.js").GatewayTailscaleConfig;
   /**
    * Test-only: allow canvas host startup even when NODE_ENV/VITEST would disable it.
    */
@@ -1097,12 +1117,52 @@ export async function startGatewayServer(
   }
   const controlUiEnabled =
     opts.controlUiEnabled ?? cfgAtStart.gateway?.controlUi?.enabled ?? true;
+  const authConfig = {
+    ...(cfgAtStart.gateway?.auth ?? {}),
+    ...(opts.auth ?? {}),
+  };
+  const tailscaleConfig = {
+    ...(cfgAtStart.gateway?.tailscale ?? {}),
+    ...(opts.tailscale ?? {}),
+  };
+  const tailscaleMode = tailscaleConfig.mode ?? "off";
+  const token = getGatewayToken();
+  const password =
+    authConfig.password ?? process.env.CLAWDIS_GATEWAY_PASSWORD ?? undefined;
+  const username =
+    authConfig.username ?? process.env.CLAWDIS_GATEWAY_USERNAME ?? undefined;
+  const authMode: ResolvedGatewayAuth["mode"] =
+    authConfig.mode ?? (password ? "password" : token ? "token" : "none");
+  const allowTailscale =
+    authConfig.allowTailscale ??
+    (tailscaleMode === "serve" &&
+      authMode !== "password" &&
+      authMode !== "system");
+  const resolvedAuth: ResolvedGatewayAuth = {
+    mode: authMode,
+    token,
+    password,
+    username,
+    allowTailscale,
+  };
   const canvasHostEnabled =
     process.env.CLAWDIS_SKIP_CANVAS_HOST !== "1" &&
     cfgAtStart.canvasHost?.enabled !== false;
-  if (!isLoopbackHost(bindHost) && !getGatewayToken()) {
+  const pamAvailability = await getPamAvailability();
+  assertGatewayAuthConfigured(resolvedAuth, pamAvailability);
+  if (tailscaleMode === "funnel" && authMode === "none") {
     throw new Error(
-      `refusing to bind gateway to ${bindHost}:${port} without CLAWDIS_GATEWAY_TOKEN`,
+      "tailscale funnel requires gateway auth (set gateway.auth or CLAWDIS_GATEWAY_TOKEN)",
+    );
+  }
+  if (tailscaleMode !== "off" && !isLoopbackHost(bindHost)) {
+    throw new Error(
+      "tailscale serve/funnel requires gateway bind=loopback (127.0.0.1)",
+    );
+  }
+  if (!isLoopbackHost(bindHost) && authMode === "none") {
+    throw new Error(
+      `refusing to bind gateway to ${bindHost}:${port} without auth (set gateway.auth or CLAWDIS_GATEWAY_TOKEN)`,
     );
   }
 
@@ -2618,7 +2678,7 @@ export async function startGatewayServer(
     .start()
     .catch((err) => logError(`cron failed to start: ${String(err)}`));
 
-  wss.on("connection", (socket, req) => {
+  wss.on("connection", (socket, upgradeReq) => {
     let client: Client | null = null;
     let closed = false;
     const connId = randomUUID();
@@ -2632,7 +2692,7 @@ export async function startGatewayServer(
         ? bridgeHost
         : undefined;
     const canvasHostUrl = deriveCanvasHostUrl(
-      req,
+      upgradeReq,
       canvasHostPortForWs,
       canvasHostServer ? canvasHostOverride : undefined,
     );
@@ -2746,8 +2806,8 @@ export async function startGatewayServer(
             return;
           }
 
-          const req = parsed as RequestFrame;
-          const connectParams = req.params as ConnectParams;
+          const frame = parsed as RequestFrame;
+          const connectParams = frame.params as ConnectParams;
 
           // protocol negotiation
           const { minProtocol, maxProtocol } = connectParams;
@@ -2760,7 +2820,7 @@ export async function startGatewayServer(
             );
             send({
               type: "res",
-              id: req.id,
+              id: frame.id,
               ok: false,
               error: errorShape(
                 ErrorCodes.INVALID_REQUEST,
@@ -2775,15 +2835,18 @@ export async function startGatewayServer(
             return;
           }
 
-          // token auth if required
-          const token = getGatewayToken();
-          if (token && connectParams.auth?.token !== token) {
+          const authResult = await authorizeGatewayConnect({
+            auth: resolvedAuth,
+            connectAuth: connectParams.auth,
+            req: upgradeReq,
+          });
+          if (!authResult.ok) {
             logWarn(
               `[gws] unauthorized conn=${connId} remote=${remoteAddr ?? "?"} client=${connectParams.client.name} ${connectParams.client.mode} v${connectParams.client.version}`,
             );
             send({
               type: "res",
-              id: req.id,
+              id: frame.id,
               ok: false,
               error: errorShape(ErrorCodes.INVALID_REQUEST, "unauthorized"),
             });
@@ -2791,6 +2854,7 @@ export async function startGatewayServer(
             close();
             return;
           }
+          const authMethod = authResult.method ?? "none";
 
           const shouldTrackPresence = connectParams.client.mode !== "cli";
           const presenceKey = shouldTrackPresence
@@ -2804,7 +2868,7 @@ export async function startGatewayServer(
             mode: connectParams.client.mode,
             instanceId: connectParams.client.instanceId,
             platform: connectParams.client.platform,
-            token: connectParams.auth?.token ? "set" : "none",
+            auth: authMethod,
           });
 
           if (isWebchatConnect(connectParams)) {
@@ -2866,7 +2930,7 @@ export async function startGatewayServer(
             stateVersion: snapshot.stateVersion.presence,
           });
 
-          send({ type: "res", id: req.id, ok: true, payload: helloOk });
+          send({ type: "res", id: frame.id, ok: true, payload: helloOk });
 
           clients.add(client);
           void refreshHealthSnapshot({ probe: true }).catch((err) =>
@@ -4891,6 +4955,43 @@ export async function startGatewayServer(
     `gateway listening on ws://${bindHost}:${port} (PID ${process.pid})`,
   );
   defaultRuntime.log(`gateway log file: ${getResolvedLoggerSettings().file}`);
+  let tailscaleCleanup: (() => Promise<void>) | null = null;
+  if (tailscaleMode !== "off") {
+    try {
+      if (tailscaleMode === "serve") {
+        await enableTailscaleServe(port);
+      } else {
+        await enableTailscaleFunnel(port);
+      }
+      const host = await getTailnetHostname().catch(() => null);
+      if (host) {
+        logInfo(
+          `tailscale ${tailscaleMode} enabled: https://${host}/ui/ (WS via wss://${host})`,
+        );
+      } else {
+        logInfo(`tailscale ${tailscaleMode} enabled`);
+      }
+    } catch (err) {
+      logWarn(
+        `tailscale ${tailscaleMode} failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    if (tailscaleConfig.resetOnExit) {
+      tailscaleCleanup = async () => {
+        try {
+          if (tailscaleMode === "serve") {
+            await disableTailscaleServe();
+          } else {
+            await disableTailscaleFunnel();
+          }
+        } catch (err) {
+          logWarn(
+            `tailscale ${tailscaleMode} cleanup failed: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      };
+    }
+  }
 
   // Start clawd browser control server (unless disabled via config).
   void startBrowserControlServerIfEnabled().catch((err) => {
@@ -4915,6 +5016,9 @@ export async function startGatewayServer(
         } catch {
           /* ignore */
         }
+      }
+      if (tailscaleCleanup) {
+        await tailscaleCleanup();
       }
       if (canvasHost) {
         try {
