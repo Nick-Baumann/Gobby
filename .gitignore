@@ -16,6 +16,7 @@ bin/clawdis-mac
 bin/docs-list
 apps/macos/.build-local/
 apps/macos/.swiftpm/
+apps/shared/ClawdisKit/.swiftpm/
 Core/
 apps/ios/*.xcodeproj/
 apps/ios/*.xcworkspace/
