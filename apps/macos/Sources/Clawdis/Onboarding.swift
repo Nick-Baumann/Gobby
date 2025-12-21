@@ -24,7 +24,7 @@ final class OnboardingController {
         let hosting = NSHostingController(rootView: OnboardingView())
         let window = NSWindow(contentViewController: hosting)
         window.title = UIStrings.welcomeTitle
-        window.setContentSize(NSSize(width: 630, height: 684))
+        window.setContentSize(NSSize(width: 630, height: 644))
         window.styleMask = [.titled, .closable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
@@ -79,7 +79,7 @@ struct OnboardingView: View {
     private var permissionMonitor: PermissionMonitor
 
     private let pageWidth: CGFloat = 630
-    private let contentHeight: CGFloat = 520
+    private let contentHeight: CGFloat = 420
     private let connectionPageIndex = 1
     private let anthropicAuthPageIndex = 2
     private let onboardingChatPageIndex = 8
@@ -140,9 +140,9 @@ struct OnboardingView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            GlowingClawdisIcon(size: 156, glowIntensity: 0.28)
-                .offset(y: 13)
-                .frame(height: 181)
+            GlowingClawdisIcon(size: 130, glowIntensity: 0.28)
+                .offset(y: 10)
+                .frame(height: 145)
 
             GeometryReader { _ in
                 HStack(spacing: 0) {

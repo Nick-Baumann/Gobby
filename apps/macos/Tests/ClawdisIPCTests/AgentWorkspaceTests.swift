@@ -84,4 +84,40 @@ struct AgentWorkspaceTests {
             #expect(false, "Expected safe bootstrap safety result.")
         }
     }
+
+    @Test
+    func bootstrapSkipsBootstrapFileWhenWorkspaceHasContent() throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("clawdis-ws-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        let marker = tmp.appendingPathComponent("notes.txt")
+        try "hello".write(to: marker, atomically: true, encoding: .utf8)
+
+        _ = try AgentWorkspace.bootstrap(workspaceURL: tmp)
+
+        let bootstrapURL = tmp.appendingPathComponent(AgentWorkspace.bootstrapFilename)
+        #expect(!FileManager.default.fileExists(atPath: bootstrapURL.path))
+    }
+
+    @Test
+    func needsBootstrapFalseWhenIdentityAlreadySet() throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("clawdis-ws-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        let identityURL = tmp.appendingPathComponent(AgentWorkspace.identityFilename)
+        try """
+        # IDENTITY.md - Agent Identity
+
+        - Name: Clawd
+        - Creature: Space Lobster
+        - Vibe: Helpful
+        - Emoji: lobster
+        """.write(to: identityURL, atomically: true, encoding: .utf8)
+        let bootstrapURL = tmp.appendingPathComponent(AgentWorkspace.bootstrapFilename)
+        try "bootstrap".write(to: bootstrapURL, atomically: true, encoding: .utf8)
+
+        #expect(!AgentWorkspace.needsBootstrap(workspaceURL: tmp))
+    }
 }
