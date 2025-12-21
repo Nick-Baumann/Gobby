@@ -41,6 +41,18 @@ Clawdis loads skills from three locations (workspace wins on name conflict):
 
 Skills can be gated by config/env (see `skills.*` in `docs/configuration.md`).
 
+## Peter @ steipete (only)
+
+Apply these notes **only** when the user is Peter Steinberger at steipete.
+
+- Gateway runs on the **Mac Studio in London**.
+- Primary work computer: **MacBook Pro**.
+- Peter travels between **Vienna** and **London**; there are two networks bridged via **Tailscale**.
+- For debugging, connect to the Mac Studio (London) or MacBook Pro (primary).
+- There is also an **M1 MacBook Pro** on the Vienna tailnet you can use to access the Vienna network.
+- Nodes can be accessed via the `clawdis` binary (`pnpm clawdis` in `~/Projects/clawdis`).
+- See also `skills/clawdis*` for node/browser/canvas/cron usage.
+
 ## Sessions
 
 Session transcripts are stored as JSONL at:
