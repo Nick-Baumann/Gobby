@@ -111,6 +111,8 @@ PLIST
 echo "🚚 Copying binary"
 cp "$BIN" "$APP_ROOT/Contents/MacOS/Clawdis"
 chmod +x "$APP_ROOT/Contents/MacOS/Clawdis"
+# SwiftPM outputs ad-hoc signed binaries; strip the signature before install_name_tool to avoid warnings.
+/usr/bin/codesign --remove-signature "$APP_ROOT/Contents/MacOS/Clawdis" 2>/dev/null || true
 
 SPARKLE_FRAMEWORK="$BUILD_PATH/$BUILD_CONFIG/Sparkle.framework"
 if [ -d "$SPARKLE_FRAMEWORK" ]; then
