@@ -1,7 +1,7 @@
 # 🦞 CLAWDIS — Personal AI Assistant
 
 <p align="center">
-  <img src="docs/whatsapp-clawd.jpg" alt="CLAWDIS" width="400">
+  <img src="https://raw.githubusercontent.com/steipete/clawdis/main/docs/whatsapp-clawd.jpg" alt="CLAWDIS" width="400">
 </p>
 
 <p align="center">
