@@ -199,6 +199,9 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Install SwiftLint / SwiftFormat
+        run: brew install swiftlint swiftformat
+
       - name: Show toolchain
         run: |
           sw_vers
