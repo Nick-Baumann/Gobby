@@ -30,3 +30,4 @@ Actions
 Notes
 - This is a dedicated profile; do not use the user's personal browser.
 - If disabled, ask the user to enable `browser.enabled` in `~/.clawdis/clawdis.json`.
+- Canvas UI is full-screen with native overlays. Keep critical controls out of the top-left/top-right/bottom edges (leave explicit gutters ~28px top, ~16px sides, ~20px bottom). Do not rely on safe-area insets.
