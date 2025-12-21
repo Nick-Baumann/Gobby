@@ -28,6 +28,8 @@ type ActiveLogin = {
   error?: string;
   errorStatus?: number;
   waitPromise: Promise<void>;
+  restartAttempted: boolean;
+  verbose: boolean;
 };
 
 const ACTIVE_LOGIN_TTL_MS = 3 * 60_000;
@@ -53,6 +55,45 @@ async function resetActiveLogin(reason?: string) {
 
 function isLoginFresh(login: ActiveLogin) {
   return Date.now() - login.startedAt < ACTIVE_LOGIN_TTL_MS;
+}
+
+function attachLoginWaiter(login: ActiveLogin) {
+  login.waitPromise = waitForWaConnection(login.sock)
+    .then(() => {
+      if (activeLogin?.id === login.id) {
+        activeLogin.connected = true;
+      }
+    })
+    .catch((err) => {
+      if (activeLogin?.id === login.id) {
+        activeLogin.error = formatError(err);
+        activeLogin.errorStatus = getStatusCode(err);
+      }
+    });
+}
+
+async function restartLoginSocket(login: ActiveLogin, runtime: RuntimeEnv) {
+  if (login.restartAttempted) return false;
+  login.restartAttempted = true;
+  runtime.log(
+    info(
+      "WhatsApp asked for a restart after pairing (code 515); retrying connection once…",
+    ),
+  );
+  closeSocket(login.sock);
+  try {
+    const sock = await createWaSocket(false, login.verbose);
+    login.sock = sock;
+    login.connected = false;
+    login.error = undefined;
+    login.errorStatus = undefined;
+    attachLoginWaiter(login);
+    return true;
+  } catch (err) {
+    login.error = formatError(err);
+    login.errorStatus = getStatusCode(err);
+    return false;
+  }
 }
 
 export async function startWebLoginWithQr(
@@ -120,21 +161,11 @@ export async function startWebLoginWithQr(
     startedAt: Date.now(),
     connected: false,
     waitPromise: Promise.resolve(),
+    restartAttempted: false,
+    verbose: Boolean(opts.verbose),
   };
   activeLogin = login;
-
-  login.waitPromise = waitForWaConnection(sock)
-    .then(() => {
-      if (activeLogin?.id === login.id) {
-        activeLogin.connected = true;
-      }
-    })
-    .catch((err) => {
-      if (activeLogin?.id === login.id) {
-        activeLogin.error = formatError(err);
-        activeLogin.errorStatus = getStatusCode(err);
-      }
-    });
+  attachLoginWaiter(login);
 
   let qr: string;
   try {
@@ -175,43 +206,61 @@ export async function waitForWebLogin(
     };
   }
   const timeoutMs = Math.max(opts.timeoutMs ?? 120_000, 1000);
-  const timeout = new Promise<"timeout">((resolve) =>
-    setTimeout(() => resolve("timeout"), timeoutMs),
-  );
-  const result = await Promise.race([
-    login.waitPromise.then(() => "done"),
-    timeout,
-  ]);
+  const deadline = Date.now() + timeoutMs;
 
-  if (result === "timeout") {
-    return {
-      connected: false,
-      message:
-        "Still waiting for the QR scan. Let me know when you’ve scanned it.",
-    };
-  }
+  while (true) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) {
+      return {
+        connected: false,
+        message:
+          "Still waiting for the QR scan. Let me know when you’ve scanned it.",
+      };
+    }
+    const timeout = new Promise<"timeout">((resolve) =>
+      setTimeout(() => resolve("timeout"), remaining),
+    );
+    const result = await Promise.race([
+      login.waitPromise.then(() => "done"),
+      timeout,
+    ]);
 
-  if (login.error) {
-    if (login.errorStatus === DisconnectReason.loggedOut) {
-      await logoutWeb(runtime);
-      const message =
-        "WhatsApp reported the session is logged out. Cleared cached web session; please scan a new QR.";
+    if (result === "timeout") {
+      return {
+        connected: false,
+        message:
+          "Still waiting for the QR scan. Let me know when you’ve scanned it.",
+      };
+    }
+
+    if (login.error) {
+      if (login.errorStatus === DisconnectReason.loggedOut) {
+        await logoutWeb(runtime);
+        const message =
+          "WhatsApp reported the session is logged out. Cleared cached web session; please scan a new QR.";
+        await resetActiveLogin(message);
+        runtime.log(danger(message));
+        return { connected: false, message };
+      }
+      if (login.errorStatus === 515) {
+        const restarted = await restartLoginSocket(login, runtime);
+        if (restarted && isLoginFresh(login)) {
+          continue;
+        }
+      }
+      const message = `WhatsApp login failed: ${login.error}`;
       await resetActiveLogin(message);
       runtime.log(danger(message));
       return { connected: false, message };
     }
-    const message = `WhatsApp login failed: ${login.error}`;
-    await resetActiveLogin(message);
-    runtime.log(danger(message));
-    return { connected: false, message };
-  }
 
-  if (login.connected) {
-    const message = "✅ Linked! WhatsApp is ready.";
-    runtime.log(success(message));
-    await resetActiveLogin();
-    return { connected: true, message };
-  }
+    if (login.connected) {
+      const message = "✅ Linked! WhatsApp is ready.";
+      runtime.log(success(message));
+      await resetActiveLogin();
+      return { connected: true, message };
+    }
 
-  return { connected: false, message: "Login ended without a connection." };
+    return { connected: false, message: "Login ended without a connection." };
+  }
 }

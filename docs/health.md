@@ -17,7 +17,7 @@ Short guide to verify the WhatsApp Web / Baileys stack without guessing.
 ## Deep diagnostics
 - Creds on disk: `ls -l ~/.clawdis/credentials/creds.json` (mtime should be recent).
 - Session store: `ls -l ~/.clawdis/sessions/sessions.json` (legacy: `~/.clawdis/sessions.json`; path can be overridden in config). Count and recent recipients are surfaced via `status`.
-- Relink flow: `clawdis logout && clawdis login --verbose` when status codes 409–515 or `loggedOut` appear in logs.
+- Relink flow: `clawdis logout && clawdis login --verbose` when status codes 409–515 or `loggedOut` appear in logs. (Note: the QR login flow auto-restarts once for status 515 after pairing.)
 
 ## When something fails
 - `logged out` or status 409–515 → relink with `clawdis logout` then `clawdis login`.

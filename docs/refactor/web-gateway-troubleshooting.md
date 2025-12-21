@@ -10,6 +10,7 @@ read_when:
 - **Logged out:** Console prints “session logged out”; re-link with `clawdis login`.
 - **Repeated retries then exit:** Tune reconnect behavior via config `web.reconnect` and restart the Gateway.
 - **No inbound messages:** Ensure the QR-linked account is online in WhatsApp, and check logs for `web-heartbeat` to confirm auth age/connection.
+- **Status 515 right after pairing:** The QR login flow now auto-restarts once; you should not need a manual gateway restart after scanning.
 - **Fast nuke:** From an allowed WhatsApp sender you can send `/restart` to request a supervised restart (launchd/mac app setups); wait a few seconds for it to come back.
 
 ## Helpful commands
