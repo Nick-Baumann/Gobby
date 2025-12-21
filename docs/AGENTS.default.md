@@ -109,6 +109,7 @@ git commit -m "Add Clawd workspace"
 - Prefer the `clawdis` CLI for scripting; mac app handles permissions.
 - Run installs from the Skills tab; it hides the button if a binary is already present.
 - Keep heartbeats enabled so the assistant can schedule reminders, monitor inboxes, and trigger camera captures.
+- Canvas UI runs full-screen with native overlays. Avoid placing critical controls in the top-left/top-right/bottom edges; add explicit gutters in the layout and don’t rely on safe-area insets.
 - For browser-driven verification, use `clawdis browser` (tabs/status/screenshot) with the clawd-managed Chrome profile.
 - For DOM inspection, use `clawdis browser eval|query|dom|snapshot` (and `--json`/`--out` when you need machine output).
 - For interactions, use `clawdis browser click|type|hover|drag|select|upload|press|wait|navigate|back|evaluate|run`.
