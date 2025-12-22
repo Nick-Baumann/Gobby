@@ -4,7 +4,7 @@ import path from "node:path";
 import type { AppMessage } from "@mariozechner/pi-agent-core";
 import type { AgentToolResult, AssistantMessage } from "@mariozechner/pi-ai";
 
-import { sanitizeContentBlocksImages } from "./pi-tools.js";
+import { sanitizeContentBlocksImages } from "./tool-images.js";
 import type { WorkspaceBootstrapFile } from "./workspace.js";
 
 export type EmbeddedContextFile = { path: string; content: string };
