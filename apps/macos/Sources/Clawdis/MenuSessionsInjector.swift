@@ -220,10 +220,6 @@ final class MenuSessionsInjector: NSObject, NSMenuDelegate {
     private func buildSubmenu(for row: SessionRow, storePath: String) -> NSMenu {
         let menu = NSMenu()
 
-        let syncing = NSMenuItem(title: "Syncing", action: nil, keyEquivalent: "")
-        syncing.submenu = self.buildSyncingMenu(for: row)
-        menu.addItem(syncing)
-
         let thinking = NSMenuItem(title: "Thinking", action: nil, keyEquivalent: "")
         thinking.submenu = self.buildThinkingMenu(for: row)
         menu.addItem(thinking)
@@ -271,44 +267,10 @@ final class MenuSessionsInjector: NSObject, NSMenuDelegate {
         return menu
     }
 
-    private func buildSyncingMenu(for row: SessionRow) -> NSMenu {
-        let menu = NSMenu()
-        let options: [(title: String, value: String)] = [
-            ("On", "on"),
-            ("Off", "off"),
-        ]
-        for (title, value) in options {
-            let item = NSMenuItem(title: title, action: #selector(self.patchSyncing(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = [
-                "key": row.key,
-                "value": value as Any,
-            ]
-            let isSelected: Bool = {
-                if value == "on" { return row.syncing?.isOn == true }
-                return row.syncing?.isOff == true
-            }()
-            item.state = isSelected ? .on : .off
-            menu.addItem(item)
-        }
-
-        if let syncing = row.syncing,
-           !syncing.isOn,
-           !syncing.isOff,
-           !syncing.label.isEmpty
-        {
-            menu.addItem(NSMenuItem.separator())
-            let current = NSMenuItem(title: "Sync \(syncing.label)", action: nil, keyEquivalent: "")
-            current.state = .on
-            current.isEnabled = false
-            menu.addItem(current)
-        }
-
-        return menu
-    }
-
     private func buildThinkingMenu(for row: SessionRow) -> NSMenu {
         let menu = NSMenu()
+        menu.autoenablesItems = false
+        menu.showsStateColumn = true
         let levels: [String] = ["off", "minimal", "low", "medium", "high"]
         for level in levels {
             let title = level.capitalized
@@ -326,6 +288,8 @@ final class MenuSessionsInjector: NSObject, NSMenuDelegate {
 
     private func buildVerboseMenu(for row: SessionRow) -> NSMenu {
         let menu = NSMenu()
+        menu.autoenablesItems = false
+        menu.showsStateColumn = true
         let levels: [String] = ["on", "off"]
         for level in levels {
             let title = level.capitalized
@@ -372,31 +336,6 @@ final class MenuSessionsInjector: NSObject, NSMenuDelegate {
             } catch {
                 await MainActor.run {
                     SessionActions.presentError(title: "Update verbose failed", error: error)
-                }
-            }
-        }
-    }
-
-    @objc
-    private func patchSyncing(_ sender: NSMenuItem) {
-        guard let dict = sender.representedObject as? [String: Any],
-              let key = dict["key"] as? String
-        else { return }
-
-        let selection = dict["value"] as? String
-        let value: SessionSyncingValue? = switch selection {
-        case "on": .bool(true)
-        case "off": .bool(false)
-        default: nil
-        }
-
-        Task {
-            do {
-                try await SessionActions.patchSession(key: key, syncing: .some(value))
-                await self.refreshCache(force: true)
-            } catch {
-                await MainActor.run {
-                    SessionActions.presentError(title: "Update syncing failed", error: error)
                 }
             }
         }
