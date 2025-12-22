@@ -5,11 +5,11 @@ import path from "node:path";
 
 import type { AppMessage, ThinkingLevel } from "@mariozechner/pi-agent-core";
 import {
-  setOAuthStorage,
   type Api,
   type AssistantMessage,
   type Model,
   type OAuthStorage,
+  setOAuthStorage,
 } from "@mariozechner/pi-ai";
 import {
   buildSystemPrompt,
