@@ -140,6 +140,7 @@ final class WebChatSwiftUIWindowController {
     private let presentation: WebChatPresentation
     private let sessionKey: String
     private let hosting: NSHostingController<ClawdisChatView>
+    private let contentController: NSViewController
     private var window: NSWindow?
     private var dismissMonitor: Any?
     var onClosed: (() -> Void)?
@@ -154,11 +155,8 @@ final class WebChatSwiftUIWindowController {
         self.presentation = presentation
         let vm = ClawdisChatViewModel(sessionKey: sessionKey, transport: transport)
         self.hosting = NSHostingController(rootView: ClawdisChatView(viewModel: vm))
-        self.hosting.view.wantsLayer = true
-        self.hosting.view.layer?.cornerCurve = .continuous
-        self.hosting.view.layer?.cornerRadius = 16
-        self.hosting.view.layer?.masksToBounds = true
-        self.window = Self.makeWindow(for: presentation, contentViewController: self.hosting)
+        self.contentController = Self.makeContentController(for: presentation, hosting: self.hosting)
+        self.window = Self.makeWindow(for: presentation, contentViewController: self.contentController)
     }
 
     deinit {}
@@ -267,11 +265,13 @@ final class WebChatSwiftUIWindowController {
             window.isReleasedWhenClosed = false
             window.titleVisibility = .visible
             window.titlebarAppearsTransparent = false
-            window.backgroundColor = .windowBackgroundColor
-            window.isOpaque = true
+            window.backgroundColor = .clear
+            window.isOpaque = false
             window.center()
             WindowPlacement.ensureOnScreen(window: window, defaultSize: WebChatSwiftUILayout.windowSize)
             window.minSize = NSSize(width: 880, height: 680)
+            window.contentView?.wantsLayer = true
+            window.contentView?.layer?.backgroundColor = NSColor.clear.cgColor
             return window
         case .panel:
             let panel = WebChatPanel(
@@ -290,6 +290,8 @@ final class WebChatSwiftUIWindowController {
             panel.isOpaque = false
             panel.contentViewController = contentViewController
             panel.becomesKeyOnlyIfNeeded = true
+            panel.contentView?.wantsLayer = true
+            panel.contentView?.layer?.backgroundColor = NSColor.clear.cgColor
             panel.setFrame(
                 WindowPlacement.topRightFrame(
                     size: WebChatSwiftUILayout.panelSize,
@@ -297,5 +299,46 @@ final class WebChatSwiftUIWindowController {
                 display: false)
             return panel
         }
+    }
+
+    private static func makeContentController(
+        for presentation: WebChatPresentation,
+        hosting: NSHostingController<ClawdisChatView>) -> NSViewController
+    {
+        let controller = NSViewController()
+        let effectView = NSVisualEffectView()
+        effectView.material = .sidebar
+        effectView.blendingMode = .behindWindow
+        effectView.state = .active
+        effectView.translatesAutoresizingMaskIntoConstraints = true
+        effectView.autoresizingMask = [.width, .height]
+        effectView.wantsLayer = true
+        effectView.layer?.cornerCurve = .continuous
+        let cornerRadius: CGFloat
+        switch presentation {
+        case .panel:
+            cornerRadius = 16
+        case .window:
+            cornerRadius = 12
+        }
+        effectView.layer?.cornerRadius = cornerRadius
+        effectView.layer?.masksToBounds = true
+
+        hosting.view.translatesAutoresizingMaskIntoConstraints = false
+        hosting.view.wantsLayer = true
+        hosting.view.layer?.backgroundColor = NSColor.clear.cgColor
+
+        controller.addChild(hosting)
+        effectView.addSubview(hosting.view)
+        controller.view = effectView
+
+        NSLayoutConstraint.activate([
+            hosting.view.leadingAnchor.constraint(equalTo: effectView.leadingAnchor),
+            hosting.view.trailingAnchor.constraint(equalTo: effectView.trailingAnchor),
+            hosting.view.topAnchor.constraint(equalTo: effectView.topAnchor),
+            hosting.view.bottomAnchor.constraint(equalTo: effectView.bottomAnchor)
+        ])
+
+        return controller
     }
 }
