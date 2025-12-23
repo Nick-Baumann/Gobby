@@ -105,6 +105,7 @@ import {
   WIDE_AREA_DISCOVERY_DOMAIN,
   writeWideAreaBridgeZone,
 } from "../infra/widearea-dns.js";
+import { rawDataToString } from "../infra/ws.js";
 import {
   createSubsystemLogger,
   getChildLogger,
@@ -1144,10 +1145,18 @@ const wsInflightSince = new Map<string, number>();
 function formatError(err: unknown): string {
   if (err instanceof Error) return err.message;
   if (typeof err === "string") return err;
-  const status = (err as { status?: unknown })?.status;
-  const code = (err as { code?: unknown })?.code;
-  if (status || code)
-    return `status=${status ?? "unknown"} code=${code ?? "unknown"}`;
+  const statusValue = (err as { status?: unknown })?.status;
+  const codeValue = (err as { code?: unknown })?.code;
+  const statusText =
+    typeof statusValue === "string" || typeof statusValue === "number"
+      ? String(statusValue)
+      : undefined;
+  const codeText =
+    typeof codeValue === "string" || typeof codeValue === "number"
+      ? String(codeValue)
+      : undefined;
+  if (statusText || codeText)
+    return `status=${statusText ?? "unknown"} code=${codeText ?? "unknown"}`;
   return JSON.stringify(err, null, 2);
 }
 
@@ -1161,8 +1170,7 @@ async function refreshHealthSnapshot(_opts?: { probe?: boolean }) {
         broadcastHealthUpdate(snap);
       }
       return snap;
-    })();
-    healthRefresh.finally(() => {
+    })().finally(() => {
       healthRefresh = null;
     });
   }
@@ -1183,13 +1191,17 @@ export async function startGatewayServer(
   }
   const controlUiEnabled =
     opts.controlUiEnabled ?? cfgAtStart.gateway?.controlUi?.enabled ?? true;
+  const authBase = cfgAtStart.gateway?.auth ?? {};
+  const authOverrides = opts.auth ?? {};
   const authConfig = {
-    ...(cfgAtStart.gateway?.auth ?? {}),
-    ...(opts.auth ?? {}),
+    ...authBase,
+    ...authOverrides,
   };
+  const tailscaleBase = cfgAtStart.gateway?.tailscale ?? {};
+  const tailscaleOverrides = opts.tailscale ?? {};
   const tailscaleConfig = {
-    ...(cfgAtStart.gateway?.tailscale ?? {}),
-    ...(opts.tailscale ?? {}),
+    ...tailscaleBase,
+    ...tailscaleOverrides,
   };
   const tailscaleMode = tailscaleConfig.mode ?? "off";
   const token = getGatewayToken();
@@ -1849,8 +1861,17 @@ export async function startGatewayServer(
               },
             };
           }
-          const raw = String((params as { raw?: unknown }).raw ?? "");
-          const parsedRes = parseConfigJson5(raw);
+          const rawValue = (params as { raw?: unknown }).raw;
+          if (typeof rawValue !== "string") {
+            return {
+              ok: false,
+              error: {
+                code: ErrorCodes.INVALID_REQUEST,
+                message: "invalid config.set params: raw (string) required",
+              },
+            };
+          }
+          const parsedRes = parseConfigJson5(rawValue);
           if (!parsedRes.ok) {
             return {
               ok: false,
@@ -2949,7 +2970,9 @@ export async function startGatewayServer(
           const payload = {
             ...base,
             state: "error",
-            errorMessage: evt.data.error ? String(evt.data.error) : undefined,
+            errorMessage: evt.data.error
+              ? formatForLog(evt.data.error)
+              : undefined,
           };
           broadcast("chat", payload);
           bridgeSendToSession(sessionKey, "chat", payload);
@@ -3061,7 +3084,7 @@ export async function startGatewayServer(
 
     socket.on("message", async (data) => {
       if (closed) return;
-      const text = data.toString();
+      const text = rawDataToString(data);
       try {
         const parsed = JSON.parse(text);
         if (!client) {
@@ -4034,8 +4057,19 @@ export async function startGatewayServer(
                 );
                 break;
               }
-              const raw = String((params as { raw?: unknown }).raw ?? "");
-              const parsedRes = parseConfigJson5(raw);
+              const rawValue = (params as { raw?: unknown }).raw;
+              if (typeof rawValue !== "string") {
+                respond(
+                  false,
+                  undefined,
+                  errorShape(
+                    ErrorCodes.INVALID_REQUEST,
+                    "invalid config.set params: raw (string) required",
+                  ),
+                );
+                break;
+              }
+              const parsedRes = parseConfigJson5(rawValue);
               if (!parsedRes.ok) {
                 respond(
                   false,
@@ -4147,8 +4181,10 @@ export async function startGatewayServer(
                 env?: Record<string, string>;
               };
               const cfg = loadConfig();
-              const skills = { ...(cfg.skills ?? {}) };
-              const current = { ...(skills[p.skillKey] ?? {}) };
+              const skills = cfg.skills ? { ...cfg.skills } : {};
+              const current = skills[p.skillKey]
+                ? { ...skills[p.skillKey] }
+                : {};
               if (typeof p.enabled === "boolean") {
                 current.enabled = p.enabled;
               }
@@ -4158,11 +4194,11 @@ export async function startGatewayServer(
                 else delete current.apiKey;
               }
               if (p.env && typeof p.env === "object") {
-                const nextEnv = { ...(current.env ?? {}) };
+                const nextEnv = current.env ? { ...current.env } : {};
                 for (const [key, value] of Object.entries(p.env)) {
                   const trimmedKey = key.trim();
                   if (!trimmedKey) continue;
-                  const trimmedVal = String(value ?? "").trim();
+                  const trimmedVal = value.trim();
                   if (!trimmedVal) delete nextEnv[trimmedKey];
                   else nextEnv[trimmedKey] = trimmedVal;
                 }
@@ -4541,7 +4577,8 @@ export async function startGatewayServer(
             }
             case "system-event": {
               const params = (req.params ?? {}) as Record<string, unknown>;
-              const text = String(params.text ?? "").trim();
+              const text =
+                typeof params.text === "string" ? params.text.trim() : "";
               if (!text) {
                 respond(
                   false,

@@ -9,7 +9,11 @@ export function jsonError(
 }
 
 export function toStringOrEmpty(value: unknown) {
-  return typeof value === "string" ? value.trim() : String(value ?? "").trim();
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value).trim();
+  }
+  return "";
 }
 
 export function toNumber(value: unknown) {

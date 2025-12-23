@@ -10,6 +10,7 @@ import { readConfigFileSnapshot, writeConfigFile } from "../config/config.js";
 import { emitAgentEvent } from "../infra/agent-events.js";
 import { GatewayLockError } from "../infra/gateway-lock.js";
 import { emitHeartbeatEvent } from "../infra/heartbeat-events.js";
+import { rawDataToString } from "../infra/ws.js";
 import { PROTOCOL_VERSION } from "./protocol/index.js";
 import {
   __resetModelCatalogCacheForTest,
@@ -298,7 +299,7 @@ function onceMessage<T = unknown>(
       reject(new Error(`closed ${code}: ${reason.toString()}`));
     };
     const handler = (data: WebSocket.RawData) => {
-      const obj = JSON.parse(String(data));
+      const obj = JSON.parse(rawDataToString(data));
       if (filter(obj)) {
         clearTimeout(timer);
         ws.off("message", handler);
@@ -678,7 +679,7 @@ describe("gateway server", () => {
     expect(res1.ok).toBe(true);
     const req1 = (res1.payload as { request?: { requestId?: unknown } } | null)
       ?.request;
-    const requestId = String(req1?.requestId ?? "");
+    const requestId = typeof req1?.requestId === "string" ? req1.requestId : "";
     expect(requestId.length).toBeGreaterThan(0);
 
     const evt1 = await requestedP;
@@ -731,10 +732,10 @@ describe("gateway server", () => {
       payload?: unknown;
     }>(ws, (o) => o.type === "res" && o.id === "pair-approve-1");
     expect(approveRes.ok).toBe(true);
-    const token = String(
-      (approveRes.payload as { node?: { token?: unknown } } | null)?.node
-        ?.token ?? "",
-    );
+    const tokenValue = (
+      approveRes.payload as { node?: { token?: unknown } } | null
+    )?.node?.token;
+    const token = typeof tokenValue === "string" ? tokenValue : "";
     expect(token.length).toBeGreaterThan(0);
 
     const evt2 = await resolvedP;
@@ -1235,7 +1236,8 @@ describe("gateway server", () => {
       payload?: unknown;
     }>(ws, (o) => o.type === "res" && o.id === "cron-add-log-1");
     expect(addRes.ok).toBe(true);
-    const jobId = String((addRes.payload as { id?: unknown } | null)?.id ?? "");
+    const jobIdValue = (addRes.payload as { id?: unknown } | null)?.id;
+    const jobId = typeof jobIdValue === "string" ? jobIdValue : "";
     expect(jobId.length > 0).toBe(true);
 
     ws.send(
@@ -1345,7 +1347,8 @@ describe("gateway server", () => {
       payload?: unknown;
     }>(ws, (o) => o.type === "res" && o.id === "cron-add-log-2");
     expect(addRes.ok).toBe(true);
-    const jobId = String((addRes.payload as { id?: unknown } | null)?.id ?? "");
+    const jobIdValue = (addRes.payload as { id?: unknown } | null)?.id;
+    const jobId = typeof jobIdValue === "string" ? jobIdValue : "";
     expect(jobId.length > 0).toBe(true);
 
     ws.send(
@@ -1451,7 +1454,11 @@ describe("gateway server", () => {
         | { enabled?: unknown; storePath?: unknown }
         | undefined;
       expect(statusPayload?.enabled).toBe(true);
-      expect(String(statusPayload?.storePath ?? "")).toContain("jobs.json");
+      const storePath =
+        typeof statusPayload?.storePath === "string"
+          ? statusPayload.storePath
+          : "";
+      expect(storePath).toContain("jobs.json");
 
       const atMs = Date.now() + 80;
       ws.send(
@@ -1475,9 +1482,8 @@ describe("gateway server", () => {
         payload?: unknown;
       }>(ws, (o) => o.type === "res" && o.id === "cron-add-auto-1");
       expect(addRes.ok).toBe(true);
-      const jobId = String(
-        (addRes.payload as { id?: unknown } | null)?.id ?? "",
-      );
+      const jobIdValue = (addRes.payload as { id?: unknown } | null)?.id;
+      const jobId = typeof jobIdValue === "string" ? jobIdValue : "";
       expect(jobId.length > 0).toBe(true);
 
       const finishedEvt = await onceMessage<{

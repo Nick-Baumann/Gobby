@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { WebSocket } from "ws";
+import { rawDataToString } from "../infra/ws.js";
 import { defaultRuntime } from "../runtime.js";
 import {
   CANVAS_HOST_PATH,
@@ -146,7 +147,7 @@ describe("canvas host", () => {
         );
         ws.on("message", (data) => {
           clearTimeout(timer);
-          resolve(String(data));
+          resolve(rawDataToString(data));
         });
       });
 

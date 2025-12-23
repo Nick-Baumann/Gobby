@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { Bot, InputFile } from "grammy";
-
+import { formatErrorMessage } from "../infra/errors.js";
 import { mediaKindFromMime } from "../media/constants.js";
 import { loadWebMedia } from "../web/media.js";
 
@@ -76,16 +76,17 @@ export async function sendMessageTelegram(
         return await fn();
       } catch (err) {
         lastErr = err;
+        const errText = formatErrorMessage(err);
         const terminal =
           attempt === 3 ||
           !/429|timeout|connect|reset|closed|unavailable|temporarily/i.test(
-            String(err ?? ""),
+            errText,
           );
         if (terminal) break;
         const backoff = 400 * attempt;
         if (opts.verbose) {
           console.warn(
-            `telegram send retry ${attempt}/2 for ${label} in ${backoff}ms: ${String(err)}`,
+            `telegram send retry ${attempt}/2 for ${label} in ${backoff}ms: ${errText}`,
           );
         }
         await sleep(backoff);
@@ -95,7 +96,7 @@ export async function sendMessageTelegram(
   };
 
   const wrapChatNotFound = (err: unknown) => {
-    if (!/400: Bad Request: chat not found/i.test(String(err ?? "")))
+    if (!/400: Bad Request: chat not found/i.test(formatErrorMessage(err)))
       return err;
     return new Error(
       [
@@ -161,10 +162,11 @@ export async function sendMessageTelegram(
   ).catch(async (err) => {
     // Telegram rejects malformed Markdown (e.g., unbalanced '_' or '*').
     // When that happens, fall back to plain text so the message still delivers.
-    if (PARSE_ERR_RE.test(String(err ?? ""))) {
+    const errText = formatErrorMessage(err);
+    if (PARSE_ERR_RE.test(errText)) {
       if (opts.verbose) {
         console.warn(
-          `telegram markdown parse failed, retrying as plain text: ${String(err)}`,
+          `telegram markdown parse failed, retrying as plain text: ${errText}`,
         );
       }
       return await sendWithRetry(

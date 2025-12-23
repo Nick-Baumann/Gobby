@@ -52,7 +52,7 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
 
   // Long polling
   const stopOnAbort = () => {
-    if (opts.abortSignal?.aborted) bot.stop();
+    if (opts.abortSignal?.aborted) void bot.stop();
   };
   opts.abortSignal?.addEventListener("abort", stopOnAbort, { once: true });
   try {

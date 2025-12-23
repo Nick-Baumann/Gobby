@@ -35,10 +35,12 @@ export function resolveReconnectPolicy(
   cfg: ClawdisConfig,
   overrides?: Partial<ReconnectPolicy>,
 ): ReconnectPolicy {
+  const reconnectOverrides = cfg.web?.reconnect ?? {};
+  const overrideConfig = overrides ?? {};
   const merged = {
     ...DEFAULT_RECONNECT_POLICY,
-    ...(cfg.web?.reconnect ?? {}),
-    ...(overrides ?? {}),
+    ...reconnectOverrides,
+    ...overrideConfig,
   } as ReconnectPolicy;
 
   merged.initialMs = Math.max(250, merged.initialMs);

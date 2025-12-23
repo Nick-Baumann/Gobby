@@ -5,6 +5,12 @@ import type {
 } from "./client-actions-types.js";
 import { fetchBrowserJson } from "./client-fetch.js";
 
+export type BrowserFormField = {
+  ref: string;
+  type: string;
+  value?: string | number | boolean;
+};
+
 export type BrowserActRequest =
   | {
       kind: "click";
@@ -28,7 +34,7 @@ export type BrowserActRequest =
   | { kind: "select"; ref: string; values: string[]; targetId?: string }
   | {
       kind: "fill";
-      fields: Array<Record<string, unknown>>;
+      fields: BrowserFormField[];
       targetId?: string;
     }
   | { kind: "resize"; width: number; height: number; targetId?: string }

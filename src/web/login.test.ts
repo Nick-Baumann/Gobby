@@ -35,11 +35,12 @@ describe("web login", () => {
 
   it("loginWeb waits for connection and closes", async () => {
     const sock = await createWaSocket();
+    const close = vi.spyOn(sock.ws, "close");
     const waiter: typeof waitForWaConnection = vi
       .fn()
       .mockResolvedValue(undefined);
     await loginWeb(false, "web", waiter);
     await new Promise((resolve) => setTimeout(resolve, 550));
-    expect(sock.ws.close).toHaveBeenCalled();
+    expect(close).toHaveBeenCalled();
   });
 });

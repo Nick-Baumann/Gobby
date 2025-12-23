@@ -329,8 +329,9 @@ export async function startNodeBridgeServer(
           ? hello.commands.map((c) => String(c)).filter(Boolean)
           : verified.node.commands;
       const helloPermissions = normalizePermissions(hello.permissions);
+      const basePermissions = verified.node.permissions ?? {};
       const permissions = helloPermissions
-        ? { ...(verified.node.permissions ?? {}), ...helloPermissions }
+        ? { ...basePermissions, ...helloPermissions }
         : verified.node.permissions;
 
       isAuthenticated = true;

@@ -9,22 +9,40 @@ vi.mock("../src/web/media.js", () => ({
   })),
 }));
 
-import { deliverWebReply } from "../src/web/auto-reply.js";
 import { defaultRuntime } from "../src/runtime.js";
+import { deliverWebReply } from "../src/web/auto-reply.js";
+import type { WebInboundMessage } from "../src/web/inbound.js";
 
 const noopLogger = {
   info: vi.fn(),
   warn: vi.fn(),
 };
 
-function makeMsg() {
+function makeMsg(): WebInboundMessage {
+  const reply = vi.fn<
+    Parameters<WebInboundMessage["reply"]>,
+    ReturnType<WebInboundMessage["reply"]>
+  >();
+  const sendMedia = vi.fn<
+    Parameters<WebInboundMessage["sendMedia"]>,
+    ReturnType<WebInboundMessage["sendMedia"]>
+  >();
+  const sendComposing = vi.fn<
+    Parameters<WebInboundMessage["sendComposing"]>,
+    ReturnType<WebInboundMessage["sendComposing"]>
+  >();
   return {
     from: "+10000000000",
+    conversationId: "+10000000000",
     to: "+20000000000",
     id: "abc",
-    reply: vi.fn(),
-    sendMedia: vi.fn(),
-  } as any;
+    body: "hello",
+    chatType: "direct",
+    chatId: "chat-1",
+    sendComposing,
+    reply,
+    sendMedia,
+  };
 }
 
 describe("deliverWebReply retry", () => {
@@ -54,7 +72,10 @@ describe("deliverWebReply retry", () => {
 
     await expect(
       deliverWebReply({
-        replyResult: { text: "caption", mediaUrl: "http://example.com/img.jpg" },
+        replyResult: {
+          text: "caption",
+          mediaUrl: "http://example.com/img.jpg",
+        },
         msg,
         maxMediaBytes: 5_000_000,
         replyLogger: noopLogger,
@@ -66,4 +87,3 @@ describe("deliverWebReply retry", () => {
     expect(msg.sendMedia).toHaveBeenCalledTimes(2);
   });
 });
-

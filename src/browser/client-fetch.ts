@@ -1,3 +1,5 @@
+import { extractErrorCode, formatErrorMessage } from "../infra/errors.js";
+
 function unwrapCause(err: unknown): unknown {
   if (!err || typeof err !== "object") return null;
   const cause = (err as { cause?: unknown }).cause;
@@ -10,13 +12,7 @@ function enhanceBrowserFetchError(
   timeoutMs: number,
 ): Error {
   const cause = unwrapCause(err);
-  const code =
-    (cause && typeof cause === "object" && "code" in cause
-      ? String((cause as { code?: unknown }).code ?? "")
-      : "") ||
-    (err && typeof err === "object" && "code" in err
-      ? String((err as { code?: unknown }).code ?? "")
-      : "");
+  const code = extractErrorCode(cause) ?? extractErrorCode(err) ?? "";
 
   const hint =
     "Start (or restart) the Clawdis gateway (Clawdis.app menubar, or `clawdis gateway`) and try again.";
@@ -32,7 +28,7 @@ function enhanceBrowserFetchError(
     );
   }
 
-  const msg = String(err);
+  const msg = formatErrorMessage(err);
   if (msg.toLowerCase().includes("abort")) {
     return new Error(
       `Can't reach the clawd browser control server at ${url} (timed out after ${timeoutMs}ms). ${hint}`,

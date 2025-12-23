@@ -4,6 +4,7 @@ import type express from "express";
 
 import { ensureMediaDir, saveMediaBuffer } from "../../media/store.js";
 import { captureScreenshot, snapshotAria } from "../cdp.js";
+import type { BrowserFormField } from "../client-actions-core.js";
 import {
   DEFAULT_BROWSER_SCREENSHOT_MAX_BYTES,
   DEFAULT_BROWSER_SCREENSHOT_MAX_SIDE,
@@ -236,11 +237,24 @@ export function registerBrowserAgentRoutes(
           return res.json({ ok: true, targetId: tab.targetId });
         }
         case "fill": {
-          const fields = Array.isArray(body.fields)
-            ? (body.fields as Array<Record<string, unknown>>)
-            : null;
-          if (!fields?.length)
-            return jsonError(res, 400, "fields are required");
+          const rawFields = Array.isArray(body.fields) ? body.fields : [];
+          const fields = rawFields
+            .map((field) => {
+              if (!field || typeof field !== "object") return null;
+              const rec = field as Record<string, unknown>;
+              const ref = toStringOrEmpty(rec.ref);
+              const type = toStringOrEmpty(rec.type);
+              if (!ref || !type) return null;
+              const value =
+                typeof rec.value === "string" ||
+                typeof rec.value === "number" ||
+                typeof rec.value === "boolean"
+                  ? rec.value
+                  : undefined;
+              return { ref, type, value };
+            })
+            .filter((field): field is BrowserFormField => Boolean(field));
+          if (!fields.length) return jsonError(res, 400, "fields are required");
           await pw.fillFormViaPlaywright({
             cdpPort,
             targetId: tab.targetId,

@@ -19,6 +19,7 @@ vi.mock("./session.js", () => {
     createWaSocket,
     waitForWaConnection,
     formatError,
+    resolveWebAuthDir: () => "/tmp/wa-creds",
     WA_WEB_AUTH_DIR: "/tmp/wa-creds",
   };
 });

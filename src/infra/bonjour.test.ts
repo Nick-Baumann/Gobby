@@ -9,6 +9,9 @@ const logWarn = vi.fn();
 const logDebug = vi.fn();
 const getLoggerInfo = vi.fn();
 
+const asString = (value: unknown, fallback: string) =>
+  typeof value === "string" && value.trim() ? value : fallback;
+
 vi.mock("../logger.js", () => {
   return {
     logWarn: (message: string) => logWarn(message),
@@ -86,8 +89,8 @@ describe("gateway bonjour advertiser", () => {
         serviceState: "announced",
         on: vi.fn(),
         getFQDN: () =>
-          `${String(options.type ?? "service")}.${String(options.domain ?? "local")}.`,
-        getHostname: () => String(options.hostname ?? "unknown"),
+          `${asString(options.type, "service")}.${asString(options.domain, "local")}.`,
+        getHostname: () => asString(options.hostname, "unknown"),
         getPort: () => Number(options.port ?? -1),
       };
     });
@@ -153,8 +156,8 @@ describe("gateway bonjour advertiser", () => {
         serviceState: "announced",
         on,
         getFQDN: () =>
-          `${String(options.type ?? "service")}.${String(options.domain ?? "local")}.`,
-        getHostname: () => String(options.hostname ?? "unknown"),
+          `${asString(options.type, "service")}.${asString(options.domain, "local")}.`,
+        getHostname: () => asString(options.hostname, "unknown"),
         getPort: () => Number(options.port ?? -1),
       };
     });
@@ -195,8 +198,8 @@ describe("gateway bonjour advertiser", () => {
         serviceState: "unannounced",
         on: vi.fn(),
         getFQDN: () =>
-          `${String(options.type ?? "service")}.${String(options.domain ?? "local")}.`,
-        getHostname: () => String(options.hostname ?? "unknown"),
+          `${asString(options.type, "service")}.${asString(options.domain, "local")}.`,
+        getHostname: () => asString(options.hostname, "unknown"),
         getPort: () => Number(options.port ?? -1),
       };
     });
@@ -245,8 +248,8 @@ describe("gateway bonjour advertiser", () => {
         serviceState: "unannounced",
         on: vi.fn(),
         getFQDN: () =>
-          `${String(options.type ?? "service")}.${String(options.domain ?? "local")}.`,
-        getHostname: () => String(options.hostname ?? "unknown"),
+          `${asString(options.type, "service")}.${asString(options.domain, "local")}.`,
+        getHostname: () => asString(options.hostname, "unknown"),
         getPort: () => Number(options.port ?? -1),
       };
     });
@@ -281,8 +284,8 @@ describe("gateway bonjour advertiser", () => {
         serviceState: "announced",
         on: vi.fn(),
         getFQDN: () =>
-          `${String(options.type ?? "service")}.${String(options.domain ?? "local")}.`,
-        getHostname: () => String(options.hostname ?? "unknown"),
+          `${asString(options.type, "service")}.${asString(options.domain, "local")}.`,
+        getHostname: () => asString(options.hostname, "unknown"),
         getPort: () => Number(options.port ?? -1),
       };
     });

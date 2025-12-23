@@ -8,7 +8,7 @@ import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import {
   createWaSocket,
   formatError,
-  WA_WEB_AUTH_DIR,
+  resolveWebAuthDir,
   waitForWaConnection,
 } from "./session.js";
 
@@ -56,7 +56,7 @@ export async function loginWeb(
       }
     }
     if (code === DisconnectReason.loggedOut) {
-      await fs.rm(WA_WEB_AUTH_DIR, { recursive: true, force: true });
+      await fs.rm(resolveWebAuthDir(), { recursive: true, force: true });
       console.error(
         danger(
           "WhatsApp reported the session is logged out. Cleared cached web session; please rerun clawdis login and scan the QR again.",

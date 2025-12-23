@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { WebSocket } from "ws";
+import { rawDataToString } from "../infra/ws.js";
 import { logDebug, logError } from "../logger.js";
 import {
   type ConnectParams,
@@ -57,14 +58,15 @@ export class GatewayClient {
     this.ws = new WebSocket(url, { maxPayload: 25 * 1024 * 1024 });
 
     this.ws.on("open", () => this.sendConnect());
-    this.ws.on("message", (data) => this.handleMessage(data.toString()));
+    this.ws.on("message", (data) => this.handleMessage(rawDataToString(data)));
     this.ws.on("close", (code, reason) => {
+      const reasonText = rawDataToString(reason);
       this.ws = null;
       this.flushPendingErrors(
-        new Error(`gateway closed (${code}): ${reason.toString()}`),
+        new Error(`gateway closed (${code}): ${reasonText}`),
       );
       this.scheduleReconnect();
-      this.opts.onClose?.(code, reason.toString());
+      this.opts.onClose?.(code, reasonText);
     });
     this.ws.on("error", (err) => {
       logDebug(`gateway client error: ${String(err)}`);

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import fsSync from "node:fs";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import {
   DisconnectReason,
@@ -19,9 +20,19 @@ import type { Provider } from "../utils.js";
 import { CONFIG_DIR, ensureDir, jidToE164 } from "../utils.js";
 import { VERSION } from "../version.js";
 
+export function resolveWebAuthDir() {
+  return path.join(os.homedir(), ".clawdis", "credentials");
+}
+
+function resolveWebCredsPath() {
+  return path.join(resolveWebAuthDir(), "creds.json");
+}
+
+function resolveWebCredsBackupPath() {
+  return path.join(resolveWebAuthDir(), "creds.json.bak");
+}
+
 export const WA_WEB_AUTH_DIR = path.join(CONFIG_DIR, "credentials");
-const WA_CREDS_PATH = path.join(WA_WEB_AUTH_DIR, "creds.json");
-const WA_CREDS_BACKUP_PATH = path.join(WA_WEB_AUTH_DIR, "creds.json.bak");
 
 let credsSaveQueue: Promise<void> = Promise.resolve();
 function enqueueSaveCreds(
@@ -50,21 +61,23 @@ function maybeRestoreCredsFromBackup(
   logger: ReturnType<typeof getChildLogger>,
 ): void {
   try {
-    const raw = readCredsJsonRaw(WA_CREDS_PATH);
+    const credsPath = resolveWebCredsPath();
+    const backupPath = resolveWebCredsBackupPath();
+    const raw = readCredsJsonRaw(credsPath);
     if (raw) {
       // Validate that creds.json is parseable.
       JSON.parse(raw);
       return;
     }
 
-    const backupRaw = readCredsJsonRaw(WA_CREDS_BACKUP_PATH);
+    const backupRaw = readCredsJsonRaw(backupPath);
     if (!backupRaw) return;
 
     // Ensure backup is parseable before restoring.
     JSON.parse(backupRaw);
-    fsSync.copyFileSync(WA_CREDS_BACKUP_PATH, WA_CREDS_PATH);
+    fsSync.copyFileSync(backupPath, credsPath);
     logger.warn(
-      { credsPath: WA_CREDS_PATH },
+      { credsPath },
       "restored corrupted WhatsApp creds.json from backup",
     );
   } catch {
@@ -79,11 +92,13 @@ async function safeSaveCreds(
   try {
     // Best-effort backup so we can recover after abrupt restarts.
     // Important: don't clobber a good backup with a corrupted/truncated creds.json.
-    const raw = readCredsJsonRaw(WA_CREDS_PATH);
+    const credsPath = resolveWebCredsPath();
+    const backupPath = resolveWebCredsBackupPath();
+    const raw = readCredsJsonRaw(credsPath);
     if (raw) {
       try {
         JSON.parse(raw);
-        fsSync.copyFileSync(WA_CREDS_PATH, WA_CREDS_BACKUP_PATH);
+        fsSync.copyFileSync(credsPath, backupPath);
       } catch {
         // keep existing backup
       }
@@ -114,10 +129,11 @@ export async function createWaSocket(
     },
   );
   const logger = toPinoLikeLogger(baseLogger, verbose ? "info" : "silent");
-  await ensureDir(WA_WEB_AUTH_DIR);
+  const authDir = resolveWebAuthDir();
+  await ensureDir(authDir);
   const sessionLogger = getChildLogger({ module: "web-session" });
   maybeRestoreCredsFromBackup(sessionLogger);
-  const { state, saveCreds } = await useMultiFileAuthState(WA_WEB_AUTH_DIR);
+  const { state, saveCreds } = await useMultiFileAuthState(authDir);
   const { version } = await fetchLatestBaileysVersion();
   const sock = makeWASocket({
     auth: {
@@ -283,6 +299,10 @@ export function formatError(err: unknown): string {
 
   const status = boom?.statusCode ?? getStatusCode(err);
   const code = (err as { code?: unknown })?.code;
+  const codeText =
+    typeof code === "string" || typeof code === "number"
+      ? String(code)
+      : undefined;
 
   const messageCandidates = [
     boom?.message,
@@ -300,7 +320,7 @@ export function formatError(err: unknown): string {
   if (typeof status === "number") pieces.push(`status=${status}`);
   if (boom?.error) pieces.push(boom.error);
   if (message) pieces.push(message);
-  if (code !== undefined && code !== null) pieces.push(`code=${String(code)}`);
+  if (codeText) pieces.push(`code=${codeText}`);
 
   if (pieces.length > 0) return pieces.join(" ");
   return safeStringify(err);
@@ -309,15 +329,17 @@ export function formatError(err: unknown): string {
 export async function webAuthExists() {
   const sessionLogger = getChildLogger({ module: "web-session" });
   maybeRestoreCredsFromBackup(sessionLogger);
+  const authDir = resolveWebAuthDir();
+  const credsPath = resolveWebCredsPath();
   try {
-    await fs.access(WA_WEB_AUTH_DIR);
+    await fs.access(authDir);
   } catch {
     return false;
   }
   try {
-    const stats = await fs.stat(WA_CREDS_PATH);
+    const stats = await fs.stat(credsPath);
     if (!stats.isFile() || stats.size <= 1) return false;
-    const raw = await fs.readFile(WA_CREDS_PATH, "utf-8");
+    const raw = await fs.readFile(credsPath, "utf-8");
     JSON.parse(raw);
     return true;
   } catch {
@@ -331,7 +353,7 @@ export async function logoutWeb(runtime: RuntimeEnv = defaultRuntime) {
     runtime.log(info("No WhatsApp Web session found; nothing to delete."));
     return false;
   }
-  await fs.rm(WA_WEB_AUTH_DIR, { recursive: true, force: true });
+  await fs.rm(resolveWebAuthDir(), { recursive: true, force: true });
   // Also drop session store to clear lingering per-sender state after logout.
   await fs.rm(resolveDefaultSessionStorePath(), { force: true });
   runtime.log(success("Cleared WhatsApp Web credentials."));
@@ -341,10 +363,11 @@ export async function logoutWeb(runtime: RuntimeEnv = defaultRuntime) {
 export function readWebSelfId() {
   // Read the cached WhatsApp Web identity (jid + E.164) from disk if present.
   try {
-    if (!fsSync.existsSync(WA_CREDS_PATH)) {
+    const credsPath = resolveWebCredsPath();
+    if (!fsSync.existsSync(credsPath)) {
       return { e164: null, jid: null } as const;
     }
-    const raw = fsSync.readFileSync(WA_CREDS_PATH, "utf-8");
+    const raw = fsSync.readFileSync(credsPath, "utf-8");
     const parsed = JSON.parse(raw) as { me?: { id?: string } } | undefined;
     const jid = parsed?.me?.id ?? null;
     const e164 = jid ? jidToE164(jid) : null;
@@ -360,7 +383,7 @@ export function readWebSelfId() {
  */
 export function getWebAuthAgeMs(): number | null {
   try {
-    const stats = fsSync.statSync(WA_CREDS_PATH);
+    const stats = fsSync.statSync(resolveWebCredsPath());
     return Date.now() - stats.mtimeMs;
   } catch {
     return null;

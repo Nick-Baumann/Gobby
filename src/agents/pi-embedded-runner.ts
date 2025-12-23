@@ -418,7 +418,7 @@ export async function runEmbeddedPiAgent(params: {
           params.abortSignal.addEventListener("abort", onAbort, { once: true });
         }
       }
-      let promptError: unknown | null = null;
+      let promptError: unknown = null;
       try {
         try {
           await session.prompt(params.prompt);

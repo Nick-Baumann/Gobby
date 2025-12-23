@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 
 import { afterEach, describe, expect, it } from "vitest";
 import { WebSocketServer } from "ws";
-
+import { rawDataToString } from "../infra/ws.js";
 import { createTargetViaCdp, evaluateJavaScript, snapshotAria } from "./cdp.js";
 
 describe("cdp", () => {
@@ -29,7 +29,7 @@ describe("cdp", () => {
 
     wsServer.on("connection", (socket) => {
       socket.on("message", (data) => {
-        const msg = JSON.parse(String(data)) as {
+        const msg = JSON.parse(rawDataToString(data)) as {
           id?: number;
           method?: string;
           params?: { url?: string };
@@ -78,7 +78,7 @@ describe("cdp", () => {
 
     wsServer.on("connection", (socket) => {
       socket.on("message", (data) => {
-        const msg = JSON.parse(String(data)) as {
+        const msg = JSON.parse(rawDataToString(data)) as {
           id?: number;
           method?: string;
           params?: { expression?: string };
@@ -115,7 +115,7 @@ describe("cdp", () => {
 
     wsServer.on("connection", (socket) => {
       socket.on("message", (data) => {
-        const msg = JSON.parse(String(data)) as {
+        const msg = JSON.parse(rawDataToString(data)) as {
           id?: number;
           method?: string;
         };

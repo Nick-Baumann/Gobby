@@ -92,5 +92,11 @@ if (isMain) {
     process.exit(1);
   });
 
-  program.parseAsync(process.argv);
+  void program.parseAsync(process.argv).catch((err) => {
+    console.error(
+      "[clawdis] CLI failed:",
+      err instanceof Error ? (err.stack ?? err.message) : err,
+    );
+    process.exit(1);
+  });
 }

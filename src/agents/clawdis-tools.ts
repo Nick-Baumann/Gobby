@@ -3,16 +3,6 @@ import fs from "node:fs/promises";
 
 import type { AgentTool, AgentToolResult } from "@mariozechner/pi-ai";
 import { type TSchema, Type } from "@sinclair/typebox";
-
-import {
-  browserAct,
-  browserArmDialog,
-  browserArmFileChooser,
-  browserConsoleMessages,
-  browserNavigate,
-  browserPdfSave,
-  browserScreenshotAction,
-} from "../browser/client-actions.js";
 import {
   browserCloseTab,
   browserFocusTab,
@@ -23,13 +13,22 @@ import {
   browserStop,
   browserTabs,
 } from "../browser/client.js";
+import {
+  browserAct,
+  browserArmDialog,
+  browserArmFileChooser,
+  browserConsoleMessages,
+  browserNavigate,
+  browserPdfSave,
+  browserScreenshotAction,
+} from "../browser/client-actions.js";
 import { resolveBrowserConfig } from "../browser/config.js";
 import {
+  type CameraFacing,
   cameraTempPath,
   parseCameraClipPayload,
   parseCameraSnapPayload,
   writeBase64ToFile,
-  type CameraFacing,
 } from "../cli/nodes-camera.js";
 import {
   canvasSnapshotTempPath,
@@ -70,6 +69,31 @@ function resolveGatewayOptions(opts?: GatewayCallOptions) {
       ? Math.max(1, Math.floor(opts.timeoutMs))
       : 10_000;
   return { url, token, timeoutMs };
+}
+
+type StringParamOptions = {
+  required?: boolean;
+  trim?: boolean;
+  label?: string;
+};
+
+function readStringParam(
+  params: Record<string, unknown>,
+  key: string,
+  options: StringParamOptions = {},
+) {
+  const { required = false, trim = true, label = key } = options;
+  const raw = params[key];
+  if (typeof raw !== "string") {
+    if (required) throw new Error(`${label} required`);
+    return undefined;
+  }
+  const value = trim ? raw.trim() : raw;
+  if (!value) {
+    if (required) throw new Error(`${label} required`);
+    return undefined;
+  }
+  return value;
 }
 
 async function callGatewayTool<T = unknown>(
@@ -342,10 +366,22 @@ const BrowserActSchema = Type.Object({
 });
 
 const BrowserToolSchema = Type.Union([
-  Type.Object({ action: Type.Literal("status"), controlUrl: Type.Optional(Type.String()) }),
-  Type.Object({ action: Type.Literal("start"), controlUrl: Type.Optional(Type.String()) }),
-  Type.Object({ action: Type.Literal("stop"), controlUrl: Type.Optional(Type.String()) }),
-  Type.Object({ action: Type.Literal("tabs"), controlUrl: Type.Optional(Type.String()) }),
+  Type.Object({
+    action: Type.Literal("status"),
+    controlUrl: Type.Optional(Type.String()),
+  }),
+  Type.Object({
+    action: Type.Literal("start"),
+    controlUrl: Type.Optional(Type.String()),
+  }),
+  Type.Object({
+    action: Type.Literal("stop"),
+    controlUrl: Type.Optional(Type.String()),
+  }),
+  Type.Object({
+    action: Type.Literal("tabs"),
+    controlUrl: Type.Optional(Type.String()),
+  }),
   Type.Object({
     action: Type.Literal("open"),
     controlUrl: Type.Optional(Type.String()),
@@ -364,7 +400,9 @@ const BrowserToolSchema = Type.Union([
   Type.Object({
     action: Type.Literal("snapshot"),
     controlUrl: Type.Optional(Type.String()),
-    format: Type.Optional(Type.Union([Type.Literal("aria"), Type.Literal("ai")])),
+    format: Type.Optional(
+      Type.Union([Type.Literal("aria"), Type.Literal("ai")]),
+    ),
     targetId: Type.Optional(Type.String()),
     limit: Type.Optional(Type.Number()),
   }),
@@ -375,7 +413,9 @@ const BrowserToolSchema = Type.Union([
     fullPage: Type.Optional(Type.Boolean()),
     ref: Type.Optional(Type.String()),
     element: Type.Optional(Type.String()),
-    type: Type.Optional(Type.Union([Type.Literal("png"), Type.Literal("jpeg")])),
+    type: Type.Optional(
+      Type.Union([Type.Literal("png"), Type.Literal("jpeg")]),
+    ),
   }),
   Type.Object({
     action: Type.Literal("navigate"),
@@ -425,9 +465,8 @@ function createBrowserTool(): AnyAgentTool {
     parameters: BrowserToolSchema,
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
-      const action = String(params.action ?? "");
-      const controlUrl =
-        typeof params.controlUrl === "string" ? params.controlUrl : undefined;
+      const action = readStringParam(params, "action", { required: true });
+      const controlUrl = readStringParam(params, "controlUrl");
       const baseUrl = resolveBrowserBaseUrl(controlUrl);
 
       switch (action) {
@@ -442,19 +481,20 @@ function createBrowserTool(): AnyAgentTool {
         case "tabs":
           return jsonResult({ tabs: await browserTabs(baseUrl) });
         case "open": {
-          const targetUrl = String(params.targetUrl ?? "").trim();
-          if (!targetUrl) throw new Error("targetUrl required");
+          const targetUrl = readStringParam(params, "targetUrl", {
+            required: true,
+          });
           return jsonResult(await browserOpenTab(baseUrl, targetUrl));
         }
         case "focus": {
-          const targetId = String(params.targetId ?? "").trim();
-          if (!targetId) throw new Error("targetId required");
+          const targetId = readStringParam(params, "targetId", {
+            required: true,
+          });
           await browserFocusTab(baseUrl, targetId);
           return jsonResult({ ok: true });
         }
         case "close": {
-          const targetId =
-            typeof params.targetId === "string" ? params.targetId.trim() : "";
+          const targetId = readStringParam(params, "targetId");
           if (targetId) await browserCloseTab(baseUrl, targetId);
           else await browserAct(baseUrl, { kind: "close" });
           return jsonResult({ ok: true });
@@ -465,7 +505,9 @@ function createBrowserTool(): AnyAgentTool {
               ? (params.format as "ai" | "aria")
               : "aria";
           const targetId =
-            typeof params.targetId === "string" ? params.targetId.trim() : undefined;
+            typeof params.targetId === "string"
+              ? params.targetId.trim()
+              : undefined;
           const limit =
             typeof params.limit === "number" && Number.isFinite(params.limit)
               ? params.limit
@@ -484,13 +526,10 @@ function createBrowserTool(): AnyAgentTool {
           return jsonResult(snapshot);
         }
         case "screenshot": {
-          const targetId =
-            typeof params.targetId === "string" ? params.targetId.trim() : undefined;
+          const targetId = readStringParam(params, "targetId");
           const fullPage = Boolean(params.fullPage);
-          const ref =
-            typeof params.ref === "string" ? params.ref.trim() : undefined;
-          const element =
-            typeof params.element === "string" ? params.element.trim() : undefined;
+          const ref = readStringParam(params, "ref");
+          const element = readStringParam(params, "element");
           const type = params.type === "jpeg" ? "jpeg" : "png";
           const result = await browserScreenshotAction(baseUrl, {
             targetId,
@@ -506,10 +545,10 @@ function createBrowserTool(): AnyAgentTool {
           });
         }
         case "navigate": {
-          const targetUrl = String(params.targetUrl ?? "").trim();
-          if (!targetUrl) throw new Error("targetUrl required");
-          const targetId =
-            typeof params.targetId === "string" ? params.targetId.trim() : undefined;
+          const targetUrl = readStringParam(params, "targetUrl", {
+            required: true,
+          });
+          const targetId = readStringParam(params, "targetId");
           return jsonResult(
             await browserNavigate(baseUrl, { url: targetUrl, targetId }),
           );
@@ -518,14 +557,18 @@ function createBrowserTool(): AnyAgentTool {
           const level =
             typeof params.level === "string" ? params.level.trim() : undefined;
           const targetId =
-            typeof params.targetId === "string" ? params.targetId.trim() : undefined;
+            typeof params.targetId === "string"
+              ? params.targetId.trim()
+              : undefined;
           return jsonResult(
             await browserConsoleMessages(baseUrl, { level, targetId }),
           );
         }
         case "pdf": {
           const targetId =
-            typeof params.targetId === "string" ? params.targetId.trim() : undefined;
+            typeof params.targetId === "string"
+              ? params.targetId.trim()
+              : undefined;
           const result = await browserPdfSave(baseUrl, { targetId });
           return {
             content: [{ type: "text", text: `FILE:${result.path}` }],
@@ -538,23 +581,35 @@ function createBrowserTool(): AnyAgentTool {
             : [];
           if (paths.length === 0) throw new Error("paths required");
           const targetId =
-            typeof params.targetId === "string" ? params.targetId.trim() : undefined;
+            typeof params.targetId === "string"
+              ? params.targetId.trim()
+              : undefined;
           const timeoutMs =
-            typeof params.timeoutMs === "number" && Number.isFinite(params.timeoutMs)
+            typeof params.timeoutMs === "number" &&
+            Number.isFinite(params.timeoutMs)
               ? params.timeoutMs
               : undefined;
           return jsonResult(
-            await browserArmFileChooser(baseUrl, { paths, targetId, timeoutMs }),
+            await browserArmFileChooser(baseUrl, {
+              paths,
+              targetId,
+              timeoutMs,
+            }),
           );
         }
         case "dialog": {
           const accept = Boolean(params.accept);
           const promptText =
-            typeof params.promptText === "string" ? params.promptText : undefined;
+            typeof params.promptText === "string"
+              ? params.promptText
+              : undefined;
           const targetId =
-            typeof params.targetId === "string" ? params.targetId.trim() : undefined;
+            typeof params.targetId === "string"
+              ? params.targetId.trim()
+              : undefined;
           const timeoutMs =
-            typeof params.timeoutMs === "number" && Number.isFinite(params.timeoutMs)
+            typeof params.timeoutMs === "number" &&
+            Number.isFinite(params.timeoutMs)
               ? params.timeoutMs
               : undefined;
           return jsonResult(
@@ -571,7 +626,10 @@ function createBrowserTool(): AnyAgentTool {
           if (!request || typeof request !== "object") {
             throw new Error("request required");
           }
-          const result = await browserAct(baseUrl, request as Parameters<typeof browserAct>[1]);
+          const result = await browserAct(
+            baseUrl,
+            request as Parameters<typeof browserAct>[1],
+          );
           return jsonResult(result);
         }
         default:
@@ -623,7 +681,13 @@ const CanvasToolSchema = Type.Union([
     gatewayToken: Type.Optional(Type.String()),
     timeoutMs: Type.Optional(Type.Number()),
     node: Type.Optional(Type.String()),
-    format: Type.Optional(Type.Union([Type.Literal("png"), Type.Literal("jpg"), Type.Literal("jpeg")])),
+    format: Type.Optional(
+      Type.Union([
+        Type.Literal("png"),
+        Type.Literal("jpg"),
+        Type.Literal("jpeg"),
+      ]),
+    ),
     maxWidth: Type.Optional(Type.Number()),
     quality: Type.Optional(Type.Number()),
   }),
@@ -654,25 +718,24 @@ function createCanvasTool(): AnyAgentTool {
     parameters: CanvasToolSchema,
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
-      const action = String(params.action ?? "");
+      const action = readStringParam(params, "action", { required: true });
       const gatewayOpts: GatewayCallOptions = {
-        gatewayUrl:
-          typeof params.gatewayUrl === "string" ? params.gatewayUrl : undefined,
-        gatewayToken:
-          typeof params.gatewayToken === "string"
-            ? params.gatewayToken
-            : undefined,
+        gatewayUrl: readStringParam(params, "gatewayUrl", { trim: false }),
+        gatewayToken: readStringParam(params, "gatewayToken", { trim: false }),
         timeoutMs:
           typeof params.timeoutMs === "number" ? params.timeoutMs : undefined,
       };
 
       const nodeId = await resolveNodeId(
         gatewayOpts,
-        typeof params.node === "string" ? params.node : undefined,
+        readStringParam(params, "node", { trim: true }),
         true,
       );
 
-      const invoke = async (command: string, invokeParams?: Record<string, unknown>) =>
+      const invoke = async (
+        command: string,
+        invokeParams?: Record<string, unknown>,
+      ) =>
         await callGatewayTool("node.invoke", gatewayOpts, {
           nodeId,
           command,
@@ -686,7 +749,8 @@ function createCanvasTool(): AnyAgentTool {
             x: typeof params.x === "number" ? params.x : undefined,
             y: typeof params.y === "number" ? params.y : undefined,
             width: typeof params.width === "number" ? params.width : undefined,
-            height: typeof params.height === "number" ? params.height : undefined,
+            height:
+              typeof params.height === "number" ? params.height : undefined,
           };
           const invokeParams: Record<string, unknown> = {};
           if (typeof params.target === "string" && params.target.trim()) {
@@ -707,14 +771,14 @@ function createCanvasTool(): AnyAgentTool {
           await invoke("canvas.hide", undefined);
           return jsonResult({ ok: true });
         case "navigate": {
-          const url = String(params.url ?? "").trim();
-          if (!url) throw new Error("url required");
+          const url = readStringParam(params, "url", { required: true });
           await invoke("canvas.navigate", { url });
           return jsonResult({ ok: true });
         }
         case "eval": {
-          const javaScript = String(params.javaScript ?? "").trim();
-          if (!javaScript) throw new Error("javaScript required");
+          const javaScript = readStringParam(params, "javaScript", {
+            required: true,
+          });
           const raw = (await invoke("canvas.eval", { javaScript })) as {
             payload?: { result?: string };
           };
@@ -724,15 +788,19 @@ function createCanvasTool(): AnyAgentTool {
         }
         case "snapshot": {
           const formatRaw =
-            typeof params.format === "string" ? params.format.toLowerCase() : "png";
+            typeof params.format === "string"
+              ? params.format.toLowerCase()
+              : "png";
           const format =
             formatRaw === "jpg" || formatRaw === "jpeg" ? "jpeg" : "png";
           const maxWidth =
-            typeof params.maxWidth === "number" && Number.isFinite(params.maxWidth)
+            typeof params.maxWidth === "number" &&
+            Number.isFinite(params.maxWidth)
               ? params.maxWidth
               : undefined;
           const quality =
-            typeof params.quality === "number" && Number.isFinite(params.quality)
+            typeof params.quality === "number" &&
+            Number.isFinite(params.quality)
               ? params.quality
               : undefined;
           const raw = (await invoke("canvas.snapshot", {
@@ -819,16 +887,20 @@ const NodesToolSchema = Type.Union([
     title: Type.Optional(Type.String()),
     body: Type.Optional(Type.String()),
     sound: Type.Optional(Type.String()),
-    priority: Type.Optional(Type.Union([
-      Type.Literal("passive"),
-      Type.Literal("active"),
-      Type.Literal("timeSensitive"),
-    ])),
-    delivery: Type.Optional(Type.Union([
-      Type.Literal("system"),
-      Type.Literal("overlay"),
-      Type.Literal("auto"),
-    ])),
+    priority: Type.Optional(
+      Type.Union([
+        Type.Literal("passive"),
+        Type.Literal("active"),
+        Type.Literal("timeSensitive"),
+      ]),
+    ),
+    delivery: Type.Optional(
+      Type.Union([
+        Type.Literal("system"),
+        Type.Literal("overlay"),
+        Type.Literal("auto"),
+      ]),
+    ),
   }),
   Type.Object({
     action: Type.Literal("camera_snap"),
@@ -836,7 +908,13 @@ const NodesToolSchema = Type.Union([
     gatewayToken: Type.Optional(Type.String()),
     timeoutMs: Type.Optional(Type.Number()),
     node: Type.String(),
-    facing: Type.Optional(Type.Union([Type.Literal("front"), Type.Literal("back"), Type.Literal("both")])),
+    facing: Type.Optional(
+      Type.Union([
+        Type.Literal("front"),
+        Type.Literal("back"),
+        Type.Literal("both"),
+      ]),
+    ),
     maxWidth: Type.Optional(Type.Number()),
     quality: Type.Optional(Type.Number()),
   }),
@@ -846,7 +924,9 @@ const NodesToolSchema = Type.Union([
     gatewayToken: Type.Optional(Type.String()),
     timeoutMs: Type.Optional(Type.Number()),
     node: Type.String(),
-    facing: Type.Optional(Type.Union([Type.Literal("front"), Type.Literal("back")])),
+    facing: Type.Optional(
+      Type.Union([Type.Literal("front"), Type.Literal("back")]),
+    ),
     duration: Type.Optional(Type.String()),
     durationMs: Type.Optional(Type.Number()),
     includeAudio: Type.Optional(Type.Boolean()),
@@ -875,24 +955,21 @@ function createNodesTool(): AnyAgentTool {
     parameters: NodesToolSchema,
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
-      const action = String(params.action ?? "");
+      const action = readStringParam(params, "action", { required: true });
       const gatewayOpts: GatewayCallOptions = {
-        gatewayUrl:
-          typeof params.gatewayUrl === "string" ? params.gatewayUrl : undefined,
-        gatewayToken:
-          typeof params.gatewayToken === "string"
-            ? params.gatewayToken
-            : undefined,
+        gatewayUrl: readStringParam(params, "gatewayUrl", { trim: false }),
+        gatewayToken: readStringParam(params, "gatewayToken", { trim: false }),
         timeoutMs:
           typeof params.timeoutMs === "number" ? params.timeoutMs : undefined,
       };
 
       switch (action) {
         case "status":
-          return jsonResult(await callGatewayTool("node.list", gatewayOpts, {}));
+          return jsonResult(
+            await callGatewayTool("node.list", gatewayOpts, {}),
+          );
         case "describe": {
-          const node = String(params.node ?? "").trim();
-          if (!node) throw new Error("node required");
+          const node = readStringParam(params, "node", { required: true });
           const nodeId = await resolveNodeId(gatewayOpts, node);
           return jsonResult(
             await callGatewayTool("node.describe", gatewayOpts, { nodeId }),
@@ -903,8 +980,9 @@ function createNodesTool(): AnyAgentTool {
             await callGatewayTool("node.pair.list", gatewayOpts, {}),
           );
         case "approve": {
-          const requestId = String(params.requestId ?? "").trim();
-          if (!requestId) throw new Error("requestId required");
+          const requestId = readStringParam(params, "requestId", {
+            required: true,
+          });
           return jsonResult(
             await callGatewayTool("node.pair.approve", gatewayOpts, {
               requestId,
@@ -912,8 +990,9 @@ function createNodesTool(): AnyAgentTool {
           );
         }
         case "reject": {
-          const requestId = String(params.requestId ?? "").trim();
-          if (!requestId) throw new Error("requestId required");
+          const requestId = readStringParam(params, "requestId", {
+            required: true,
+          });
           return jsonResult(
             await callGatewayTool("node.pair.reject", gatewayOpts, {
               requestId,
@@ -921,8 +1000,7 @@ function createNodesTool(): AnyAgentTool {
           );
         }
         case "notify": {
-          const node = String(params.node ?? "").trim();
-          if (!node) throw new Error("node required");
+          const node = readStringParam(params, "node", { required: true });
           const title = typeof params.title === "string" ? params.title : "";
           const body = typeof params.body === "string" ? params.body : "";
           if (!title.trim() && !body.trim()) {
@@ -935,22 +1013,28 @@ function createNodesTool(): AnyAgentTool {
             params: {
               title: title.trim() || undefined,
               body: body.trim() || undefined,
-              sound: typeof params.sound === "string" ? params.sound : undefined,
+              sound:
+                typeof params.sound === "string" ? params.sound : undefined,
               priority:
-                typeof params.priority === "string" ? params.priority : undefined,
+                typeof params.priority === "string"
+                  ? params.priority
+                  : undefined,
               delivery:
-                typeof params.delivery === "string" ? params.delivery : undefined,
+                typeof params.delivery === "string"
+                  ? params.delivery
+                  : undefined,
             },
             idempotencyKey: crypto.randomUUID(),
           });
           return jsonResult({ ok: true });
         }
         case "camera_snap": {
-          const node = String(params.node ?? "").trim();
-          if (!node) throw new Error("node required");
+          const node = readStringParam(params, "node", { required: true });
           const nodeId = await resolveNodeId(gatewayOpts, node);
           const facingRaw =
-            typeof params.facing === "string" ? params.facing.toLowerCase() : "both";
+            typeof params.facing === "string"
+              ? params.facing.toLowerCase()
+              : "both";
           const facings: CameraFacing[] =
             facingRaw === "both"
               ? ["front", "back"]
@@ -960,11 +1044,13 @@ function createNodesTool(): AnyAgentTool {
                     throw new Error("invalid facing (front|back|both)");
                   })();
           const maxWidth =
-            typeof params.maxWidth === "number" && Number.isFinite(params.maxWidth)
+            typeof params.maxWidth === "number" &&
+            Number.isFinite(params.maxWidth)
               ? params.maxWidth
               : undefined;
           const quality =
-            typeof params.quality === "number" && Number.isFinite(params.quality)
+            typeof params.quality === "number" &&
+            Number.isFinite(params.quality)
               ? params.quality
               : undefined;
 
@@ -994,8 +1080,7 @@ function createNodesTool(): AnyAgentTool {
             content.push({
               type: "image",
               data: payload.base64,
-              mimeType:
-                payload.format === "jpeg" ? "image/jpeg" : "image/png",
+              mimeType: payload.format === "jpeg" ? "image/jpeg" : "image/png",
             });
             details.push({
               facing,
@@ -1009,22 +1094,26 @@ function createNodesTool(): AnyAgentTool {
           return await sanitizeToolResultImages(result, "nodes:camera_snap");
         }
         case "camera_clip": {
-          const node = String(params.node ?? "").trim();
-          if (!node) throw new Error("node required");
+          const node = readStringParam(params, "node", { required: true });
           const nodeId = await resolveNodeId(gatewayOpts, node);
           const facing =
-            typeof params.facing === "string" ? params.facing.toLowerCase() : "front";
+            typeof params.facing === "string"
+              ? params.facing.toLowerCase()
+              : "front";
           if (facing !== "front" && facing !== "back") {
             throw new Error("invalid facing (front|back)");
           }
           const durationMs =
-            typeof params.durationMs === "number" && Number.isFinite(params.durationMs)
+            typeof params.durationMs === "number" &&
+            Number.isFinite(params.durationMs)
               ? params.durationMs
               : typeof params.duration === "string"
                 ? parseDurationMs(params.duration)
                 : 3000;
           const includeAudio =
-            typeof params.includeAudio === "boolean" ? params.includeAudio : true;
+            typeof params.includeAudio === "boolean"
+              ? params.includeAudio
+              : true;
           const raw = (await callGatewayTool("node.invoke", gatewayOpts, {
             nodeId,
             command: "camera.clip",
@@ -1054,11 +1143,11 @@ function createNodesTool(): AnyAgentTool {
           };
         }
         case "screen_record": {
-          const node = String(params.node ?? "").trim();
-          if (!node) throw new Error("node required");
+          const node = readStringParam(params, "node", { required: true });
           const nodeId = await resolveNodeId(gatewayOpts, node);
           const durationMs =
-            typeof params.durationMs === "number" && Number.isFinite(params.durationMs)
+            typeof params.durationMs === "number" &&
+            Number.isFinite(params.durationMs)
               ? params.durationMs
               : typeof params.duration === "string"
                 ? parseDurationMs(params.duration)
@@ -1068,11 +1157,14 @@ function createNodesTool(): AnyAgentTool {
               ? params.fps
               : 10;
           const screenIndex =
-            typeof params.screenIndex === "number" && Number.isFinite(params.screenIndex)
+            typeof params.screenIndex === "number" &&
+            Number.isFinite(params.screenIndex)
               ? params.screenIndex
               : 0;
           const includeAudio =
-            typeof params.includeAudio === "boolean" ? params.includeAudio : true;
+            typeof params.includeAudio === "boolean"
+              ? params.includeAudio
+              : true;
           const raw = (await callGatewayTool("node.invoke", gatewayOpts, {
             nodeId,
             command: "screen.record",
@@ -1168,7 +1260,9 @@ const CronToolSchema = Type.Union([
     gatewayToken: Type.Optional(Type.String()),
     timeoutMs: Type.Optional(Type.Number()),
     text: Type.String(),
-    mode: Type.Optional(Type.Union([Type.Literal("now"), Type.Literal("next-heartbeat")])),
+    mode: Type.Optional(
+      Type.Union([Type.Literal("now"), Type.Literal("next-heartbeat")]),
+    ),
   }),
 ]);
 
@@ -1181,21 +1275,19 @@ function createCronTool(): AnyAgentTool {
     parameters: CronToolSchema,
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
-      const action = String(params.action ?? "");
+      const action = readStringParam(params, "action", { required: true });
       const gatewayOpts: GatewayCallOptions = {
-        gatewayUrl:
-          typeof params.gatewayUrl === "string" ? params.gatewayUrl : undefined,
-        gatewayToken:
-          typeof params.gatewayToken === "string"
-            ? params.gatewayToken
-            : undefined,
+        gatewayUrl: readStringParam(params, "gatewayUrl", { trim: false }),
+        gatewayToken: readStringParam(params, "gatewayToken", { trim: false }),
         timeoutMs:
           typeof params.timeoutMs === "number" ? params.timeoutMs : undefined,
       };
 
       switch (action) {
         case "status":
-          return jsonResult(await callGatewayTool("cron.status", gatewayOpts, {}));
+          return jsonResult(
+            await callGatewayTool("cron.status", gatewayOpts, {}),
+          );
         case "list":
           return jsonResult(
             await callGatewayTool("cron.list", gatewayOpts, {
@@ -1211,8 +1303,7 @@ function createCronTool(): AnyAgentTool {
           );
         }
         case "update": {
-          const jobId = String(params.jobId ?? "").trim();
-          if (!jobId) throw new Error("jobId required");
+          const jobId = readStringParam(params, "jobId", { required: true });
           if (!params.patch || typeof params.patch !== "object") {
             throw new Error("patch required");
           }
@@ -1224,29 +1315,25 @@ function createCronTool(): AnyAgentTool {
           );
         }
         case "remove": {
-          const jobId = String(params.jobId ?? "").trim();
-          if (!jobId) throw new Error("jobId required");
+          const jobId = readStringParam(params, "jobId", { required: true });
           return jsonResult(
             await callGatewayTool("cron.remove", gatewayOpts, { jobId }),
           );
         }
         case "run": {
-          const jobId = String(params.jobId ?? "").trim();
-          if (!jobId) throw new Error("jobId required");
+          const jobId = readStringParam(params, "jobId", { required: true });
           return jsonResult(
             await callGatewayTool("cron.run", gatewayOpts, { jobId }),
           );
         }
         case "runs": {
-          const jobId = String(params.jobId ?? "").trim();
-          if (!jobId) throw new Error("jobId required");
+          const jobId = readStringParam(params, "jobId", { required: true });
           return jsonResult(
             await callGatewayTool("cron.runs", gatewayOpts, { jobId }),
           );
         }
         case "wake": {
-          const text = String(params.text ?? "").trim();
-          if (!text) throw new Error("text required");
+          const text = readStringParam(params, "text", { required: true });
           const mode =
             params.mode === "now" || params.mode === "next-heartbeat"
               ? params.mode
@@ -1268,5 +1355,10 @@ function createCronTool(): AnyAgentTool {
 }
 
 export function createClawdisTools(): AnyAgentTool[] {
-  return [createBrowserTool(), createCanvasTool(), createNodesTool(), createCronTool()];
+  return [
+    createBrowserTool(),
+    createCanvasTool(),
+    createNodesTool(),
+    createCronTool(),
+  ];
 }

@@ -240,7 +240,7 @@ export function listSystemPresence(): SystemPresence[] {
   ensureSelfPresence();
   // prune expired
   const now = Date.now();
-  for (const [k, v] of [...entries]) {
+  for (const [k, v] of entries) {
     if (now - v.ts > TTL_MS) entries.delete(k);
   }
   // enforce max size (LRU by ts)

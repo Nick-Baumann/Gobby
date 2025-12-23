@@ -1,6 +1,7 @@
 import { createServer } from "node:net";
 import { afterEach, describe, expect, test } from "vitest";
 import { WebSocketServer } from "ws";
+import { rawDataToString } from "../infra/ws.js";
 import { GatewayClient } from "./client.js";
 
 // Find a free localhost port for ad-hoc WS servers.
@@ -30,7 +31,7 @@ describe("GatewayClient", () => {
 
     wss.on("connection", (socket) => {
       socket.once("message", (data) => {
-        const first = JSON.parse(String(data)) as { id?: string };
+        const first = JSON.parse(rawDataToString(data)) as { id?: string };
         const id = first.id ?? "connect";
         // Respond with tiny tick interval to trigger watchdog quickly.
         const helloOk = {

@@ -25,7 +25,7 @@ describe("gateway --force helpers", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    originalKill = process.kill;
+    originalKill = process.kill.bind(process);
   });
 
   afterEach(() => {

@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 
 import { webhookCallback } from "grammy";
-
+import { formatErrorMessage } from "../infra/errors.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { defaultRuntime } from "../runtime.js";
 import { createTelegramBot } from "./bot.js";
@@ -43,7 +43,16 @@ export async function startTelegramWebhook(opts: {
       res.end();
       return;
     }
-    handler(req, res);
+    const handled = handler(req, res);
+    if (handled && typeof (handled as Promise<void>).catch === "function") {
+      void (handled as Promise<void>).catch((err) => {
+        runtime.log?.(
+          `Telegram webhook handler failed: ${formatErrorMessage(err)}`,
+        );
+        if (!res.headersSent) res.writeHead(500);
+        res.end();
+      });
+    }
   });
 
   const publicUrl =
@@ -59,7 +68,7 @@ export async function startTelegramWebhook(opts: {
 
   const shutdown = () => {
     server.close();
-    bot.stop();
+    void bot.stop();
   };
   if (opts.abortSignal) {
     opts.abortSignal.addEventListener("abort", shutdown, { once: true });

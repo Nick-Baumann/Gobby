@@ -20,7 +20,7 @@ if (!(globalThis as Record<symbol, unknown>)[CONFIG_KEY]) {
   (globalThis as Record<symbol, unknown>)[CONFIG_KEY] = () => DEFAULT_CONFIG;
 }
 
-export function setLoadConfigMock(fn: (() => unknown) | unknown) {
+export function setLoadConfigMock(fn: unknown) {
   (globalThis as Record<symbol, unknown>)[CONFIG_KEY] =
     typeof fn === "function" ? fn : () => fn;
 }

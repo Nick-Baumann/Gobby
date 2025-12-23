@@ -12,6 +12,7 @@ import type { ReplyPayload } from "../auto-reply/types.js";
 import { loadConfig } from "../config/config.js";
 import { resolveStorePath, updateLastRoute } from "../config/sessions.js";
 import { danger, logVerbose } from "../globals.js";
+import { formatErrorMessage } from "../infra/errors.js";
 import { getChildLogger } from "../logging.js";
 import { mediaKindFromMime } from "../media/constants.js";
 import { detectMime } from "../media/mime.js";
@@ -341,11 +342,10 @@ async function sendTelegramText(
   try {
     await bot.api.sendMessage(chatId, text, { parse_mode: "Markdown" });
   } catch (err) {
-    if (PARSE_ERR_RE.test(String(err ?? ""))) {
+    const errText = formatErrorMessage(err);
+    if (PARSE_ERR_RE.test(errText)) {
       runtime.log?.(
-        `telegram markdown parse failed; retrying without formatting: ${String(
-          err,
-        )}`,
+        `telegram markdown parse failed; retrying without formatting: ${errText}`,
       );
       await bot.api.sendMessage(chatId, text);
       return;

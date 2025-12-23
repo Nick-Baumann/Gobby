@@ -77,7 +77,7 @@ describe("trigger handling", () => {
         makeCfg(home),
       );
       const text = Array.isArray(res) ? res[0]?.text : res?.text;
-      expect(text?.startsWith("⚙️ Restarting" ?? "")).toBe(true);
+      expect(text?.startsWith("⚙️ Restarting")).toBe(true);
       expect(runEmbeddedPiAgent).not.toHaveBeenCalled();
     });
   });

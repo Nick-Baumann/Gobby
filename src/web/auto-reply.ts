@@ -253,8 +253,9 @@ export async function runWebHeartbeatOnce(opts: {
   if (sessionId) {
     const storePath = resolveStorePath(cfg.inbound?.session?.store);
     const store = loadSessionStore(storePath);
+    const current = store[sessionKey] ?? {};
     store[sessionKey] = {
-      ...(store[sessionKey] ?? {}),
+      ...current,
       sessionId,
       updatedAt: Date.now(),
     };
@@ -404,10 +405,10 @@ export async function runWebHeartbeatOnce(opts: {
     );
     whatsappHeartbeatLog.info(`heartbeat alert sent to ${to}`);
   } catch (err) {
-    const reason = String(err);
+    const reason = formatError(err);
     heartbeatLogger.warn({ to, error: reason }, "heartbeat failed");
     whatsappHeartbeatLog.warn(`heartbeat failed (${reason})`);
-    emitHeartbeatEvent({ status: "failed", to, reason: String(err) });
+    emitHeartbeatEvent({ status: "failed", to, reason });
     throw err;
   }
 }
@@ -561,18 +562,17 @@ async function deliverWebReply(params: {
         return await fn();
       } catch (err) {
         lastErr = err;
+        const errText = formatError(err);
         const isLast = attempt === maxAttempts;
         const shouldRetry = /closed|reset|timed\s*out|disconnect/i.test(
-          String(err ?? ""),
+          errText,
         );
         if (!shouldRetry || isLast) {
           throw err;
         }
         const backoffMs = 500 * attempt;
         logVerbose(
-          `Retrying ${label} to ${msg.from} after failure (${attempt}/${maxAttempts - 1}) in ${backoffMs}ms: ${String(
-            err,
-          )}`,
+          `Retrying ${label} to ${msg.from} after failure (${attempt}/${maxAttempts - 1}) in ${backoffMs}ms: ${errText}`,
         );
         await sleep(backoffMs);
       }
@@ -688,7 +688,7 @@ async function deliverWebReply(params: {
       );
     } catch (err) {
       whatsappOutboundLog.error(
-        `Failed sending web media to ${msg.from}: ${String(err)}`,
+        `Failed sending web media to ${msg.from}: ${formatError(err)}`,
       );
       replyLogger.warn({ err, mediaUrl }, "failed to send web media reply");
       if (index === 0) {
@@ -1043,12 +1043,12 @@ export async function monitorWebProvider(
             to,
           }).catch((err) => {
             replyLogger.warn(
-              { error: String(err), storePath, sessionKey: mainKey, to },
+              { error: formatError(err), storePath, sessionKey: mainKey, to },
               "failed updating last route",
             );
           });
           backgroundTasks.add(task);
-          task.finally(() => {
+          void task.finally(() => {
             backgroundTasks.delete(task);
           });
         }
@@ -1096,7 +1096,7 @@ export async function monitorWebProvider(
           })
           .catch((err) => {
             whatsappOutboundLog.error(
-              `Failed sending web tool update to ${msg.from ?? conversationId}: ${String(err)}`,
+              `Failed sending web tool update to ${msg.from ?? conversationId}: ${formatError(err)}`,
             );
           });
       };
@@ -1201,7 +1201,7 @@ export async function monitorWebProvider(
           }
         } catch (err) {
           whatsappOutboundLog.error(
-            `Failed sending web auto-reply to ${msg.from ?? conversationId}: ${String(err)}`,
+            `Failed sending web auto-reply to ${msg.from ?? conversationId}: ${formatError(err)}`,
           );
         }
       }
@@ -1323,7 +1323,7 @@ export async function monitorWebProvider(
       try {
         await listener.close();
       } catch (err) {
-        logVerbose(`Socket close failed: ${String(err)}`);
+        logVerbose(`Socket close failed: ${formatError(err)}`);
       }
     };
 
@@ -1378,7 +1378,9 @@ export async function monitorWebProvider(
             whatsappHeartbeatLog.warn(
               `No messages received in ${minutesSinceLastMessage}m - restarting connection`,
             );
-            closeListener(); // Trigger reconnect
+            void closeListener().catch((err) => {
+              logVerbose(`Close listener failed: ${formatError(err)}`);
+            }); // Trigger reconnect
           }
         }
       }, WATCHDOG_CHECK_MS);
@@ -1593,7 +1595,7 @@ export async function monitorWebProvider(
         heartbeatLogger.warn(
           {
             connectionId,
-            error: String(err),
+            error: formatError(err),
             durationMs,
           },
           "reply heartbeat failed",
@@ -1601,7 +1603,7 @@ export async function monitorWebProvider(
         whatsappHeartbeatLog.warn(
           `heartbeat failed (${formatDuration(durationMs)})`,
         );
-        return { status: "failed", reason: String(err) };
+        return { status: "failed", reason: formatError(err) };
       }
     };
 
@@ -1630,7 +1632,7 @@ export async function monitorWebProvider(
     const reason = await Promise.race([
       listener.onClose?.catch((err) => {
         reconnectLogger.error(
-          { error: String(err) },
+          { error: formatError(err) },
           "listener.onClose rejected",
         );
         return { status: 500, isLoggedOut: false, error: err };

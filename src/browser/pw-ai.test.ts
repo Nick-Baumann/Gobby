@@ -128,9 +128,7 @@ describe("pw-ai", () => {
     const { chromium } = await import("playwright-core");
     const p1 = createPage({ targetId: "T1", snapshotFull: "ONE" });
     const browser = createBrowser([p1.page]);
-    const connect = chromium.connectOverCDP as unknown as ReturnType<
-      typeof vi.fn
-    >;
+    const connect = vi.spyOn(chromium, "connectOverCDP");
     connect.mockResolvedValue(browser);
 
     const mod = await importModule();

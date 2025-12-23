@@ -1,5 +1,7 @@
 import WebSocket from "ws";
 
+import { rawDataToString } from "../infra/ws.js";
+
 type CdpResponse = {
   id: number;
   result?: unknown;
@@ -44,7 +46,7 @@ function createCdpSender(ws: WebSocket) {
 
   ws.on("message", (data) => {
     try {
-      const parsed = JSON.parse(String(data)) as CdpResponse;
+      const parsed = JSON.parse(rawDataToString(data)) as CdpResponse;
       if (typeof parsed.id !== "number") return;
       const p = pending.get(parsed.id);
       if (!p) return;
@@ -252,7 +254,11 @@ type RawAXNode = {
 function axValue(v: unknown): string {
   if (!v || typeof v !== "object") return "";
   const value = (v as { value?: unknown }).value;
-  return typeof value === "string" ? value : String(value ?? "");
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return "";
 }
 
 function formatAriaSnapshot(
@@ -444,7 +450,13 @@ export async function getDomText(opts: {
     awaitPromise: true,
     returnByValue: true,
   });
-  const text = String(evaluated.result?.value ?? "");
+  const textValue = (evaluated.result?.value ?? "") as unknown;
+  const text =
+    typeof textValue === "string"
+      ? textValue
+      : typeof textValue === "number" || typeof textValue === "boolean"
+        ? String(textValue)
+        : "";
   return { text };
 }
 

@@ -1,7 +1,14 @@
+export type AgentEventStream =
+  | "job"
+  | "tool"
+  | "assistant"
+  | "error"
+  | (string & {});
+
 export type AgentEventPayload = {
   runId: string;
   seq: number;
-  stream: "job" | "tool" | string;
+  stream: AgentEventStream;
   ts: number;
   data: Record<string, unknown>;
 };
