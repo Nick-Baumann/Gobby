@@ -933,6 +933,12 @@ export async function monitorWebProvider(
 
     const backgroundTasks = new Set<Promise<unknown>>();
 
+    const formatReplyContext = (msg: WebInboundMsg) => {
+      if (!msg.replyToBody) return null;
+      const sender = msg.replyToSender ?? "unknown sender";
+      return `[Replying to ${sender}]\n${msg.replyToBody}\n[/Replying]`;
+    };
+
     const buildLine = (msg: WebInboundMsg) => {
       // Build message prefix: explicit config > default based on allowFrom
       let messagePrefix = cfg.inbound?.messagePrefix;
@@ -945,7 +951,10 @@ export async function monitorWebProvider(
         msg.chatType === "group"
           ? `${msg.senderName ?? msg.senderE164 ?? "Someone"}: `
           : "";
-      const baseLine = `${prefixStr}${senderLabel}${msg.body}`;
+      const replyContext = formatReplyContext(msg);
+      const baseLine = `${prefixStr}${senderLabel}${msg.body}${
+        replyContext ? `\n\n${replyContext}` : ""
+      }`;
 
       // Wrap with standardized envelope for the agent.
       return formatAgentEnvelope({

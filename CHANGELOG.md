@@ -3,7 +3,8 @@
 ## Unreleased — 2025-12-23
 
 ### Fixes
-- Telegram/WhatsApp: native replies now target the original inbound message; reply context is captured in `ReplyTo*` fields for templates. (Thanks @joshp123 for the PR and follow-up question.)
+- Telegram/WhatsApp: native replies now target the original inbound message; reply context is appended to `Body` and captured in `ReplyTo*` fields. (Thanks @joshp123 for the PR and follow-up question.)
+- Embedded agent: custom model providers now load from `models.providers` (merged into `~/.clawdis/agent/models.json`), enabling proxy/base URL setups.
 
 ## 2.0.0-beta2 — 2025-12-21
 

@@ -1786,10 +1786,13 @@ describe("web auto-reply", () => {
       ReplyToId?: string;
       ReplyToBody?: string;
       ReplyToSender?: string;
+      Body?: string;
     };
     expect(callArg.ReplyToId).toBe("q1");
     expect(callArg.ReplyToBody).toBe("original");
     expect(callArg.ReplyToSender).toBe("+1999");
+    expect(callArg.Body).toContain("[Replying to +1999]");
+    expect(callArg.Body).toContain("original");
   });
 
   it("applies responsePrefix to regular replies", async () => {

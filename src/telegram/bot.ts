@@ -124,13 +124,16 @@ export function createTelegramBot(opts: TelegramBotOptions) {
         ""
       ).trim();
       if (!rawBody) return;
+      const replySuffix = replyTarget
+        ? `\n\n[Replying to ${replyTarget.sender}]\n${replyTarget.body}\n[/Replying]`
+        : "";
       const body = formatAgentEnvelope({
         surface: "Telegram",
         from: isGroup
           ? buildGroupLabel(msg, chatId)
           : buildSenderLabel(msg, chatId),
         timestamp: msg.date ? msg.date * 1000 : undefined,
-        body: rawBody,
+        body: `${rawBody}${replySuffix}`,
       });
 
       const ctxPayload = {
