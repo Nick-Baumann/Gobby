@@ -17,6 +17,7 @@
 - Tailscale Funnel now requires password auth (no token-only public exposure).
 - Group `/new` resets now work with @mentions so activation guidance appears on fresh sessions.
 - Group chat activation context is now injected into the system prompt at session start (and after activation changes), including /new greetings.
+- Typing indicators now start only once a reply payload is produced (no "thinking" typing for silent runs).
 - Canvas defaults/A2UI auto-nav aligned; debug status overlay centered; redundant await removed in `CanvasManager`.
 - Gateway launchd loop fixed by removing redundant `kickstart -k`.
 - CLI now hints when Peekaboo is unauthorized.

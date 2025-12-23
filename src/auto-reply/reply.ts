@@ -201,10 +201,16 @@ export async function getReplyFromConfig(
     if (!opts?.onReplyStart) return;
     if (typingIntervalMs <= 0) return;
     if (typingTimer) return;
-    await triggerTyping();
+    await onReplyStart();
     typingTimer = setInterval(() => {
       void triggerTyping();
     }, typingIntervalMs);
+  };
+  const startTypingOnText = async (text?: string) => {
+    const trimmed = text?.trim();
+    if (!trimmed) return;
+    if (trimmed === SILENT_REPLY_TOKEN) return;
+    await startTypingLoop();
   };
   let transcribedText: string | undefined;
 
@@ -646,8 +652,6 @@ export async function getReplyFromConfig(
     return { text: "⚙️ Agent was aborted." };
   }
 
-  await startTypingLoop();
-
   const isFirstTurnInSession = isNewSession || !systemSent;
   const shouldInjectGroupIntro =
     sessionCtx.ChatType === "group" &&
@@ -865,8 +869,6 @@ export async function getReplyFromConfig(
     return undefined;
   }
 
-  await onReplyStart();
-
   try {
     const runId = crypto.randomUUID();
     const runResult = await runEmbeddedPiAgent({
@@ -884,19 +886,23 @@ export async function getReplyFromConfig(
       timeoutMs,
       runId,
       onPartialReply: opts?.onPartialReply
-        ? (payload) =>
-            opts.onPartialReply?.({
+        ? async (payload) => {
+            await startTypingOnText(payload.text);
+            await opts.onPartialReply?.({
               text: payload.text,
               mediaUrls: payload.mediaUrls,
-            })
+            });
+          }
         : undefined,
       shouldEmitToolResult,
       onToolResult: opts?.onToolResult
-        ? (payload) =>
-            opts.onToolResult?.({
+        ? async (payload) => {
+            await startTypingOnText(payload.text);
+            await opts.onToolResult?.({
               text: payload.text,
               mediaUrls: payload.mediaUrls,
-            })
+            });
+          }
         : undefined,
     });
 
@@ -915,6 +921,16 @@ export async function getReplyFromConfig(
 
     const payloadArray = runResult.payloads ?? [];
     if (payloadArray.length === 0) return undefined;
+    const shouldSignalTyping = payloadArray.some((payload) => {
+      const trimmed = payload.text?.trim();
+      if (trimmed && trimmed !== SILENT_REPLY_TOKEN) return true;
+      if (payload.mediaUrl) return true;
+      if (payload.mediaUrls && payload.mediaUrls.length > 0) return true;
+      return false;
+    });
+    if (shouldSignalTyping) {
+      await onReplyStart();
+    }
 
     if (sessionStore && sessionKey) {
       const usage = runResult.meta.agentMeta?.usage;
