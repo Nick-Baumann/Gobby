@@ -80,6 +80,9 @@ export function normalizeHooksPath(raw?: string): string {
 
 export function normalizeServePath(raw?: string): string {
   const base = raw?.trim() || DEFAULT_GMAIL_SERVE_PATH;
+  // Tailscale funnel/serve strips the set-path prefix before proxying.
+  // To accept requests at /<path> externally, gog must listen on "/".
+  if (base === "/") return "/";
   const withSlash = base.startsWith("/") ? base : `/${base}`;
   return withSlash.replace(/\/+$/, "");
 }
