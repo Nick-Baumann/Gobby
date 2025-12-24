@@ -1357,6 +1357,8 @@ struct OnboardingView: View {
 }
 
 private struct GlowingClawdisIcon: View {
+    @Environment(\.scenePhase) private var scenePhase
+
     let size: CGFloat
     let glowIntensity: Double
     let enableFloating: Bool
@@ -1398,11 +1400,21 @@ private struct GlowingClawdisIcon: View {
         .frame(
             width: glowCanvasSize + (glowBlurRadius * 2),
             height: glowCanvasSize + (glowBlurRadius * 2))
-        .onAppear {
-            guard self.enableFloating else { return }
-            withAnimation(Animation.easeInOut(duration: 3.6).repeatForever(autoreverses: true)) {
-                self.breathe.toggle()
-            }
+        .onAppear { self.updateBreatheAnimation() }
+        .onDisappear { self.breathe = false }
+        .onChange(of: self.scenePhase) { _, _ in
+            self.updateBreatheAnimation()
+        }
+    }
+
+    private func updateBreatheAnimation() {
+        guard self.enableFloating, self.scenePhase == .active else {
+            self.breathe = false
+            return
+        }
+        guard !self.breathe else { return }
+        withAnimation(Animation.easeInOut(duration: 3.6).repeatForever(autoreverses: true)) {
+            self.breathe = true
         }
     }
 }

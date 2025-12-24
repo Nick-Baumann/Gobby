@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct StatusPill: View {
+    @Environment(\.scenePhase) private var scenePhase
+
     enum BridgeState: Equatable {
         case connected
         case connecting
@@ -72,14 +74,18 @@ struct StatusPill: View {
         .buttonStyle(.plain)
         .accessibilityLabel("Status")
         .accessibilityValue("\(self.bridge.title), Voice Wake \(self.voiceWakeEnabled ? "enabled" : "disabled")")
-        .onAppear { self.updatePulse(for: self.bridge) }
+        .onAppear { self.updatePulse(for: self.bridge, scenePhase: self.scenePhase) }
+        .onDisappear { self.pulse = false }
         .onChange(of: self.bridge) { _, newValue in
-            self.updatePulse(for: newValue)
+            self.updatePulse(for: newValue, scenePhase: self.scenePhase)
+        }
+        .onChange(of: self.scenePhase) { _, newValue in
+            self.updatePulse(for: self.bridge, scenePhase: newValue)
         }
     }
 
-    private func updatePulse(for bridge: BridgeState) {
-        guard bridge == .connecting else {
+    private func updatePulse(for bridge: BridgeState, scenePhase: ScenePhase) {
+        guard bridge == .connecting, scenePhase == .active else {
             withAnimation(.easeOut(duration: 0.2)) { self.pulse = false }
             return
         }
