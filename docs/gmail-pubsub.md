@@ -46,6 +46,11 @@ Defaults:
 - Writes `hooks.gmail` config for `clawdis hooks gmail run`.
 - Enables the Gmail hook preset (`hooks.presets: ["gmail"]`).
 
+Path note: when `tailscale.mode` is enabled, Clawdis automatically sets
+`hooks.gmail.serve.path` to `/` and keeps the public path at
+`hooks.gmail.tailscale.path` (default `/gmail-pubsub`) because Tailscale
+strips the set-path prefix before proxying.
+
 Want a custom endpoint? Use `--push-endpoint <url>` or `--tailscale off`.
 
 Platform note: on macOS the wizard installs `gcloud`, `gogcli`, and `tailscale`
