@@ -375,12 +375,15 @@ Gmail helper config (used by `clawdis hooks gmail setup` / `run`):
       includeBody: true,
       maxBytes: 20000,
       renewEveryMinutes: 720,
-      serve: { bind: "127.0.0.1", port: 8788, path: "/gmail-pubsub" },
+      serve: { bind: "127.0.0.1", port: 8788, path: "/" },
       tailscale: { mode: "funnel", path: "/gmail-pubsub" },
     }
   }
 }
 ```
+
+Note: when `tailscale.mode` is on, Clawdis defaults `serve.path` to `/` so
+Tailscale can proxy `/gmail-pubsub` correctly (it strips the set-path prefix).
 
 ### `canvasHost` (LAN/tailnet Canvas file server + live reload)
 
