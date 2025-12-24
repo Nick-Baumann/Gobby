@@ -17,3 +17,13 @@ extension View {
             .onPreferenceChange(ViewWidthPreferenceKey.self, perform: onChange)
     }
 }
+
+#if DEBUG
+enum ViewMetricsTesting {
+    static func reduceWidth(current: CGFloat, next: CGFloat) -> CGFloat {
+        var value = current
+        ViewWidthPreferenceKey.reduce(value: &value, nextValue: { next })
+        return value
+    }
+}
+#endif

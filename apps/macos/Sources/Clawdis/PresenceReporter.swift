@@ -132,3 +132,27 @@ final class PresenceReporter {
         return en0 ?? fallback
     }
 }
+
+#if DEBUG
+extension PresenceReporter {
+    static func _testComposePresenceSummary(mode: String, reason: String) -> String {
+        self.composePresenceSummary(mode: mode, reason: reason)
+    }
+
+    static func _testAppVersionString() -> String {
+        self.appVersionString()
+    }
+
+    static func _testPlatformString() -> String {
+        self.platformString()
+    }
+
+    static func _testLastInputSeconds() -> Int? {
+        self.lastInputSeconds()
+    }
+
+    static func _testPrimaryIPv4Address() -> String? {
+        self.primaryIPv4Address()
+    }
+}
+#endif

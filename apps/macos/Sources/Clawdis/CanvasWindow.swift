@@ -748,7 +748,7 @@ private final class CanvasA2UIActionMessageHandler: NSObject, WKScriptMessageHan
         }
     }
 
-    private static func isLocalNetworkCanvasURL(_ url: URL) -> Bool {
+    fileprivate static func isLocalNetworkCanvasURL(_ url: URL) -> Bool {
         guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else {
             return false
         }
@@ -766,7 +766,7 @@ private final class CanvasA2UIActionMessageHandler: NSObject, WKScriptMessageHan
         return false
     }
 
-    private static func parseIPv4(_ host: String) -> (UInt8, UInt8, UInt8, UInt8)? {
+    fileprivate static func parseIPv4(_ host: String) -> (UInt8, UInt8, UInt8, UInt8)? {
         let parts = host.split(separator: ".", omittingEmptySubsequences: false)
         guard parts.count == 4 else { return nil }
         let bytes: [UInt8] = parts.compactMap { UInt8($0) }
@@ -774,7 +774,7 @@ private final class CanvasA2UIActionMessageHandler: NSObject, WKScriptMessageHan
         return (bytes[0], bytes[1], bytes[2], bytes[3])
     }
 
-    private static func isLocalNetworkIPv4(_ ip: (UInt8, UInt8, UInt8, UInt8)) -> Bool {
+    fileprivate static func isLocalNetworkIPv4(_ ip: (UInt8, UInt8, UInt8, UInt8)) -> Bool {
         let (a, b, _, _) = ip
         if a == 10 { return true }
         if a == 172, (16...31).contains(Int(b)) { return true }
@@ -1012,3 +1012,40 @@ private final class HoverChromeContainerView: NSView {
         }
     }
 }
+
+#if DEBUG
+extension CanvasWindowController {
+    static func _testSanitizeSessionKey(_ key: String) -> String {
+        self.sanitizeSessionKey(key)
+    }
+
+    static func _testJSStringLiteral(_ value: String) -> String {
+        self.jsStringLiteral(value)
+    }
+
+    static func _testJSOptionalStringLiteral(_ value: String?) -> String {
+        self.jsOptionalStringLiteral(value)
+    }
+
+    static func _testStoredFrameKey(sessionKey: String) -> String {
+        self.storedFrameDefaultsKey(sessionKey: sessionKey)
+    }
+
+    static func _testStoreAndLoadFrame(sessionKey: String, frame: NSRect) -> NSRect? {
+        self.storeRestoredFrame(frame, sessionKey: sessionKey)
+        return self.loadRestoredFrame(sessionKey: sessionKey)
+    }
+
+    static func _testParseIPv4(_ host: String) -> (UInt8, UInt8, UInt8, UInt8)? {
+        CanvasA2UIActionMessageHandler.parseIPv4(host)
+    }
+
+    static func _testIsLocalNetworkIPv4(_ ip: (UInt8, UInt8, UInt8, UInt8)) -> Bool {
+        CanvasA2UIActionMessageHandler.isLocalNetworkIPv4(ip)
+    }
+
+    static func _testIsLocalNetworkCanvasURL(_ url: URL) -> Bool {
+        CanvasA2UIActionMessageHandler.isLocalNetworkCanvasURL(url)
+    }
+}
+#endif
