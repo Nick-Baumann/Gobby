@@ -145,13 +145,13 @@ export async function runGmailSetup(opts: GmailSetupOptions) {
   const servePath = normalizeServePath(
     tailscaleMode !== "off" && !configuredServePath
       ? "/"
-      : configuredServePath ?? DEFAULT_GMAIL_SERVE_PATH,
+      : (configuredServePath ?? DEFAULT_GMAIL_SERVE_PATH),
   );
   const tailscalePath = normalizeServePath(
     opts.tailscalePath ??
       baseConfig.hooks?.gmail?.tailscale?.path ??
       (tailscaleMode !== "off"
-        ? configuredServePath ?? DEFAULT_GMAIL_SERVE_PATH
+        ? (configuredServePath ?? DEFAULT_GMAIL_SERVE_PATH)
         : servePath),
   );
 

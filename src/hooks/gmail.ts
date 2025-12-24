@@ -170,7 +170,7 @@ export function resolveGmailHookRuntimeConfig(
       ? hasExplicitServePath
         ? servePathRaw
         : DEFAULT_GMAIL_SERVE_PATH
-      : tailscalePathRaw ?? servePath,
+      : (tailscalePathRaw ?? servePath),
   );
 
   return {
