@@ -236,7 +236,7 @@ actor VoiceWakeRuntime {
             if self.isCapturing {
                 let trimmed = Self.commandAfterTrigger(
                     transcript: transcript,
-                    segments: segments,
+                    segments: update.segments,
                     triggerEndTime: self.activeTriggerEndTime,
                     triggers: config.triggers)
                 self.capturedTranscript = trimmed
