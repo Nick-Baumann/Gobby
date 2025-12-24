@@ -150,7 +150,7 @@ function normalizeToolParameters(tool: AnyAgentTool): AnyAgentTool {
       properties:
         Object.keys(mergedProperties).length > 0
           ? mergedProperties
-          : schema.properties ?? {},
+          : (schema.properties ?? {}),
       ...(mergedRequired && mergedRequired.length > 0
         ? { required: mergedRequired }
         : {}),
