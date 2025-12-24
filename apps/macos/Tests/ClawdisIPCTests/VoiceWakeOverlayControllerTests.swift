@@ -37,4 +37,27 @@ struct VoiceWakeOverlayControllerTests {
         #expect(VoiceWakeOverlayController.evaluateToken(active: active, incoming: active) == .accept)
         #expect(VoiceWakeOverlayController.evaluateToken(active: active, incoming: nil) == .accept)
     }
+
+    @Test func updateLevelThrottlesRapidChanges() async {
+        let controller = VoiceWakeOverlayController(enableUI: false)
+        let token = controller.startSession(
+            source: .wakeWord,
+            transcript: "level test",
+            attributed: nil,
+            forwardEnabled: false,
+            isFinal: false)
+
+        controller.updateLevel(token: token, 0.25)
+        let first = controller.model.level
+
+        controller.updateLevel(token: token, 0.9)
+        #expect(controller.model.level == first)
+
+        controller.updateLevel(token: token, 0)
+        #expect(controller.model.level == 0)
+
+        try? await Task.sleep(nanoseconds: 120_000_000)
+        controller.updateLevel(token: token, 0.9)
+        #expect(controller.model.level == 0.9)
+    }
 }
