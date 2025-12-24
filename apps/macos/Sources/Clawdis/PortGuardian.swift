@@ -153,58 +153,7 @@ actor PortGuardian {
 
         for port in ports {
             let listeners = await self.listeners(on: port)
-            let expectedDesc: String
-            let okPredicate: (Listener) -> Bool
-            let expectedCommands = ["node", "clawdis", "tsx", "pnpm", "bun"]
-
-            switch mode {
-            case .remote:
-                expectedDesc = "SSH tunnel to remote gateway"
-                okPredicate = { $0.command.lowercased().contains("ssh") }
-            case .local:
-                expectedDesc = "Gateway websocket (node/tsx)"
-                okPredicate = { listener in
-                    let c = listener.command.lowercased()
-                    return expectedCommands.contains { c.contains($0) }
-                }
-            case .unconfigured:
-                expectedDesc = "Gateway not configured"
-                okPredicate = { _ in false }
-            }
-
-            if listeners.isEmpty {
-                let text = "Nothing is listening on \(port) (\(expectedDesc))."
-                reports.append(.init(port: port, expected: expectedDesc, status: .missing(text), listeners: []))
-                continue
-            }
-
-            let reportListeners = listeners.map { listener in
-                ReportListener(
-                    pid: listener.pid,
-                    command: listener.command,
-                    fullCommand: listener.fullCommand,
-                    user: listener.user,
-                    expected: okPredicate(listener))
-            }
-
-            let offenders = reportListeners.filter { !$0.expected }
-            if offenders.isEmpty {
-                let list = listeners.map { "\($0.command) (\($0.pid))" }.joined(separator: ", ")
-                let okText = "Port \(port) is served by \(list)."
-                reports.append(.init(
-                    port: port,
-                    expected: expectedDesc,
-                    status: .ok(okText),
-                    listeners: reportListeners))
-            } else {
-                let list = offenders.map { "\($0.command) (\($0.pid))" }.joined(separator: ", ")
-                let reason = "Port \(port) is held by \(list), expected \(expectedDesc)."
-                reports.append(.init(
-                    port: port,
-                    expected: expectedDesc,
-                    status: .interference(reason, offenders: offenders),
-                    listeners: reportListeners))
-            }
+            reports.append(Self.buildReport(port: port, listeners: listeners, mode: mode))
         }
 
         return reports
@@ -218,6 +167,29 @@ actor PortGuardian {
             timeout: 5)
         guard res.ok, let data = res.payload, !data.isEmpty else { return [] }
         let text = String(data: data, encoding: .utf8) ?? ""
+        return Self.parseListeners(from: text)
+    }
+
+    private static func readFullCommand(pid: Int32) -> String? {
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/bin/ps")
+        proc.arguments = ["-p", "\(pid)", "-o", "command="]
+        let pipe = Pipe()
+        proc.standardOutput = pipe
+        proc.standardError = Pipe()
+        do {
+            try proc.run()
+            proc.waitUntilExit()
+        } catch {
+            return nil
+        }
+        let data = pipe.fileHandleForReading.readToEndSafely()
+        guard !data.isEmpty else { return nil }
+        return String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func parseListeners(from text: String) -> [Listener] {
         var listeners: [Listener] = []
         var currentPid: Int32?
         var currentCmd: String?
@@ -252,23 +224,62 @@ actor PortGuardian {
         return listeners
     }
 
-    private static func readFullCommand(pid: Int32) -> String? {
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/bin/ps")
-        proc.arguments = ["-p", "\(pid)", "-o", "command="]
-        let pipe = Pipe()
-        proc.standardOutput = pipe
-        proc.standardError = Pipe()
-        do {
-            try proc.run()
-            proc.waitUntilExit()
-        } catch {
-            return nil
+    private static func buildReport(
+        port: Int,
+        listeners: [Listener],
+        mode: AppState.ConnectionMode) -> PortReport
+    {
+        let expectedDesc: String
+        let okPredicate: (Listener) -> Bool
+        let expectedCommands = ["node", "clawdis", "tsx", "pnpm", "bun"]
+
+        switch mode {
+        case .remote:
+            expectedDesc = "SSH tunnel to remote gateway"
+            okPredicate = { $0.command.lowercased().contains("ssh") }
+        case .local:
+            expectedDesc = "Gateway websocket (node/tsx)"
+            okPredicate = { listener in
+                let c = listener.command.lowercased()
+                return expectedCommands.contains { c.contains($0) }
+            }
+        case .unconfigured:
+            expectedDesc = "Gateway not configured"
+            okPredicate = { _ in false }
         }
-        let data = pipe.fileHandleForReading.readToEndSafely()
-        guard !data.isEmpty else { return nil }
-        return String(data: data, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if listeners.isEmpty {
+            let text = "Nothing is listening on \(port) (\(expectedDesc))."
+            return .init(port: port, expected: expectedDesc, status: .missing(text), listeners: [])
+        }
+
+        let reportListeners = listeners.map { listener in
+            ReportListener(
+                pid: listener.pid,
+                command: listener.command,
+                fullCommand: listener.fullCommand,
+                user: listener.user,
+                expected: okPredicate(listener))
+        }
+
+        let offenders = reportListeners.filter { !$0.expected }
+        if offenders.isEmpty {
+            let list = listeners.map { "\($0.command) (\($0.pid))" }.joined(separator: ", ")
+            let okText = "Port \(port) is served by \(list)."
+            return .init(
+                port: port,
+                expected: expectedDesc,
+                status: .ok(okText),
+                listeners: reportListeners)
+        }
+
+        let list = offenders.map { "\($0.command) (\($0.pid))" }.joined(separator: ", ")
+        let reason = "Port \(port) is held by \(list), expected \(expectedDesc)."
+        return .init(
+            port: port,
+            expected: expectedDesc,
+            status: .interference(reason, offenders: offenders),
+            listeners: reportListeners)
     }
 
     private static func executablePath(for pid: Int32) -> String? {
@@ -319,3 +330,20 @@ actor PortGuardian {
         try? data.write(to: Self.recordPath, options: [.atomic])
     }
 }
+
+#if DEBUG
+extension PortGuardian {
+    static func _testParseListeners(_ text: String) -> [(pid: Int32, command: String, fullCommand: String, user: String?)] {
+        Self.parseListeners(from: text).map { ($0.pid, $0.command, $0.fullCommand, $0.user) }
+    }
+
+    static func _testBuildReport(
+        port: Int,
+        mode: AppState.ConnectionMode,
+        listeners: [(pid: Int32, command: String, fullCommand: String, user: String?)]) -> PortReport
+    {
+        let mapped = listeners.map { Listener(pid: $0.pid, command: $0.command, fullCommand: $0.fullCommand, user: $0.user) }
+        return Self.buildReport(port: port, listeners: mapped, mode: mode)
+    }
+}
+#endif

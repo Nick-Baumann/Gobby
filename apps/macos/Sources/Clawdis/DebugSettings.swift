@@ -874,4 +874,56 @@ struct DebugSettings_Previews: PreviewProvider {
             .frame(width: SettingsTab.windowWidth, height: SettingsTab.windowHeight)
     }
 }
+
+@MainActor
+extension DebugSettings {
+    static func exerciseForTesting() async {
+        var view = DebugSettings()
+        view.modelsCount = 3
+        view.modelsLoading = false
+        view.modelsError = "Failed to load models"
+        view.gatewayRootInput = "/tmp/clawdis"
+        view.sessionStorePath = "/tmp/sessions.json"
+        view.sessionStoreSaveError = "Save failed"
+        view.debugSendInFlight = true
+        view.debugSendStatus = "Sent"
+        view.debugSendError = "Failed"
+        view.portCheckInFlight = true
+        view.portReports = [
+            DebugActions.PortReport(
+                port: 18789,
+                expected: "Gateway websocket (node/tsx)",
+                status: .missing("Missing"),
+                listeners: []),
+        ]
+        view.portKillStatus = "Killed"
+        view.pendingKill = DebugActions.PortListener(
+            pid: 1,
+            command: "node",
+            fullCommand: "node",
+            user: nil,
+            expected: true)
+        view.canvasSessionKey = "main"
+        view.canvasStatus = "Canvas ok"
+        view.canvasError = "Canvas error"
+        view.canvasEvalJS = "document.title"
+        view.canvasEvalResult = "Canvas"
+        view.canvasSnapshotPath = "/tmp/snapshot.png"
+
+        _ = view.body
+        _ = view.header
+        _ = view.appInfoSection
+        _ = view.gatewaySection
+        _ = view.logsSection
+        _ = view.portsSection
+        _ = view.pathsSection
+        _ = view.quickActionsSection
+        _ = view.canvasSection
+        _ = view.experimentsSection
+        _ = view.gridLabel("Test")
+
+        view.loadSessionStorePath()
+        await view.reloadModels()
+    }
+}
 #endif

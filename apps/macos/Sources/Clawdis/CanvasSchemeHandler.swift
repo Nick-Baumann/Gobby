@@ -240,3 +240,20 @@ final class CanvasSchemeHandler: NSObject, WKURLSchemeHandler {
         }
     }
 }
+
+#if DEBUG
+extension CanvasSchemeHandler {
+    func _testResponse(for url: URL) -> (mime: String, data: Data) {
+        let response = self.response(for: url)
+        return (response.mime, response.data)
+    }
+
+    func _testResolveFileURL(sessionRoot: URL, requestPath: String) -> URL? {
+        self.resolveFileURL(sessionRoot: sessionRoot, requestPath: requestPath)
+    }
+
+    func _testTextEncodingName(for mimeType: String) -> String? {
+        self.textEncodingName(forMimeType: mimeType)
+    }
+}
+#endif

@@ -204,3 +204,25 @@ final class MenuContextCardInjector: NSObject, NSMenuDelegate {
         self.lastKnownMenuWidth = max(300, targetWidth)
     }
 }
+
+#if DEBUG
+extension MenuContextCardInjector {
+    func _testSetCache(rows: [SessionRow], errorText: String?, updatedAt: Date?) {
+        self.cachedRows = rows
+        self.cacheErrorText = errorText
+        self.cacheUpdatedAt = updatedAt
+    }
+
+    func _testFindInsertIndex(in menu: NSMenu) -> Int? {
+        self.findInsertIndex(in: menu)
+    }
+
+    func _testInitialCardWidth(for menu: NSMenu) -> CGFloat {
+        self.initialCardWidth(for: menu)
+    }
+
+    func _testCachedView() -> AnyView {
+        self.cachedView()
+    }
+}
+#endif

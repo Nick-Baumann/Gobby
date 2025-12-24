@@ -510,4 +510,33 @@ struct VoiceWakeSettings_Previews: PreviewProvider {
             .frame(width: SettingsTab.windowWidth, height: SettingsTab.windowHeight)
     }
 }
+
+@MainActor
+extension VoiceWakeSettings {
+    static func exerciseForTesting() {
+        let state = AppState(preview: true)
+        state.swabbleEnabled = true
+        state.voicePushToTalkEnabled = true
+        state.swabbleTriggerWords = ["Claude", "Hey"]
+
+        var view = VoiceWakeSettings(state: state)
+        view.availableMics = [AudioInputDevice(uid: "mic-1", name: "Built-in")]
+        view.availableLocales = [Locale(identifier: "en_US")]
+        view.meterLevel = 0.42
+        view.meterError = "No input"
+        view.testState = .detected("ok")
+        view.isTesting = true
+
+        _ = view.body
+        _ = view.localePicker
+        _ = view.micPicker
+        _ = view.levelMeter
+        _ = view.triggerTable
+        _ = view.chimeSection
+
+        view.addWord()
+        _ = view.binding(for: 0).wrappedValue
+        view.removeWord(at: 0)
+    }
+}
 #endif

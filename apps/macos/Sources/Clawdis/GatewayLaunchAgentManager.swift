@@ -159,3 +159,23 @@ enum GatewayLaunchAgentManager {
         }.value
     }
 }
+
+#if DEBUG
+extension GatewayLaunchAgentManager {
+    static func _testGatewayExecutablePath(bundlePath: String) -> String {
+        self.gatewayExecutablePath(bundlePath: bundlePath)
+    }
+
+    static func _testRelayDir(bundlePath: String) -> String {
+        self.relayDir(bundlePath: bundlePath)
+    }
+
+    static func _testPreferredGatewayBind() -> String? {
+        self.preferredGatewayBind()
+    }
+
+    static func _testPreferredGatewayToken() -> String? {
+        self.preferredGatewayToken()
+    }
+}
+#endif
