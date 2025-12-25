@@ -6,7 +6,11 @@ import {
   DEFAULT_PROVIDER,
 } from "../agents/defaults.js";
 import { loadModelCatalog } from "../agents/model-catalog.js";
-import { buildAllowedModelSet, modelKey } from "../agents/model-selection.js";
+import {
+  buildAllowedModelSet,
+  modelKey,
+  resolveConfiguredModelRef,
+} from "../agents/model-selection.js";
 import { runEmbeddedPiAgent } from "../agents/pi-embedded.js";
 import { buildWorkspaceSkillSnapshot } from "../agents/skills.js";
 import {
@@ -247,8 +251,12 @@ export async function agentCommand(
     await saveSessionStore(storePath, sessionStore);
   }
 
-  const defaultProvider = agentCfg?.provider?.trim() || DEFAULT_PROVIDER;
-  const defaultModel = agentCfg?.model?.trim() || DEFAULT_MODEL;
+  const { provider: defaultProvider, model: defaultModel } =
+    resolveConfiguredModelRef({
+      cfg,
+      defaultProvider: DEFAULT_PROVIDER,
+      defaultModel: DEFAULT_MODEL,
+    });
   let provider = defaultProvider;
   let model = defaultModel;
   const hasAllowlist = (agentCfg?.allowedModels?.length ?? 0) > 0;

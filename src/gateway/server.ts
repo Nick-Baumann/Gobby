@@ -20,6 +20,7 @@ import {
   type ModelCatalogEntry,
   resetModelCatalogCacheForTest,
 } from "../agents/model-catalog.js";
+import { resolveConfiguredModelRef } from "../agents/model-selection.js";
 import { installSkill } from "../agents/skills-install.js";
 import { buildWorkspaceSkillStatus } from "../agents/skills-status.js";
 import { DEFAULT_AGENT_WORKSPACE_DIR } from "../agents/workspace.js";
@@ -865,12 +866,16 @@ function classifySessionKey(key: string): GatewaySessionRow["kind"] {
 }
 
 function getSessionDefaults(cfg: ClawdisConfig): GatewaySessionsDefaults {
-  const model = cfg.agent?.model ?? DEFAULT_MODEL;
+  const resolved = resolveConfiguredModelRef({
+    cfg,
+    defaultProvider: DEFAULT_PROVIDER,
+    defaultModel: DEFAULT_MODEL,
+  });
   const contextTokens =
     cfg.agent?.contextTokens ??
-    lookupContextTokens(model) ??
+    lookupContextTokens(resolved.model) ??
     DEFAULT_CONTEXT_TOKENS;
-  return { model: model ?? null, contextTokens: contextTokens ?? null };
+  return { model: resolved.model ?? null, contextTokens: contextTokens ?? null };
 }
 
 function listSessionsFromStore(params: {
@@ -5858,8 +5863,12 @@ export async function startGatewayServer(
     });
   });
 
-  const agentProvider = cfgAtStart.agent?.provider?.trim() || DEFAULT_PROVIDER;
-  const agentModel = cfgAtStart.agent?.model?.trim() || DEFAULT_MODEL;
+  const { provider: agentProvider, model: agentModel } =
+    resolveConfiguredModelRef({
+      cfg: cfgAtStart,
+      defaultProvider: DEFAULT_PROVIDER,
+      defaultModel: DEFAULT_MODEL,
+    });
   log.info(`agent model: ${agentProvider}/${agentModel}`);
   log.info(`listening on ws://${bindHost}:${port} (PID ${process.pid})`);
   log.info(`log file: ${getResolvedLoggerSettings().file}`);

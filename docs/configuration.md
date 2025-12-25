@@ -120,8 +120,7 @@ Controls the embedded agent runtime (provider/model/thinking/verbose/timeouts).
 ```json5
 {
   agent: {
-    provider: "anthropic",
-    model: "claude-opus-4-5",
+    model: "anthropic/claude-opus-4-5",
     allowedModels: [
       "anthropic/claude-opus-4-5",
       "anthropic/claude-sonnet-4-1"
@@ -141,6 +140,9 @@ Controls the embedded agent runtime (provider/model/thinking/verbose/timeouts).
   }
 }
 ```
+
+`agent.model` can be set as `provider/model` (e.g. `anthropic/claude-opus-4-5`).
+When present, it overrides `agent.provider` (which becomes optional).
 
 `agent.bash` configures background bash defaults:
 - `backgroundMs`: time before auto-background (ms, default 20000)

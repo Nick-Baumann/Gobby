@@ -47,12 +47,14 @@ function mockConfig(
   home: string,
   storePath: string,
   routingOverrides?: Partial<NonNullable<ClawdisConfig["routing"]>>,
+  agentOverrides?: Partial<NonNullable<ClawdisConfig["agent"]>>,
 ) {
   configSpy.mockReturnValue({
     agent: {
       provider: "anthropic",
       model: "claude-opus-4-5",
       workspace: path.join(home, "clawd"),
+      ...agentOverrides,
     },
     session: { store: storePath, mainKey: "main" },
     routing: routingOverrides ? { ...routingOverrides } : undefined,
@@ -138,6 +140,22 @@ describe("agentCommand", () => {
 
       const callArgs = vi.mocked(runEmbeddedPiAgent).mock.calls.at(-1)?.[0];
       expect(callArgs?.sessionId).toBe("session-123");
+    });
+  });
+
+  it("resolves provider from agent.model when prefixed", async () => {
+    await withTempHome(async (home) => {
+      const store = path.join(home, "sessions.json");
+      mockConfig(home, store, undefined, {
+        provider: "openai",
+        model: "anthropic/claude-opus-4-5",
+      });
+
+      await agentCommand({ message: "hi", to: "+1555" }, runtime);
+
+      const callArgs = vi.mocked(runEmbeddedPiAgent).mock.calls.at(-1)?.[0];
+      expect(callArgs?.provider).toBe("anthropic");
+      expect(callArgs?.model).toBe("claude-opus-4-5");
     });
   });
 
