@@ -306,8 +306,7 @@ export type ClawdisConfig = {
   models?: ModelsConfig;
   agent?: {
     /** Provider id, e.g. "anthropic" or "openai" (pi-ai catalog). */
-    provider?: string;
-    /** Model id within provider, e.g. "claude-opus-4-5". */
+    /** Model id (provider/model), e.g. "anthropic/claude-opus-4-5". */
     model?: string;
     /** Agent working directory (preferred). Used as the default cwd for agent runs. */
     workspace?: string;
@@ -565,7 +564,6 @@ const ClawdisSchema = z.object({
   models: ModelsConfigSchema,
   agent: z
     .object({
-      provider: z.string().optional(),
       model: z.string().optional(),
       workspace: z.string().optional(),
       allowedModels: z.array(z.string()).optional(),

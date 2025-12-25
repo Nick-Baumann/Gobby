@@ -53,8 +53,7 @@ async function writeSessionStore(home: string) {
 function makeCfg(home: string, storePath: string): ClawdisConfig {
   return {
     agent: {
-      provider: "anthropic",
-      model: "claude-opus-4-5",
+      model: "anthropic/claude-opus-4-5",
       workspace: path.join(home, "clawd"),
     },
     session: { store: storePath, mainKey: "main" },

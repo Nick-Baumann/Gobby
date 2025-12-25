@@ -51,8 +51,7 @@ function mockConfig(
 ) {
   configSpy.mockReturnValue({
     agent: {
-      provider: "anthropic",
-      model: "claude-opus-4-5",
+      model: "anthropic/claude-opus-4-5",
       workspace: path.join(home, "clawd"),
       ...agentOverrides,
     },
@@ -143,19 +142,18 @@ describe("agentCommand", () => {
     });
   });
 
-  it("resolves provider from agent.model when prefixed", async () => {
+  it("uses provider/model from agent.model", async () => {
     await withTempHome(async (home) => {
       const store = path.join(home, "sessions.json");
       mockConfig(home, store, undefined, {
-        provider: "openai",
-        model: "anthropic/claude-opus-4-5",
+        model: "openai/gpt-4.1-mini",
       });
 
       await agentCommand({ message: "hi", to: "+1555" }, runtime);
 
       const callArgs = vi.mocked(runEmbeddedPiAgent).mock.calls.at(-1)?.[0];
-      expect(callArgs?.provider).toBe("anthropic");
-      expect(callArgs?.model).toBe("claude-opus-4-5");
+      expect(callArgs?.provider).toBe("openai");
+      expect(callArgs?.model).toBe("gpt-4.1-mini");
     });
   });
 

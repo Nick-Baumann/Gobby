@@ -35,8 +35,7 @@ async function withTempHome<T>(fn: (home: string) => Promise<T>): Promise<T> {
 function makeCfg(home: string) {
   return {
     agent: {
-      provider: "anthropic",
-      model: "claude-opus-4-5",
+      model: "anthropic/claude-opus-4-5",
       workspace: join(home, "clawd"),
     },
     routing: {
@@ -168,8 +167,7 @@ describe("trigger handling", () => {
         {},
         {
           agent: {
-            provider: "anthropic",
-            model: "claude-opus-4-5",
+            model: "anthropic/claude-opus-4-5",
             workspace: join(home, "clawd"),
           },
           routing: {
@@ -210,8 +208,7 @@ describe("trigger handling", () => {
         {},
         {
           agent: {
-            provider: "anthropic",
-            model: "claude-opus-4-5",
+            model: "anthropic/claude-opus-4-5",
             workspace: join(home, "clawd"),
           },
           routing: {
@@ -250,8 +247,7 @@ describe("trigger handling", () => {
         {},
         {
           agent: {
-            provider: "anthropic",
-            model: "claude-opus-4-5",
+            model: "anthropic/claude-opus-4-5",
             workspace: join(home, "clawd"),
           },
           routing: {
