@@ -98,11 +98,10 @@ public struct ClawdisChatView: View {
                         }
 
                         Color.clear
-                            .frame(height: 1)
+                            .frame(height: Layout.messageListPaddingBottom + 1)
                             .id(self.scrollerBottomID)
                     }
                     .padding(.top, Layout.messageListPaddingTop)
-                    .padding(.bottom, Layout.messageListPaddingBottom)
                     .padding(.horizontal, Layout.messageListPaddingHorizontal)
                 }
 
