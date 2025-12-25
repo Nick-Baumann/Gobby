@@ -1,8 +1,8 @@
+import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import type { AgentTool, AgentToolResult } from "@mariozechner/pi-ai";
 import { StringEnum } from "@mariozechner/pi-ai";
 import { Type } from "@sinclair/typebox";
-import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
-import { randomUUID } from "node:crypto";
 
 import {
   addSession,
@@ -17,7 +17,11 @@ import {
   markExited,
   setJobTtlMs,
 } from "./bash-process-registry.js";
-import { getShellConfig, killProcessTree, sanitizeBinaryOutput } from "./shell-utils.js";
+import {
+  getShellConfig,
+  killProcessTree,
+  sanitizeBinaryOutput,
+} from "./shell-utils.js";
 
 const CHUNK_LIMIT = 8 * 1024;
 const DEFAULT_MAX_OUTPUT = clampNumber(
@@ -97,7 +101,7 @@ export function createBashTool(
     description:
       "Execute bash with background continuation. Use yieldMs/background to continue later via process tool.",
     parameters: bashSchema,
-    execute: async (toolCallId, args, signal, onUpdate) => {
+    execute: async (_toolCallId, args, signal, onUpdate) => {
       const params = args as {
         command: string;
         workdir?: string;
@@ -179,7 +183,9 @@ export function createBashTool(
       };
 
       if (signal?.aborted) onAbort();
-      else if (signal) signal.addEventListener("abort", onAbort, { once: true });
+      else if (signal) {
+        signal.addEventListener("abort", onAbort, { once: true });
+      }
 
       const effectiveTimeout =
         typeof params.timeout === "number" ? params.timeout : defaultTimeoutSec;
@@ -287,7 +293,9 @@ export function createBashTool(
                   : code === null
                     ? "Command aborted before exit code was captured"
                     : `Command exited with code ${code}`;
-              const message = aggregated ? `${aggregated}\n\n${reason}` : reason;
+              const message = aggregated
+                ? `${aggregated}\n\n${reason}`
+                : reason;
               settle(() => reject(new Error(message)));
               return;
             }
@@ -515,8 +523,85 @@ export function createProcessTool(
           };
         }
 
-      case "log": {
-        if (session) {
+        case "log": {
+          if (session) {
+            if (!session.backgrounded) {
+              return {
+                content: [
+                  {
+                    type: "text",
+                    text: `Session ${params.sessionId} is not backgrounded.`,
+                  },
+                ],
+                details: { status: "failed" },
+              };
+            }
+            const { slice, totalLines, totalChars } = sliceLogLines(
+              session.aggregated,
+              params.offset,
+              params.limit,
+            );
+            return {
+              content: [{ type: "text", text: slice || "(no output yet)" }],
+              details: {
+                status: session.exited ? "completed" : "running",
+                sessionId: params.sessionId,
+                total: totalLines,
+                totalLines,
+                totalChars,
+                truncated: session.truncated,
+                name: deriveSessionName(session.command),
+              },
+            };
+          }
+          if (finished) {
+            const { slice, totalLines, totalChars } = sliceLogLines(
+              finished.aggregated,
+              params.offset,
+              params.limit,
+            );
+            const status =
+              finished.status === "completed" ? "completed" : "failed";
+            return {
+              content: [
+                { type: "text", text: slice || "(no output recorded)" },
+              ],
+              details: {
+                status,
+                sessionId: params.sessionId,
+                total: totalLines,
+                totalLines,
+                totalChars,
+                truncated: finished.truncated,
+                exitCode: finished.exitCode ?? undefined,
+                exitSignal: finished.exitSignal ?? undefined,
+                name: deriveSessionName(finished.command),
+              },
+            };
+          }
+          return {
+            content: [
+              {
+                type: "text",
+                text: `No session found for ${params.sessionId}`,
+              },
+            ],
+            details: { status: "failed" },
+          };
+        }
+
+        case "write": {
+          if (!session) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `No active session found for ${params.sessionId}`,
+                },
+              ],
+              details: { status: "failed" },
+            };
+          }
           if (!session.backgrounded) {
             return {
               content: [
@@ -528,147 +613,80 @@ export function createProcessTool(
               details: { status: "failed" },
             };
           }
-          const { slice, totalLines, totalChars } = sliceLogLines(
-            session.aggregated,
-            params.offset,
-            params.limit,
-          );
-          return {
-            content: [{ type: "text", text: slice || "(no output yet)" }],
-            details: {
-              status: session.exited ? "completed" : "running",
-              sessionId: params.sessionId,
-              total: totalLines,
-              totalLines,
-              totalChars,
-              truncated: session.truncated,
-              name: deriveSessionName(session.command),
-            },
-          };
-        }
-        if (finished) {
-          const { slice, totalLines, totalChars } = sliceLogLines(
-            finished.aggregated,
-            params.offset,
-            params.limit,
-          );
-          const status = finished.status === "completed" ? "completed" : "failed";
-          return {
-            content: [
-              { type: "text", text: slice || "(no output recorded)" },
-            ],
-            details: {
-              status,
-              sessionId: params.sessionId,
-              total: totalLines,
-              totalLines,
-              totalChars,
-              truncated: finished.truncated,
-              exitCode: finished.exitCode ?? undefined,
-              exitSignal: finished.exitSignal ?? undefined,
-              name: deriveSessionName(finished.command),
-            },
-          };
-        }
-        return {
-          content: [
-            { type: "text", text: `No session found for ${params.sessionId}` },
-          ],
-          details: { status: "failed" },
-        };
-      }
-
-      case "write": {
-        if (!session) {
-          return {
-            content: [
-              { type: "text", text: `No active session found for ${params.sessionId}` },
-            ],
-            details: { status: "failed" },
-          };
-        }
-        if (!session.backgrounded) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Session ${params.sessionId} is not backgrounded.`,
-              },
-            ],
-            details: { status: "failed" },
-          };
-        }
-        if (!session.child.stdin || session.child.stdin.destroyed) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Session ${params.sessionId} stdin is not writable.`,
-              },
-            ],
-            details: { status: "failed" },
-          };
-        }
-        await new Promise<void>((resolve, reject) => {
-          session.child.stdin.write(params.data ?? "", (err) => {
-            if (err) reject(err);
-            else resolve();
+          if (!session.child.stdin || session.child.stdin.destroyed) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `Session ${params.sessionId} stdin is not writable.`,
+                },
+              ],
+              details: { status: "failed" },
+            };
+          }
+          await new Promise<void>((resolve, reject) => {
+            session.child.stdin.write(params.data ?? "", (err) => {
+              if (err) reject(err);
+              else resolve();
+            });
           });
-        });
-        if (params.eof) {
-          session.child.stdin.end();
-        }
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Wrote ${(params.data ?? "").length} bytes to session ${
-                params.sessionId
-              }${params.eof ? " (stdin closed)" : ""}.`,
-            },
-          ],
-          details: {
-            status: "running",
-            sessionId: params.sessionId,
-            name: session ? deriveSessionName(session.command) : undefined,
-          },
-        };
-      }
-
-      case "kill": {
-        if (!session) {
-          return {
-            content: [
-              { type: "text", text: `No active session found for ${params.sessionId}` },
-            ],
-            details: { status: "failed" },
-          };
-        }
-        if (!session.backgrounded) {
+          if (params.eof) {
+            session.child.stdin.end();
+          }
           return {
             content: [
               {
                 type: "text",
-                text: `Session ${params.sessionId} is not backgrounded.`,
+                text: `Wrote ${(params.data ?? "").length} bytes to session ${
+                  params.sessionId
+                }${params.eof ? " (stdin closed)" : ""}.`,
               },
             ],
-            details: { status: "failed" },
+            details: {
+              status: "running",
+              sessionId: params.sessionId,
+              name: session ? deriveSessionName(session.command) : undefined,
+            },
           };
         }
-        if (session.child.pid) {
-          killProcessTree(session.child.pid);
+
+        case "kill": {
+          if (!session) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `No active session found for ${params.sessionId}`,
+                },
+              ],
+              details: { status: "failed" },
+            };
+          }
+          if (!session.backgrounded) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `Session ${params.sessionId} is not backgrounded.`,
+                },
+              ],
+              details: { status: "failed" },
+            };
+          }
+          if (session.child.pid) {
+            killProcessTree(session.child.pid);
+          }
+          markExited(session, null, "SIGKILL", "failed");
+          return {
+            content: [
+              { type: "text", text: `Killed session ${params.sessionId}.` },
+            ],
+            details: {
+              status: "failed",
+              name: session ? deriveSessionName(session.command) : undefined,
+            },
+          };
         }
-        markExited(session, null, "SIGKILL", "failed");
-        return {
-          content: [
-            { type: "text", text: `Killed session ${params.sessionId}.` },
-          ],
-          details: {
-            status: "failed",
-            name: session ? deriveSessionName(session.command) : undefined,
-          },
-        };
-      }
 
         case "clear": {
           if (finished) {
@@ -718,7 +736,10 @@ export function createProcessTool(
           }
           return {
             content: [
-              { type: "text", text: `No session found for ${params.sessionId}` },
+              {
+                type: "text",
+                text: `No session found for ${params.sessionId}`,
+              },
             ],
             details: { status: "failed" },
           };
@@ -816,7 +837,7 @@ function tokenizeCommand(command: string): string[] {
 function stripQuotes(value: string): string {
   const trimmed = value.trim();
   if (
-    (trimmed.startsWith("\"") && trimmed.endsWith("\"")) ||
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
     (trimmed.startsWith("'") && trimmed.endsWith("'"))
   ) {
     return trimmed.slice(1, -1);

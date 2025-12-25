@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { resetProcessRegistryForTests } from "./bash-process-registry.js";
 import {
   bashTool,
   createBashTool,
   createProcessTool,
   processTool,
 } from "./bash-tools.js";
-import { resetProcessRegistryForTests } from "./bash-process-registry.js";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -97,7 +97,7 @@ describe("bash tool backgrounding", () => {
     const customProcess = createProcessTool();
 
     const result = await customBash.execute("call1", {
-      command: "node -e \"setInterval(() => {}, 1000)\"",
+      command: 'node -e "setInterval(() => {}, 1000)"',
       background: true,
     });
 
