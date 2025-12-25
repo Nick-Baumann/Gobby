@@ -31,15 +31,17 @@ export function resolveConfiguredModelRef(params: {
   defaultProvider: string;
   defaultModel: string;
 }): ModelRef {
-  const rawProvider = params.cfg.agent?.provider?.trim() || "";
   const rawModel = params.cfg.agent?.model?.trim() || "";
-  const providerFallback = rawProvider || params.defaultProvider;
   if (rawModel) {
-    const parsed = parseModelRef(rawModel, providerFallback);
-    if (parsed) return parsed;
-    return { provider: providerFallback, model: rawModel };
+    const trimmed = rawModel.trim();
+    if (trimmed.includes("/")) {
+      const parsed = parseModelRef(trimmed, params.defaultProvider);
+      if (parsed) return parsed;
+    }
+    // TODO(steipete): drop this fallback once provider-less agent.model is fully deprecated.
+    return { provider: params.defaultProvider, model: trimmed };
   }
-  return { provider: providerFallback, model: params.defaultModel };
+  return { provider: params.defaultProvider, model: params.defaultModel };
 }
 
 export function buildAllowedModelSet(params: {

@@ -113,7 +113,7 @@ Controls inbound/outbound prefixes and timestamps.
 
 ### `agent`
 
-Controls the embedded agent runtime (provider/model/thinking/verbose/timeouts).
+Controls the embedded agent runtime (model/thinking/verbose/timeouts).
 `allowedModels` lets `/model` list/filter and enforce a per-session allowlist
 (omit to show the full catalog).
 
@@ -141,8 +141,9 @@ Controls the embedded agent runtime (provider/model/thinking/verbose/timeouts).
 }
 ```
 
-`agent.model` can be set as `provider/model` (e.g. `anthropic/claude-opus-4-5`).
-When present, it overrides `agent.provider` (which becomes optional).
+`agent.model` should be set as `provider/model` (e.g. `anthropic/claude-opus-4-5`).
+If you omit the provider, CLAWDIS currently assumes `anthropic` as a temporary
+deprecation fallback.
 
 `agent.bash` configures background bash defaults:
 - `backgroundMs`: time before auto-background (ms, default 20000)
@@ -165,11 +166,11 @@ When `models.providers` is present, Clawdis writes/merges a `models.json` into
 - default behavior: **merge** (keeps existing providers, overrides on name)
 - set `models.mode: "replace"` to overwrite the file contents
 
-Select the model via `agent.provider` + `agent.model`.
+Select the model via `agent.model` (provider/model).
 
 ```json5
 {
-  agent: { provider: "custom-proxy", model: "llama-3.1-8b" },
+  agent: { model: "custom-proxy/llama-3.1-8b" },
   models: {
     mode: "merge",
     providers: {

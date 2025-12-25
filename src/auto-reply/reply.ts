@@ -730,7 +730,6 @@ export async function getReplyFromConfig(
     const heartbeatSeconds = resolveHeartbeatSeconds(cfg, undefined);
     const statusText = buildStatusMessage({
       agent: {
-        provider,
         model,
         contextTokens,
         thinkingDefault: agentCfg?.thinkingDefault,

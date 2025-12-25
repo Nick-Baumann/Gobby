@@ -11,7 +11,10 @@ afterEach(() => {
 describe("buildStatusMessage", () => {
   it("summarizes agent readiness and context usage", () => {
     const text = buildStatusMessage({
-      agent: { provider: "anthropic", model: "pi:opus", contextTokens: 32_000 },
+      agent: {
+        model: "anthropic/pi:opus",
+        contextTokens: 32_000,
+      },
       sessionEntry: {
         sessionId: "abc",
         updatedAt: 0,
@@ -112,8 +115,7 @@ describe("buildStatusMessage", () => {
 
       const text = buildStatusMessageDynamic({
         agent: {
-          provider: "anthropic",
-          model: "claude-opus-4-5",
+          model: "anthropic/claude-opus-4-5",
           contextTokens: 32_000,
         },
         sessionEntry: {

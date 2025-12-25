@@ -102,8 +102,7 @@ describe("directive parsing", () => {
         {},
         {
           agent: {
-            provider: "anthropic",
-            model: "claude-opus-4-5",
+            model: "anthropic/claude-opus-4-5",
             workspace: path.join(home, "clawd"),
           },
           routing: {
@@ -130,8 +129,7 @@ describe("directive parsing", () => {
         {},
         {
           agent: {
-            provider: "anthropic",
-            model: "claude-opus-4-5",
+            model: "anthropic/claude-opus-4-5",
             workspace: path.join(home, "clawd"),
           },
           session: { store: path.join(home, "sessions.json") },
@@ -183,8 +181,7 @@ describe("directive parsing", () => {
         {},
         {
           agent: {
-            provider: "anthropic",
-            model: "claude-opus-4-5",
+            model: "anthropic/claude-opus-4-5",
             workspace: path.join(home, "clawd"),
           },
           routing: {
@@ -245,8 +242,7 @@ describe("directive parsing", () => {
         {},
         {
           agent: {
-            provider: "anthropic",
-            model: "claude-opus-4-5",
+            model: "anthropic/claude-opus-4-5",
             workspace: path.join(home, "clawd"),
           },
           routing: {
@@ -274,8 +270,7 @@ describe("directive parsing", () => {
         {},
         {
           agent: {
-            provider: "anthropic",
-            model: "claude-opus-4-5",
+            model: "anthropic/claude-opus-4-5",
             workspace: path.join(home, "clawd"),
             allowedModels: ["anthropic/claude-opus-4-5", "openai/gpt-4.1-mini"],
           },
@@ -301,8 +296,7 @@ describe("directive parsing", () => {
         {},
         {
           agent: {
-            provider: "anthropic",
-            model: "claude-opus-4-5",
+            model: "anthropic/claude-opus-4-5",
             workspace: path.join(home, "clawd"),
             allowedModels: ["openai/gpt-4.1-mini"],
           },
@@ -340,8 +334,7 @@ describe("directive parsing", () => {
         {},
         {
           agent: {
-            provider: "anthropic",
-            model: "claude-opus-4-5",
+            model: "anthropic/claude-opus-4-5",
             workspace: path.join(home, "clawd"),
             allowedModels: ["openai/gpt-4.1-mini"],
           },

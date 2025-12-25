@@ -117,8 +117,7 @@ Example:
 {
   logging: { level: "info" },
   agent: {
-    provider: "anthropic",
-    model: "claude-opus-4-5",
+    model: "anthropic/claude-opus-4-5",
     workspace: "~/clawd",
     thinkingDefault: "high",
     timeoutSeconds: 1800,

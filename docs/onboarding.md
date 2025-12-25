@@ -47,14 +47,14 @@ Offer an “API key” option, but for now it is **instructions only**:
 
 Note: environment variables are often confusing when the Gateway is launched by a GUI app (launchd environment != your shell).
 
-### Provider/model safety rule
+### Model safety rule
 
-Clawdis should **always pass** `--provider` and `--model` when invoking the embedded agent (don’t rely on defaults).
+Clawdis should **always pass** `--model` when invoking the embedded agent (don’t rely on defaults).
 
 Example (CLI):
 
 ```bash
-clawdis agent --mode rpc --provider anthropic --model claude-opus-4-5 "<message>"
+clawdis agent --mode rpc --model anthropic/claude-opus-4-5 "<message>"
 ```
 
 If the user skips auth, onboarding should be clear: the agent likely won’t respond until auth is configured.

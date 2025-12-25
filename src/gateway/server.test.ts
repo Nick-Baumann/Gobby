@@ -191,8 +191,7 @@ vi.mock("../config/config.js", () => {
     CONFIG_PATH_CLAWDIS: resolveConfigPath(),
     loadConfig: () => ({
       agent: {
-        provider: "anthropic",
-        model: "claude-opus-4-5",
+        model: "anthropic/claude-opus-4-5",
         workspace: path.join(os.tmpdir(), "clawd-gateway-test"),
       },
       routing: {
