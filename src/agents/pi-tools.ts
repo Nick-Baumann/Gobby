@@ -296,8 +296,8 @@ export function createClawdisCodingTools(): AnyAgentTool[] {
   });
   const tools: AnyAgentTool[] = [
     ...base,
-    bashTool as AnyAgentTool,
-    processTool as AnyAgentTool,
+    bashTool as unknown as AnyAgentTool,
+    processTool as unknown as AnyAgentTool,
     createWhatsAppLoginTool(),
     ...createClawdisTools(),
   ];
