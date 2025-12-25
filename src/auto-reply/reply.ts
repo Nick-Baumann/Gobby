@@ -11,6 +11,7 @@ import {
   buildAllowedModelSet,
   modelKey,
   parseModelRef,
+  resolveConfiguredModelRef,
 } from "../agents/model-selection.js";
 import {
   queueEmbeddedPiMessage,
@@ -168,8 +169,12 @@ export async function getReplyFromConfig(
   const agentCfg = cfg.agent;
   const sessionCfg = cfg.session;
 
-  const defaultProvider = agentCfg?.provider?.trim() || DEFAULT_PROVIDER;
-  const defaultModel = agentCfg?.model?.trim() || DEFAULT_MODEL;
+  const { provider: defaultProvider, model: defaultModel } =
+    resolveConfiguredModelRef({
+      cfg,
+      defaultProvider: DEFAULT_PROVIDER,
+      defaultModel: DEFAULT_MODEL,
+    });
   let provider = defaultProvider;
   let model = defaultModel;
   let contextTokens =
@@ -1048,8 +1053,7 @@ export async function getReplyFromConfig(
 
     if (sessionStore && sessionKey) {
       const usage = runResult.meta.agentMeta?.usage;
-      const modelUsed =
-        runResult.meta.agentMeta?.model ?? agentCfg?.model ?? DEFAULT_MODEL;
+    const modelUsed = runResult.meta.agentMeta?.model ?? defaultModel;
       const contextTokensUsed =
         agentCfg?.contextTokens ??
         lookupContextTokens(modelUsed) ??

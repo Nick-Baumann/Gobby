@@ -1,7 +1,12 @@
 import chalk from "chalk";
 
 import { lookupContextTokens } from "../agents/context.js";
-import { DEFAULT_CONTEXT_TOKENS, DEFAULT_MODEL } from "../agents/defaults.js";
+import {
+  DEFAULT_CONTEXT_TOKENS,
+  DEFAULT_MODEL,
+  DEFAULT_PROVIDER,
+} from "../agents/defaults.js";
+import { resolveConfiguredModelRef } from "../agents/model-selection.js";
 import { loadConfig } from "../config/config.js";
 import {
   loadSessionStore,
@@ -151,11 +156,16 @@ export async function sessionsCommand(
   runtime: RuntimeEnv,
 ) {
   const cfg = loadConfig();
+  const resolved = resolveConfiguredModelRef({
+    cfg,
+    defaultProvider: DEFAULT_PROVIDER,
+    defaultModel: DEFAULT_MODEL,
+  });
   const configContextTokens =
     cfg.agent?.contextTokens ??
-    lookupContextTokens(cfg.agent?.model) ??
+    lookupContextTokens(resolved.model) ??
     DEFAULT_CONTEXT_TOKENS;
-  const configModel = cfg.agent?.model ?? DEFAULT_MODEL;
+  const configModel = resolved.model ?? DEFAULT_MODEL;
   const storePath = resolveStorePath(opts.store ?? cfg.session?.store);
   const store = loadSessionStore(storePath);
 

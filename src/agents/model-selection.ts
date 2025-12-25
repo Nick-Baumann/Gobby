@@ -26,6 +26,22 @@ export function parseModelRef(
   return { provider, model };
 }
 
+export function resolveConfiguredModelRef(params: {
+  cfg: ClawdisConfig;
+  defaultProvider: string;
+  defaultModel: string;
+}): ModelRef {
+  const rawProvider = params.cfg.agent?.provider?.trim() || "";
+  const rawModel = params.cfg.agent?.model?.trim() || "";
+  const providerFallback = rawProvider || params.defaultProvider;
+  if (rawModel) {
+    const parsed = parseModelRef(rawModel, providerFallback);
+    if (parsed) return parsed;
+    return { provider: providerFallback, model: rawModel };
+  }
+  return { provider: providerFallback, model: params.defaultModel };
+}
+
 export function buildAllowedModelSet(params: {
   cfg: ClawdisConfig;
   catalog: ModelCatalogEntry[];
