@@ -42,6 +42,7 @@
     "ui:build": "pnpm -C ui build",
     "start": "tsx src/index.ts",
     "clawdis": "tsx src/index.ts",
+    "gateway:watch": "tsx watch --clear-screen=false --include 'src/**/*.ts' src/index.ts gateway --force",
     "clawdis:rpc": "tsx src/index.ts agent --mode rpc --json",
     "lint": "biome check src test && oxlint --type-aware src test --ignore-pattern src/canvas-host/a2ui/a2ui.bundle.js",
     "lint:swift": "swiftlint lint --config .swiftlint.yml && (cd apps/ios && swiftlint lint --config .swiftlint.yml)",

@@ -19,6 +19,8 @@ pnpm clawdis gateway --port 18789
 pnpm clawdis gateway --port 18789 --verbose
 # if the port is busy, terminate listeners then start:
 pnpm clawdis gateway --force
+# dev loop (auto-reload on TS changes):
+pnpm gateway:watch
 ```
 - Binds WebSocket control plane to `127.0.0.1:<port>` (default 18789).
 - Starts a Canvas file server by default on `canvasHost.port` (default `18793`), serving `http://<gateway-host>:18793/__clawdis__/canvas/` from `~/clawd/canvas`. Disable with `canvasHost.enabled=false` or `CLAWDIS_SKIP_CANVAS_HOST=1`.

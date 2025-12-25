@@ -67,6 +67,9 @@ pnpm clawdis login
 # Start the gateway
 pnpm clawdis gateway --port 18789 --verbose
 
+# Dev loop (auto-reload on TS changes)
+pnpm gateway:watch
+
 # Send a message
 pnpm clawdis send --to +1234567890 --message "Hello from Clawdis"
 
