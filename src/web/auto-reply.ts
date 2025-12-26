@@ -7,6 +7,7 @@ import {
 import { getReplyFromConfig } from "../auto-reply/reply.js";
 import { HEARTBEAT_TOKEN, SILENT_REPLY_TOKEN } from "../auto-reply/tokens.js";
 import type { ReplyPayload } from "../auto-reply/types.js";
+import { parseDurationMs } from "../cli/parse-duration.js";
 import { waitForever } from "../cli/wait.js";
 import { loadConfig } from "../config/config.js";
 import {
@@ -72,7 +73,7 @@ type WebInboundMsg = Parameters<
 export type WebMonitorTuning = {
   reconnect?: Partial<ReconnectPolicy>;
   heartbeatSeconds?: number;
-  replyHeartbeatMinutes?: number;
+  replyHeartbeatEvery?: string;
   replyHeartbeatNow?: boolean;
   sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
   statusSink?: (status: WebProviderStatus) => void;
@@ -81,7 +82,6 @@ export type WebMonitorTuning = {
 const formatDuration = (ms: number) =>
   ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`;
 
-const DEFAULT_REPLY_HEARTBEAT_MINUTES = 30;
 export const HEARTBEAT_PROMPT = "HEARTBEAT";
 export { HEARTBEAT_TOKEN, SILENT_REPLY_TOKEN };
 
@@ -188,14 +188,22 @@ function debugMention(
   return { wasMentioned: result, details };
 }
 
-export function resolveReplyHeartbeatMinutes(
+export function resolveReplyHeartbeatIntervalMs(
   cfg: ReturnType<typeof loadConfig>,
-  overrideMinutes?: number,
+  overrideEvery?: string,
 ) {
-  const raw = overrideMinutes ?? cfg.agent?.heartbeatMinutes;
-  if (raw === 0) return null;
-  if (typeof raw === "number" && raw > 0) return raw;
-  return DEFAULT_REPLY_HEARTBEAT_MINUTES;
+  const raw = overrideEvery ?? cfg.agent?.heartbeat?.every;
+  if (!raw) return null;
+  const trimmed = String(raw).trim();
+  if (!trimmed) return null;
+  let ms: number;
+  try {
+    ms = parseDurationMs(trimmed, { defaultUnit: "m" });
+  } catch {
+    return null;
+  }
+  if (ms <= 0) return null;
+  return ms;
 }
 
 export function stripHeartbeatToken(raw?: string) {
@@ -767,9 +775,9 @@ export async function monitorWebProvider(
     cfg,
     tuning.heartbeatSeconds,
   );
-  const replyHeartbeatMinutes = resolveReplyHeartbeatMinutes(
+  const replyHeartbeatIntervalMs = resolveReplyHeartbeatIntervalMs(
     cfg,
-    tuning.replyHeartbeatMinutes,
+    tuning.replyHeartbeatEvery,
   );
   const reconnectPolicy = resolveReconnectPolicy(cfg, tuning.reconnect);
   const mentionConfig = buildMentionConfig(cfg);
@@ -939,7 +947,7 @@ export async function monitorWebProvider(
     let lastInboundMsg: WebInboundMsg | null = null;
 
     // Watchdog to detect stuck message processing (e.g., event emitter died)
-    // Should be significantly longer than heartbeatMinutes to avoid false positives
+    // Should be significantly longer than the reply heartbeat interval to avoid false positives
     const MESSAGE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes without any messages
     const WATCHDOG_CHECK_MS = 60 * 1000; // Check every minute
 
@@ -1428,7 +1436,7 @@ export async function monitorWebProvider(
         }
         return { status: "skipped", reason: "requests-in-flight" };
       }
-      if (!replyHeartbeatMinutes) {
+      if (!replyHeartbeatIntervalMs) {
         return { status: "skipped", reason: "disabled" };
       }
       let heartbeatInboundMsg = lastInboundMsg;
@@ -1510,7 +1518,7 @@ export async function monitorWebProvider(
             {
               connectionId,
               to: heartbeatInboundMsg.from,
-              intervalMinutes: replyHeartbeatMinutes,
+              intervalMs: replyHeartbeatIntervalMs,
               sessionKey: snapshot.key,
               sessionId: snapshot.entry?.sessionId ?? null,
               sessionFresh: snapshot.fresh,
@@ -1635,8 +1643,8 @@ export async function monitorWebProvider(
 
     setReplyHeartbeatWakeHandler(async () => runReplyHeartbeat());
 
-    if (replyHeartbeatMinutes && !replyHeartbeatTimer) {
-      const intervalMs = replyHeartbeatMinutes * 60_000;
+    if (replyHeartbeatIntervalMs && !replyHeartbeatTimer) {
+      const intervalMs = replyHeartbeatIntervalMs;
       replyHeartbeatTimer = setInterval(() => {
         if (!heartbeatsEnabled) return;
         void runReplyHeartbeat();

@@ -19,7 +19,7 @@ You’re putting an agent in a position to:
 Start conservative:
 - Always set `routing.allowFrom` (never run open-to-the-world on your personal Mac).
 - Use a dedicated WhatsApp number for the assistant.
-- Keep heartbeats disabled until you trust the setup (`heartbeatMinutes: 0`).
+- Keep heartbeats disabled until you trust the setup (omit `agent.heartbeat` or set `agent.heartbeat.every: "0m"`).
 
 ## Prerequisites
 
@@ -122,7 +122,7 @@ Example:
     thinkingDefault: "high",
     timeoutSeconds: 1800,
     // Start with 0; enable later.
-    heartbeatMinutes: 0
+    heartbeat: { every: "0m" }
   },
   routing: {
     allowFrom: ["+15555550123"],
@@ -148,14 +148,14 @@ Example:
 
 ## Heartbeats (proactive mode)
 
-When `agent.heartbeatMinutes > 0`, CLAWDIS periodically runs a heartbeat prompt (default: `HEARTBEAT`).
+When `agent.heartbeat.every` is set to a positive interval, CLAWDIS periodically runs a heartbeat prompt (default: `HEARTBEAT`).
 
 - If the agent replies with `HEARTBEAT_OK` (exact token), CLAWDIS suppresses outbound delivery for that heartbeat.
 
 ```json5
 {
   agent: {
-    heartbeatMinutes: 30
+    heartbeat: { every: "30m" }
   }
 }
 ```

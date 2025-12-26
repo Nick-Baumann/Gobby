@@ -101,6 +101,38 @@ describe("trigger handling", () => {
     });
   });
 
+  it("uses heartbeat model override for heartbeat runs", async () => {
+    await withTempHome(async (home) => {
+      vi.mocked(runEmbeddedPiAgent).mockResolvedValue({
+        payloads: [{ text: "ok" }],
+        meta: {
+          durationMs: 1,
+          agentMeta: { sessionId: "s", provider: "p", model: "m" },
+        },
+      });
+
+      const cfg = makeCfg(home);
+      cfg.agent = {
+        ...cfg.agent,
+        heartbeat: { model: "anthropic/claude-haiku-4-5-20251001" },
+      };
+
+      await getReplyFromConfig(
+        {
+          Body: "hello",
+          From: "+1002",
+          To: "+2000",
+        },
+        { isHeartbeat: true },
+        cfg,
+      );
+
+      const call = vi.mocked(runEmbeddedPiAgent).mock.calls[0]?.[0];
+      expect(call?.provider).toBe("anthropic");
+      expect(call?.model).toBe("claude-haiku-4-5-20251001");
+    });
+  });
+
   it("updates group activation when the owner sends /activation", async () => {
     await withTempHome(async (home) => {
       const cfg = makeCfg(home);

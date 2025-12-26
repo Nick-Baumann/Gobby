@@ -129,7 +129,9 @@ Controls the embedded agent runtime (model/thinking/verbose/timeouts).
     verboseDefault: "off",
     timeoutSeconds: 600,
     mediaMaxMb: 5,
-    heartbeatMinutes: 30,
+    heartbeat: {
+      every: "30m"
+    },
     maxConcurrent: 3,
     bash: {
       backgroundMs: 20000,
@@ -144,6 +146,11 @@ Controls the embedded agent runtime (model/thinking/verbose/timeouts).
 `agent.model` should be set as `provider/model` (e.g. `anthropic/claude-opus-4-5`).
 If you omit the provider, CLAWDIS currently assumes `anthropic` as a temporary
 deprecation fallback.
+
+`agent.heartbeat` configures periodic heartbeat runs:
+- `every`: duration string (`ms`, `s`, `m`); default unit minutes. Omit or set
+  `0m` to disable.
+- `model`: optional override model for heartbeat runs (`provider/model`).
 
 `agent.bash` configures background bash defaults:
 - `backgroundMs`: time before auto-background (ms, default 20000)

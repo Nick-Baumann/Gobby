@@ -169,14 +169,25 @@ export async function getReplyFromConfig(
   const agentCfg = cfg.agent;
   const sessionCfg = cfg.session;
 
-  const { provider: defaultProvider, model: defaultModel } =
-    resolveConfiguredModelRef({
-      cfg,
-      defaultProvider: DEFAULT_PROVIDER,
-      defaultModel: DEFAULT_MODEL,
-    });
+  const mainModel = resolveConfiguredModelRef({
+    cfg,
+    defaultProvider: DEFAULT_PROVIDER,
+    defaultModel: DEFAULT_MODEL,
+  });
+  const defaultProvider = mainModel.provider;
+  const defaultModel = mainModel.model;
   let provider = defaultProvider;
   let model = defaultModel;
+  if (opts?.isHeartbeat) {
+    const heartbeatRaw = agentCfg?.heartbeat?.model?.trim() ?? "";
+    const heartbeatRef = heartbeatRaw
+      ? parseModelRef(heartbeatRaw, defaultProvider)
+      : null;
+    if (heartbeatRef) {
+      provider = heartbeatRef.provider;
+      model = heartbeatRef.model;
+    }
+  }
   let contextTokens =
     agentCfg?.contextTokens ??
     lookupContextTokens(model) ??

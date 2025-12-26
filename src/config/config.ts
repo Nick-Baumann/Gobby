@@ -5,6 +5,8 @@ import path from "node:path";
 import JSON5 from "json5";
 import { z } from "zod";
 
+import { parseDurationMs } from "../cli/parse-duration.js";
+
 export type SessionScope = "per-sender" | "global";
 
 export type SessionConfig = {
@@ -305,7 +307,6 @@ export type ClawdisConfig = {
   skillsInstall?: SkillsInstallConfig;
   models?: ModelsConfig;
   agent?: {
-    /** Provider id, e.g. "anthropic" or "openai" (pi-ai catalog). */
     /** Model id (provider/model), e.g. "anthropic/claude-opus-4-5". */
     model?: string;
     /** Agent working directory (preferred). Used as the default cwd for agent runs. */
@@ -322,8 +323,13 @@ export type ClawdisConfig = {
     /** Max inbound media size in MB for agent-visible attachments (text note or future image attach). */
     mediaMaxMb?: number;
     typingIntervalSeconds?: number;
-    /** Periodic background heartbeat runs (minutes). 0 disables. */
-    heartbeatMinutes?: number;
+    /** Periodic background heartbeat runs. */
+    heartbeat?: {
+      /** Heartbeat interval (duration string, default unit: minutes). */
+      every?: string;
+      /** Heartbeat model override (provider/model). */
+      model?: string;
+    };
     /** Max concurrent agent runs across all conversations. Default: 1 (sequential). */
     maxConcurrent?: number;
     /** Bash tool defaults. */
@@ -441,6 +447,25 @@ const MessagesSchema = z
     messagePrefix: z.string().optional(),
     responsePrefix: z.string().optional(),
     timestampPrefix: z.union([z.boolean(), z.string()]).optional(),
+  })
+  .optional();
+
+const HeartbeatSchema = z
+  .object({
+    every: z.string().optional(),
+    model: z.string().optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (!val.every) return;
+    try {
+      parseDurationMs(val.every, { defaultUnit: "m" });
+    } catch {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["every"],
+        message: "invalid duration (use ms, s, m)",
+      });
+    }
   })
   .optional();
 
@@ -581,7 +606,7 @@ const ClawdisSchema = z.object({
       timeoutSeconds: z.number().int().positive().optional(),
       mediaMaxMb: z.number().positive().optional(),
       typingIntervalSeconds: z.number().int().positive().optional(),
-      heartbeatMinutes: z.number().nonnegative().optional(),
+      heartbeat: HeartbeatSchema,
       maxConcurrent: z.number().int().positive().optional(),
       bash: z
         .object({

@@ -21,7 +21,7 @@ import {
   HEARTBEAT_TOKEN,
   monitorWebProvider,
   resolveHeartbeatRecipients,
-  resolveReplyHeartbeatMinutes,
+  resolveReplyHeartbeatIntervalMs,
   runWebHeartbeatOnce,
   SILENT_REPLY_TOKEN,
   stripHeartbeatToken,
@@ -157,20 +157,25 @@ describe("heartbeat helpers", () => {
     });
   });
 
-  it("resolves heartbeat minutes with default and overrides", () => {
+  it("resolves reply heartbeat interval from config and overrides", () => {
     const cfgBase: ClawdisConfig = {};
-    expect(resolveReplyHeartbeatMinutes(cfgBase)).toBe(30);
+    expect(resolveReplyHeartbeatIntervalMs(cfgBase)).toBeNull();
     expect(
-      resolveReplyHeartbeatMinutes({
-        agent: { heartbeatMinutes: 5 },
+      resolveReplyHeartbeatIntervalMs({
+        agent: { heartbeat: { every: "5m" } },
       }),
-    ).toBe(5);
+    ).toBe(5 * 60_000);
     expect(
-      resolveReplyHeartbeatMinutes({
-        agent: { heartbeatMinutes: 0 },
+      resolveReplyHeartbeatIntervalMs({
+        agent: { heartbeat: { every: "0m" } },
       }),
     ).toBeNull();
-    expect(resolveReplyHeartbeatMinutes(cfgBase, 7)).toBe(7);
+    expect(resolveReplyHeartbeatIntervalMs(cfgBase, "7m")).toBe(7 * 60_000);
+    expect(
+      resolveReplyHeartbeatIntervalMs({
+        agent: { heartbeat: { every: "5" } },
+      }),
+    ).toBe(5 * 60_000);
   });
 });
 
@@ -506,7 +511,6 @@ describe("runWebHeartbeatOnce", () => {
     );
 
     setLoadConfigMock(() => ({
-      agent: { heartbeatMinutes: 0.001 },
       routing: {
         allowFrom: ["+4367"],
       },
@@ -774,7 +778,7 @@ describe("web auto-reply", () => {
       replyResolver,
       runtime,
       controller.signal,
-      { replyHeartbeatMinutes: 1, replyHeartbeatNow: true },
+      { replyHeartbeatEvery: "1m", replyHeartbeatNow: true },
     );
 
     try {
@@ -833,7 +837,7 @@ describe("web auto-reply", () => {
       replyResolver,
       runtime,
       controller.signal,
-      { replyHeartbeatMinutes: 10_000 },
+      { replyHeartbeatEvery: "10000m" },
     );
 
     try {

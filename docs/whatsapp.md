@@ -86,7 +86,7 @@ Status: WhatsApp Web via Baileys only. Gateway owns the single session.
 
 ## Heartbeats
 - **Gateway heartbeat** logs connection health (`web.heartbeatSeconds`, default 60s).
-- **Reply heartbeat** asks agent on a timer (`agent.heartbeatMinutes`).
+- **Reply heartbeat** asks agent on a timer (`agent.heartbeat.every`).
   - Uses `HEARTBEAT` prompt + `HEARTBEAT_TOKEN` skip behavior.
   - Skips if queue busy or last inbound was a group.
   - Falls back to last direct recipient if needed.
@@ -104,7 +104,8 @@ Status: WhatsApp Web via Baileys only. Gateway owns the single session.
 - `messages.messagePrefix` (inbound prefix)
 - `messages.responsePrefix` (outbound prefix)
 - `agent.mediaMaxMb`
-- `agent.heartbeatMinutes`
+- `agent.heartbeat.every`
+- `agent.heartbeat.model` (optional override)
 - `session.*` (scope, idle, store, mainKey)
 - `web.heartbeatSeconds`
 - `web.reconnect.*`

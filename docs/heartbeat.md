@@ -12,8 +12,10 @@ Goal: add a simple heartbeat poll for the embedded agent that only notifies user
 - Keep existing WhatsApp length guidance; forbid burying the sentinel inside alerts.
 
 ## Config & defaults
-- New config key: `agent.heartbeatMinutes` (number of minutes; `0` disables).
-- Default: 30 minutes.
+- New config key: `agent.heartbeat` with:
+  - `every`: duration string (`ms`, `s`, `m`; default unit minutes). `0m` disables.
+  - `model`: optional override model (`provider/model`) for heartbeat runs.
+- Default: disabled unless `agent.heartbeat.every` is set.
 - New optional idle override for heartbeats: `session.heartbeatIdleMinutes` (defaults to `idleMinutes`). Heartbeat skips do **not** update the session `updatedAt` so idle expiry still works.
 
 ## Poller behavior
@@ -40,7 +42,7 @@ Goal: add a simple heartbeat poll for the embedded agent that only notifies user
 - Unit/integration: verbose logger emits start/end lines; normal logger emits a single line.
 
 ## Documentation
-- Add a short README snippet under configuration showing `heartbeatMinutes` and the sentinel rule.
+- Add a short README snippet under configuration showing `agent.heartbeat` and the sentinel rule.
 - Expose CLI triggers:
   - `clawdis heartbeat` (web provider, defaults to first `routing.allowFrom`; optional `--to` override)
     - `--session-id <uuid>` forces resuming a specific session for that heartbeat
