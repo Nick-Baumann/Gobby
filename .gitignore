@@ -1,6 +1,7 @@
 node_modules
 .env
 dist
+*.bun-build
 pnpm-lock.yaml
 coverage
 .pnpm-store
@@ -12,6 +13,7 @@ coverage
 *.bun-build
 apps/macos/.build/
 apps/shared/ClawdisKit/.build/
+bin/
 bin/clawdis-mac
 bin/docs-list
 apps/macos/.build-local/
@@ -21,6 +23,7 @@ Core/
 apps/ios/*.xcodeproj/
 apps/ios/*.xcworkspace/
 apps/ios/.swiftpm/
+vendor/
 
 # Vendor build artifacts
 vendor/a2ui/renderers/lit/dist/
