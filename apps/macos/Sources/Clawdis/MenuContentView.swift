@@ -86,7 +86,6 @@ struct MenuContent: View {
             } label: {
                 Label("Open Dashboard", systemImage: "gauge")
             }
-            Divider()
             Toggle(
                 isOn: Binding(
                     get: { self.browserControlEnabled },

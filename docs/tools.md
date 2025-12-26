@@ -49,7 +49,8 @@ Core actions:
 Notes:
 - Requires `browser.enabled=true` in `~/.clawdis/clawdis.json`.
 - Uses `browser.controlUrl` unless `controlUrl` is passed explicitly.
-- `act` supports CSS selectors for `click`/`type` via `selector` (use `ref` for AI snapshot targets).
+- `snapshot` defaults to `ai`; use `aria` for the accessibility tree.
+- `act` requires `ref` from `snapshot --format ai`; use `evaluate` for rare CSS selector needs.
 
 ### `clawdis_canvas`
 Drive the node Canvas (present, eval, snapshot, A2UI).

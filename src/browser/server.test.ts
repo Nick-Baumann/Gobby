@@ -327,21 +327,17 @@ describe("browser control server", () => {
       modifiers: ["Shift"],
     });
 
-    const clickSelector = (await realFetch(`${base}/act`, {
+    const clickSelector = await realFetch(`${base}/act`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         kind: "click",
         selector: "button.save",
       }),
-    }).then((r) => r.json())) as { ok: boolean };
-    expect(clickSelector.ok).toBe(true);
-    expect(pwMocks.clickViaPlaywright).toHaveBeenNthCalledWith(2, {
-      cdpPort: testPort + 1,
-      targetId: "abcd1234",
-      selector: "button.save",
-      doubleClick: false,
     });
+    expect(clickSelector.status).toBe(400);
+    const clickSelectorBody = (await clickSelector.json()) as { error?: string };
+    expect(clickSelectorBody.error).toMatch(/selector is not supported/i);
 
     const type = (await realFetch(`${base}/act`, {
       method: "POST",
@@ -355,26 +351,6 @@ describe("browser control server", () => {
       ref: "1",
       text: "",
       submit: false,
-      slowly: false,
-    });
-
-    const typeSelector = (await realFetch(`${base}/act`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        kind: "type",
-        selector: "input[name=q]",
-        text: "hello",
-        submit: true,
-      }),
-    }).then((r) => r.json())) as { ok: boolean };
-    expect(typeSelector.ok).toBe(true);
-    expect(pwMocks.typeViaPlaywright).toHaveBeenNthCalledWith(2, {
-      cdpPort: testPort + 1,
-      targetId: "abcd1234",
-      selector: "input[name=q]",
-      text: "hello",
-      submit: true,
       slowly: false,
     });
 

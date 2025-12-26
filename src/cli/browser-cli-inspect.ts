@@ -45,8 +45,8 @@ export function registerBrowserInspectCommands(
 
   browser
     .command("snapshot")
-    .description("Capture an AI-friendly snapshot (aria or ai)")
-    .option("--format <aria|ai>", "Snapshot format (default: aria)", "aria")
+    .description("Capture a snapshot (default: ai; aria is the accessibility tree)")
+    .option("--format <aria|ai>", "Snapshot format (default: ai)", "ai")
     .option("--target-id <id>", "CDP target id (or unique prefix)")
     .option("--limit <n>", "Max nodes (default: 500/800)", (v: string) =>
       Number(v),
@@ -55,7 +55,7 @@ export function registerBrowserInspectCommands(
     .action(async (opts, cmd) => {
       const parent = parentOpts(cmd);
       const baseUrl = resolveBrowserControlUrl(parent?.url);
-      const format = opts.format === "ai" ? "ai" : "aria";
+      const format = opts.format === "aria" ? "aria" : "ai";
       try {
         const result = await browserSnapshot(baseUrl, {
           format,

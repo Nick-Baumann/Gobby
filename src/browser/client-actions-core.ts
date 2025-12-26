@@ -14,8 +14,7 @@ export type BrowserFormField = {
 export type BrowserActRequest =
   | {
       kind: "click";
-      ref?: string;
-      selector?: string;
+      ref: string;
       targetId?: string;
       doubleClick?: boolean;
       button?: string;
@@ -23,8 +22,7 @@ export type BrowserActRequest =
     }
   | {
       kind: "type";
-      ref?: string;
-      selector?: string;
+      ref: string;
       text: string;
       targetId?: string;
       submit?: boolean;

@@ -35,6 +35,16 @@ type ActKind =
 type ClickButton = "left" | "right" | "middle";
 type ClickModifier = "Alt" | "Control" | "ControlOrMeta" | "Meta" | "Shift";
 
+const SELECTOR_UNSUPPORTED_MESSAGE = [
+  "Error: 'selector' is not supported. Use 'ref' from snapshot instead.",
+  "",
+  "Example workflow:",
+  "1. snapshot action to get page state with refs",
+  '2. act with ref: "e123" to interact with element',
+  "",
+  "This is more reliable for modern SPAs.",
+].join("\n");
+
 function readBody(req: express.Request): Record<string, unknown> {
   const body = req.body as Record<string, unknown> | undefined;
   if (!body || typeof body !== "object" || Array.isArray(body)) return {};
@@ -113,6 +123,9 @@ export function registerBrowserAgentRoutes(
     const body = readBody(req);
     const kind = toStringOrEmpty(body.kind) as ActKind;
     const targetId = toStringOrEmpty(body.targetId) || undefined;
+    if (Object.prototype.hasOwnProperty.call(body, "selector")) {
+      return jsonError(res, 400, SELECTOR_UNSUPPORTED_MESSAGE);
+    }
 
     if (
       kind !== "click" &&
@@ -139,9 +152,7 @@ export function registerBrowserAgentRoutes(
       switch (kind) {
         case "click": {
           const ref = toStringOrEmpty(body.ref);
-          const selector = toStringOrEmpty(body.selector);
-          if (!ref && !selector)
-            return jsonError(res, 400, "ref or selector is required");
+          if (!ref) return jsonError(res, 400, "ref is required");
           const doubleClick = toBoolean(body.doubleClick) ?? false;
           const buttonRaw = toStringOrEmpty(body.button) || "";
           const button = buttonRaw ? parseClickButton(buttonRaw) : undefined;
@@ -171,10 +182,9 @@ export function registerBrowserAgentRoutes(
           const clickRequest: Parameters<typeof pw.clickViaPlaywright>[0] = {
             cdpPort,
             targetId: tab.targetId,
+            ref,
             doubleClick,
           };
-          if (ref) clickRequest.ref = ref;
-          if (selector) clickRequest.selector = selector;
           if (button) clickRequest.button = button;
           if (modifiers) clickRequest.modifiers = modifiers;
           await pw.clickViaPlaywright(clickRequest);
@@ -182,9 +192,7 @@ export function registerBrowserAgentRoutes(
         }
         case "type": {
           const ref = toStringOrEmpty(body.ref);
-          const selector = toStringOrEmpty(body.selector);
-          if (!ref && !selector)
-            return jsonError(res, 400, "ref or selector is required");
+          if (!ref) return jsonError(res, 400, "ref is required");
           if (typeof body.text !== "string")
             return jsonError(res, 400, "text is required");
           const text = body.text;
@@ -193,12 +201,11 @@ export function registerBrowserAgentRoutes(
           const typeRequest: Parameters<typeof pw.typeViaPlaywright>[0] = {
             cdpPort,
             targetId: tab.targetId,
+            ref,
             text,
             submit,
             slowly,
           };
-          if (ref) typeRequest.ref = ref;
-          if (selector) typeRequest.selector = selector;
           await pw.typeViaPlaywright(typeRequest);
           return res.json({ ok: true, targetId: tab.targetId });
         }
