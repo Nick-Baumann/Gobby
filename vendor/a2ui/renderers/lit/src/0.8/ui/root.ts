@@ -42,7 +42,7 @@ type NodeOfType<T extends AnyComponentNode["type"]> = Extract<
 
 // This is the base class all the components will inherit
 @customElement("a2ui-root")
-export class Root extends SignalWatcher(LitElement) {
+export class Root extends (SignalWatcher(LitElement) as typeof LitElement) {
   @property()
   accessor surfaceId: SurfaceID | null = null;
 

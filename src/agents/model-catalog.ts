@@ -9,6 +9,13 @@ export type ModelCatalogEntry = {
   contextWindow?: number;
 };
 
+type DiscoveredModel = {
+  id: string;
+  name?: string;
+  provider: string;
+  contextWindow?: number;
+};
+
 let modelCatalogPromise: Promise<ModelCatalogEntry[]> | null = null;
 
 export function resetModelCatalogCacheForTest() {
@@ -35,13 +42,9 @@ export async function loadModelCatalog(params?: {
       const authStorage = piSdk.discoverAuthStorage(agentDir);
       const registry = piSdk.discoverModels(authStorage, agentDir) as
         | {
-            getAll: () => Array<{
-              id: string;
-              name?: string;
-              provider: string;
-            }>;
+            getAll: () => Array<DiscoveredModel>;
           }
-        | Array<{ id: string; name?: string; provider: string }>;
+        | Array<DiscoveredModel>;
       const entries = Array.isArray(registry) ? registry : registry.getAll();
       for (const entry of entries) {
         const id = String(entry?.id ?? "").trim();
