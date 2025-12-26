@@ -23,9 +23,7 @@ struct NodeMenuEntryFormatter {
         entry.text.nonEmpty ?? self.primaryName(entry)
     }
 
-    static func detailText(_ entry: InstanceInfo) -> String {
-        var parts: [String] = []
-
+    static func detailLeft(_ entry: InstanceInfo) -> String {
         var modeLabel: String?
         if self.isGateway(entry) {
             modeLabel = "gateway"
@@ -36,34 +34,26 @@ struct NodeMenuEntryFormatter {
             let base = modeLabel ?? "node"
             modeLabel = "\(base) v\(version)"
         }
-        if let modeLabel { parts.append(modeLabel) }
 
-        if let ip = entry.ip?.nonEmpty {
-            parts.append(ip)
-        } else if let platform = entry.platform?.nonEmpty {
-            parts.append(platform)
-        }
+        if let modeLabel { return modeLabel }
 
-        if parts.isEmpty, let text = entry.text.nonEmpty {
+        if let text = entry.text.nonEmpty {
             let trimmed = text
                 .replacingOccurrences(of: "Node: ", with: "")
                 .replacingOccurrences(of: "Gateway: ", with: "")
             let candidates = trimmed
                 .components(separatedBy: " · ")
                 .filter { !$0.hasPrefix("mode ") && !$0.hasPrefix("reason ") }
-            if !candidates.isEmpty {
-                parts.append(contentsOf: candidates.prefix(2))
-            }
+            if let first = candidates.first, !first.isEmpty { return first }
         }
 
-        if parts.isEmpty {
-            parts.append(entry.ageDescription)
-        }
+        return entry.ageDescription
+    }
 
-        if parts.count > 2 {
-            parts = Array(parts.prefix(2))
-        }
-        return parts.joined(separator: " / ")
+    static func detailRight(_ entry: InstanceInfo) -> String? {
+        if let ip = entry.ip?.nonEmpty { return ip }
+        if let platform = entry.platform?.nonEmpty { return platform }
+        return nil
     }
 
     static func leadingSymbol(_ entry: InstanceInfo) -> String {
@@ -119,11 +109,23 @@ struct NodeMenuRowView: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
 
-                Text(NodeMenuEntryFormatter.detailText(self.entry))
-                    .font(.caption)
-                    .foregroundStyle(self.secondaryColor)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                HStack(spacing: 8) {
+                    Text(NodeMenuEntryFormatter.detailLeft(self.entry))
+                        .font(.caption)
+                        .foregroundStyle(self.secondaryColor)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+
+                    Spacer(minLength: 0)
+
+                    if let right = NodeMenuEntryFormatter.detailRight(self.entry) {
+                        Text(right)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(self.secondaryColor)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
