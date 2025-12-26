@@ -239,6 +239,22 @@ class ClawdisA2UIHost extends LitElement {
       color: rgba(255, 223, 223, 0.98);
     }
 
+    .empty {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      top: var(--clawdis-a2ui-empty-top, var(--clawdis-a2ui-status-top, 12px));
+      text-align: center;
+      opacity: 0.8;
+      padding: 10px 12px;
+      pointer-events: none;
+    }
+
+    .empty-title {
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
     .spinner {
       width: 12px;
       height: 12px;
@@ -429,8 +445,8 @@ class ClawdisA2UIHost extends LitElement {
 
   render() {
     if (this.surfaces.length === 0) {
-      return html`<div style="opacity:.8; padding: 10px;">
-        <div style="font-weight: 700; margin-bottom: 6px;">Canvas (A2UI)</div>
+      return html`<div class="empty">
+        <div class="empty-title">Canvas (A2UI)</div>
         <div>Waiting for A2UI messages…</div>
       </div>`;
     }
