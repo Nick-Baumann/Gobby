@@ -45,6 +45,7 @@
 - Gateway launchd loop fixed by removing redundant `kickstart -k`.
 - CLI now hints when Peekaboo is unauthorized.
 - WhatsApp web inbox listeners now clean up on close to avoid duplicate handlers.
+- Gateway startup now brings up browser control before external providers; WhatsApp/Telegram/Discord auto-start can be disabled with `web.enabled`, `telegram.enabled`, or `discord.enabled`.
 
 ### Providers & Routing
 - New Discord provider for DMs + guild text channels with allowlists and mention-gated replies by default.

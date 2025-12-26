@@ -109,6 +109,7 @@ Status: WhatsApp Web via Baileys only. Gateway owns the single session.
 - `agent.heartbeat.target`
 - `agent.heartbeat.to`
 - `session.*` (scope, idle, store, mainKey)
+- `web.enabled` (disable provider startup when false)
 - `web.heartbeatSeconds`
 - `web.reconnect.*`
 

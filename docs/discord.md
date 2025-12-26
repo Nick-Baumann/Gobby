@@ -18,7 +18,7 @@ Status: ready for DM and guild text channels via the official Discord bot gatewa
 1. Create a Discord application → Bot, enable the intents you need (DMs + guild messages + message content), and grab the bot token.
 2. Invite the bot to your server with the permissions required to read/send messages where you want to use it.
 3. Configure Clawdis with `DISCORD_BOT_TOKEN` (or `discord.token` in `~/.clawdis/clawdis.json`).
-4. Run the gateway; it auto-starts the Discord provider when the token is set.
+4. Run the gateway; it auto-starts the Discord provider when the token is set (unless `discord.enabled = false`).
 5. Direct chats: use `user:<id>` (or a `<@id>` mention) when delivering; all turns land in the shared `main` session.
 6. Guild channels: use `channel:<channelId>` for delivery. Mentions are required by default; disable with `discord.requireMention = false`.
 7. Optional DM allowlist: reuse `discord.allowFrom` with user ids (`1234567890` or `discord:1234567890`). Use `"*"` to allow all DMs.
@@ -37,6 +37,7 @@ Note: Discord does not provide a simple username → id lookup without extra gui
 ```json5
 {
   discord: {
+    enabled: true,
     token: "abc.123",
     allowFrom: ["123456789012345678"],
     guildAllowFrom: {

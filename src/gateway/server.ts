@@ -1829,6 +1829,17 @@ export async function startGatewayServer(
 
   const startWhatsAppProvider = async () => {
     if (whatsappTask) return;
+    const cfg = loadConfig();
+    if (cfg.web?.enabled === false) {
+      whatsappRuntime = {
+        ...whatsappRuntime,
+        running: false,
+        connected: false,
+        lastError: "disabled",
+      };
+      logWhatsApp.info("skipping provider start (web.enabled=false)");
+      return;
+    }
     if (!(await webAuthExists())) {
       whatsappRuntime = {
         ...whatsappRuntime,
@@ -1897,6 +1908,15 @@ export async function startGatewayServer(
   const startTelegramProvider = async () => {
     if (telegramTask) return;
     const cfg = loadConfig();
+    if (cfg.telegram?.enabled === false) {
+      telegramRuntime = {
+        ...telegramRuntime,
+        running: false,
+        lastError: "disabled",
+      };
+      logTelegram.info("skipping provider start (telegram.enabled=false)");
+      return;
+    }
     const telegramToken =
       process.env.TELEGRAM_BOT_TOKEN ?? cfg.telegram?.botToken ?? "";
     if (!telegramToken.trim()) {
@@ -1981,6 +2001,15 @@ export async function startGatewayServer(
   const startDiscordProvider = async () => {
     if (discordTask) return;
     const cfg = loadConfig();
+    if (cfg.discord?.enabled === false) {
+      discordRuntime = {
+        ...discordRuntime,
+        running: false,
+        lastError: "disabled",
+      };
+      logDiscord.info("skipping provider start (discord.enabled=false)");
+      return;
+    }
     const discordToken =
       process.env.DISCORD_BOT_TOKEN ?? cfg.discord?.token ?? "";
     if (!discordToken.trim()) {
@@ -2057,8 +2086,8 @@ export async function startGatewayServer(
 
   const startProviders = async () => {
     await startWhatsAppProvider();
-    await startTelegramProvider();
     await startDiscordProvider();
+    await startTelegramProvider();
   };
 
   const broadcast = (
@@ -6066,14 +6095,20 @@ export async function startGatewayServer(
   }
 
   // Start clawd browser control server (unless disabled via config).
-  void startBrowserControlServerIfEnabled().catch((err) => {
+  try {
+    await startBrowserControlServerIfEnabled();
+  } catch (err) {
     logBrowser.error(`server failed to start: ${String(err)}`);
-  });
+  }
 
-  // Launch configured providers (WhatsApp Web, Telegram) so gateway replies via the
+  // Launch configured providers (WhatsApp Web, Discord, Telegram) so gateway replies via the
   // surface the message came from. Tests can opt out via CLAWDIS_SKIP_PROVIDERS.
   if (process.env.CLAWDIS_SKIP_PROVIDERS !== "1") {
-    void startProviders();
+    try {
+      await startProviders();
+    } catch (err) {
+      logProviders.error(`provider startup failed: ${String(err)}`);
+    }
   } else {
     logProviders.info("skipping provider start (CLAWDIS_SKIP_PROVIDERS=1)");
   }

@@ -105,6 +105,48 @@ Controls how inbound messages behave when an agent run is already active.
 }
 ```
 
+### `web` (WhatsApp web provider)
+
+WhatsApp runs through the gateway’s web provider. It starts automatically when a linked session exists.
+Set `web.enabled: false` to keep it off by default.
+
+```json5
+{
+  web: {
+    enabled: true,
+    heartbeatSeconds: 60,
+    reconnect: {
+      initialMs: 2000,
+      maxMs: 120000,
+      factor: 1.4,
+      jitter: 0.2,
+      maxAttempts: 0
+    }
+  }
+}
+```
+
+### `telegram` (bot transport)
+
+Clawdis reads `TELEGRAM_BOT_TOKEN` or `telegram.botToken` to start the provider.
+Set `telegram.enabled: false` to disable automatic startup.
+
+```json5
+{
+  telegram: {
+    enabled: true,
+    botToken: "your-bot-token",
+    requireMention: true,
+    allowFrom: ["123456789"],
+    mediaMaxMb: 5,
+    proxy: "socks5://localhost:9050",
+    webhookUrl: "https://example.com/telegram-webhook",
+    webhookSecret: "secret",
+    webhookPath: "/telegram-webhook"
+  }
+}
+```
+
 ### `discord` (bot transport)
 
 Configure the Discord bot by setting the bot token and optional gating:
@@ -112,6 +154,7 @@ Configure the Discord bot by setting the bot token and optional gating:
 ```json5
 {
   discord: {
+    enabled: true,
     token: "your-bot-token",
     allowFrom: ["discord:1234567890", "*"], // optional DM allowlist (user ids)
     guildAllowFrom: {
@@ -124,7 +167,7 @@ Configure the Discord bot by setting the bot token and optional gating:
 }
 ```
 
-Clawdis reads `DISCORD_BOT_TOKEN` or `discord.token` to start the provider. Use `user:<id>` (DM) or `channel:<id>` (guild channel) when specifying delivery targets for cron/CLI commands.
+Clawdis reads `DISCORD_BOT_TOKEN` or `discord.token` to start the provider (unless `discord.enabled` is `false`). Use `user:<id>` (DM) or `channel:<id>` (guild channel) when specifying delivery targets for cron/CLI commands.
 
 ### `agent.workspace`
 

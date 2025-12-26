@@ -42,6 +42,8 @@ export type WebReconnectConfig = {
 };
 
 export type WebConfig = {
+  /** If false, do not start the WhatsApp web provider. Default: true. */
+  enabled?: boolean;
   heartbeatSeconds?: number;
   reconnect?: WebReconnectConfig;
 };
@@ -126,6 +128,8 @@ export type HooksConfig = {
 };
 
 export type TelegramConfig = {
+  /** If false, do not start the Telegram provider. Default: true. */
+  enabled?: boolean;
   botToken?: string;
   requireMention?: boolean;
   allowFrom?: Array<string | number>;
@@ -137,6 +141,8 @@ export type TelegramConfig = {
 };
 
 export type DiscordConfig = {
+  /** If false, do not start the Discord provider. Default: true. */
+  enabled?: boolean;
   token?: string;
   allowFrom?: Array<string | number>;
   guildAllowFrom?: {
@@ -705,6 +711,7 @@ const ClawdisSchema = z.object({
     .optional(),
   web: z
     .object({
+      enabled: z.boolean().optional(),
       heartbeatSeconds: z.number().int().positive().optional(),
       reconnect: z
         .object({
@@ -719,6 +726,7 @@ const ClawdisSchema = z.object({
     .optional(),
   telegram: z
     .object({
+      enabled: z.boolean().optional(),
       botToken: z.string().optional(),
       requireMention: z.boolean().optional(),
       allowFrom: z.array(z.union([z.string(), z.number()])).optional(),
@@ -731,6 +739,7 @@ const ClawdisSchema = z.object({
     .optional(),
   discord: z
     .object({
+      enabled: z.boolean().optional(),
       token: z.string().optional(),
       allowFrom: z.array(z.union([z.string(), z.number()])).optional(),
       guildAllowFrom: z
