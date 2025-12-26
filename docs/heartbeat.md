@@ -38,7 +38,7 @@ surface anything that needs attention without spamming the user.
   - `whatsapp` / `telegram`: force the channel (optionally set `to`).
   - `none`: do not deliver externally; output stays in the session (WebChat-visible).
 - `to`: optional recipient override (E.164 for WhatsApp, chat id for Telegram).
-- `prompt`: override the default heartbeat body.
+- `prompt`: optional override for the heartbeat body (default: `HEARTBEAT`).
 
 ## Behavior
 - Runs in the main session (`session.mainKey`, or `global` when scope is global).
