@@ -152,9 +152,9 @@ deprecation fallback.
 - `every`: duration string (`ms`, `s`, `m`, `h`); default unit minutes. Omit or set
   `0m` to disable.
 - `model`: optional override model for heartbeat runs (`provider/model`).
-- `target`: delivery channel (`last`, `whatsapp`, `telegram`, `none`). Default: `last`.
+- `target`: optional delivery channel (`last`, `whatsapp`, `telegram`, `none`). Default: `last`.
 - `to`: optional recipient override (E.164 for WhatsApp, chat id for Telegram).
-- `prompt`: override the default heartbeat body (`HEARTBEAT`).
+- `prompt`: optional override for the heartbeat body (default: `HEARTBEAT`).
 
 `agent.bash` configures background bash defaults:
 - `backgroundMs`: time before auto-background (ms, default 20000)
