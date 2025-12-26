@@ -341,40 +341,74 @@ async function resolveNodeId(
   );
 }
 
-const BrowserActSchema = Type.Object({
-  kind: Type.Union([
-    Type.Literal("click"),
-    Type.Literal("type"),
-    Type.Literal("press"),
-    Type.Literal("hover"),
-    Type.Literal("drag"),
-    Type.Literal("select"),
-    Type.Literal("fill"),
-    Type.Literal("resize"),
-    Type.Literal("wait"),
-    Type.Literal("evaluate"),
-    Type.Literal("close"),
-  ]),
-  ref: Type.Optional(Type.String()),
-  selector: Type.Optional(Type.String()),
-  targetId: Type.Optional(Type.String()),
-  doubleClick: Type.Optional(Type.Boolean()),
-  button: Type.Optional(Type.String()),
-  modifiers: Type.Optional(Type.Array(Type.String())),
-  text: Type.Optional(Type.String()),
-  submit: Type.Optional(Type.Boolean()),
-  slowly: Type.Optional(Type.Boolean()),
-  key: Type.Optional(Type.String()),
-  startRef: Type.Optional(Type.String()),
-  endRef: Type.Optional(Type.String()),
-  values: Type.Optional(Type.Array(Type.String())),
-  fields: Type.Optional(Type.Array(Type.Record(Type.String(), Type.Unknown()))),
-  width: Type.Optional(Type.Number()),
-  height: Type.Optional(Type.Number()),
-  timeMs: Type.Optional(Type.Number()),
-  textGone: Type.Optional(Type.String()),
-  fn: Type.Optional(Type.String()),
-});
+const BrowserActSchema = Type.Union([
+  Type.Object({
+    kind: Type.Literal("click"),
+    ref: Type.String(),
+    targetId: Type.Optional(Type.String()),
+    doubleClick: Type.Optional(Type.Boolean()),
+    button: Type.Optional(Type.String()),
+    modifiers: Type.Optional(Type.Array(Type.String())),
+  }),
+  Type.Object({
+    kind: Type.Literal("type"),
+    ref: Type.String(),
+    text: Type.String(),
+    targetId: Type.Optional(Type.String()),
+    submit: Type.Optional(Type.Boolean()),
+    slowly: Type.Optional(Type.Boolean()),
+  }),
+  Type.Object({
+    kind: Type.Literal("press"),
+    key: Type.String(),
+    targetId: Type.Optional(Type.String()),
+  }),
+  Type.Object({
+    kind: Type.Literal("hover"),
+    ref: Type.String(),
+    targetId: Type.Optional(Type.String()),
+  }),
+  Type.Object({
+    kind: Type.Literal("drag"),
+    startRef: Type.String(),
+    endRef: Type.String(),
+    targetId: Type.Optional(Type.String()),
+  }),
+  Type.Object({
+    kind: Type.Literal("select"),
+    ref: Type.String(),
+    values: Type.Array(Type.String()),
+    targetId: Type.Optional(Type.String()),
+  }),
+  Type.Object({
+    kind: Type.Literal("fill"),
+    fields: Type.Array(Type.Record(Type.String(), Type.Unknown())),
+    targetId: Type.Optional(Type.String()),
+  }),
+  Type.Object({
+    kind: Type.Literal("resize"),
+    width: Type.Number(),
+    height: Type.Number(),
+    targetId: Type.Optional(Type.String()),
+  }),
+  Type.Object({
+    kind: Type.Literal("wait"),
+    timeMs: Type.Optional(Type.Number()),
+    text: Type.Optional(Type.String()),
+    textGone: Type.Optional(Type.String()),
+    targetId: Type.Optional(Type.String()),
+  }),
+  Type.Object({
+    kind: Type.Literal("evaluate"),
+    fn: Type.String(),
+    ref: Type.Optional(Type.String()),
+    targetId: Type.Optional(Type.String()),
+  }),
+  Type.Object({
+    kind: Type.Literal("close"),
+    targetId: Type.Optional(Type.String()),
+  }),
+]);
 
 const BrowserToolSchema = Type.Union([
   Type.Object({
@@ -514,7 +548,7 @@ function createBrowserTool(): AnyAgentTool {
           const format =
             params.format === "ai" || params.format === "aria"
               ? (params.format as "ai" | "aria")
-              : "aria";
+              : "ai";
           const targetId =
             typeof params.targetId === "string"
               ? params.targetId.trim()

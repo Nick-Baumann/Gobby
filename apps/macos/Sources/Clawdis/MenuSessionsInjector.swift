@@ -187,6 +187,11 @@ final class MenuSessionsInjector: NSObject, NSMenuDelegate {
         var cursor = insertIndex
 
         let entries = self.sortedNodeEntries()
+        let topSeparator = NSMenuItem.separator()
+        topSeparator.tag = self.nodesTag
+        menu.insertItem(topSeparator, at: cursor)
+        cursor += 1
+
         let header = self.makeNodesHeaderItem(width: width, count: entries.count)
         menu.insertItem(header, at: cursor)
         cursor += 1

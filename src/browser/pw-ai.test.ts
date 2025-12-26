@@ -111,45 +111,6 @@ describe("pw-ai", () => {
     expect(p1.click).toHaveBeenCalledTimes(1);
   });
 
-  it("clicks a css selector when provided", async () => {
-    const { chromium } = await import("playwright-core");
-    const p1 = createPage({ targetId: "T1" });
-    const browser = createBrowser([p1.page]);
-    (
-      chromium.connectOverCDP as unknown as ReturnType<typeof vi.fn>
-    ).mockResolvedValue(browser);
-
-    const mod = await importModule();
-    await mod.clickViaPlaywright({
-      cdpPort: 18792,
-      targetId: "T1",
-      selector: "button.save",
-    });
-
-    expect(p1.locator).toHaveBeenCalledWith("button.save");
-    expect(p1.click).toHaveBeenCalledTimes(1);
-  });
-
-  it("types via css selector when provided", async () => {
-    const { chromium } = await import("playwright-core");
-    const p1 = createPage({ targetId: "T1" });
-    const browser = createBrowser([p1.page]);
-    (
-      chromium.connectOverCDP as unknown as ReturnType<typeof vi.fn>
-    ).mockResolvedValue(browser);
-
-    const mod = await importModule();
-    await mod.typeViaPlaywright({
-      cdpPort: 18792,
-      targetId: "T1",
-      selector: "input[name=q]",
-      text: "hello",
-    });
-
-    expect(p1.locator).toHaveBeenCalledWith("input[name=q]");
-    expect(p1.fill).toHaveBeenCalledTimes(1);
-  });
-
   it("fails with a clear error when _snapshotForAI is missing", async () => {
     const { chromium } = await import("playwright-core");
     const p1 = createPage({ targetId: "T1", hasSnapshotForAI: false });

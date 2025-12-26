@@ -3,7 +3,7 @@
 ## 2.0.0-beta3 — Unreleased (2025-12-26)
 
 ### Highlights
-- First-class Clawdis tools (browser, canvas, nodes, cron) replace the old `clawdis-*` skills; tool schemas are now injected directly into the agent runtime (including selector-based browser actions).
+- First-class Clawdis tools (browser, canvas, nodes, cron) replace the old `clawdis-*` skills; tool schemas are now injected directly into the agent runtime.
 - Per-session model selection + custom model providers: `models.providers` merges into `~/.clawdis/agent/models.json` (merge/replace modes) for LiteLLM, local OpenAI-compatible servers, Anthropic proxies, etc.
 - Group chat activation modes: per-group `/activation mention|always` command with status visibility.
 - Discord bot transport for DMs and guild text channels, with allowlists + mention gating.
@@ -17,6 +17,7 @@
 - Config refactor: `inbound.*` removed; use top-level `routing` (allowlists + group rules + transcription), `messages` (prefixes/timestamps), and `session` (scoping/store/mainKey). No legacy keys read.
 - Heartbeat config moved to `agent.heartbeat`: set `every: "30m"` (duration string) and optional `model`. `agent.heartbeatMinutes` is removed, and heartbeats are disabled unless `agent.heartbeat.every` is set.
 - Heartbeats now run via the gateway runner (main session) and deliver to the last used channel by default. WhatsApp reply-heartbeat behavior is removed; use `agent.heartbeat.target`/`to` (or `target: "none"`) to control delivery.
+- Browser `act` no longer accepts CSS `selector`; use `snapshot` refs (default `ai`) or `evaluate` as an escape hatch.
 
 ### Fixes
 - Heartbeat replies now strip repeated `HEARTBEAT_OK` tails to avoid accidental “OK OK” spam.
@@ -56,6 +57,7 @@
 
 ### macOS app
 - Update-ready state surfaced in the menu; menu sections regrouped with session submenus.
+- Menu bar now shows a dedicated Nodes section under Context with inline rows, overflow submenu, and iconized actions.
 - Session list polish: sleeping/disconnected/error states, usage bar restored, padding + bar sizing tuned, syncing menu removed, header hidden when disconnected.
 - Chat UI polish: tool call cards + merged tool results, glass background, tighter composer spacing, visual effect host tweaks.
 - OAuth storage moved; legacy session syncing metadata removed.
