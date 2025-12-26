@@ -426,6 +426,7 @@ final class MenuSessionsInjector: NSObject, NSMenuDelegate {
 
     private func buildNodeSubmenu(entry: InstanceInfo) -> NSMenu {
         let menu = NSMenu()
+        menu.autoenablesItems = false
 
         menu.addItem(self.makeNodeCopyItem(label: "ID", value: entry.id))
 
