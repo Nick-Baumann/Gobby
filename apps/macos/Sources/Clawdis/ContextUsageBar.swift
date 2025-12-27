@@ -15,12 +15,12 @@ struct ContextUsageBar: View {
     private static let trackFill: NSColor = .init(name: nil) { appearance in
         let match = appearance.bestMatch(from: [.aqua, .darkAqua])
         if match == .darkAqua { return NSColor.white.withAlphaComponent(0.14) }
-        return NSColor.black.withAlphaComponent(0.16)
+        return NSColor.black.withAlphaComponent(0.12)
     }
     private static let trackStroke: NSColor = .init(name: nil) { appearance in
         let match = appearance.bestMatch(from: [.aqua, .darkAqua])
         if match == .darkAqua { return NSColor.white.withAlphaComponent(0.22) }
-        return NSColor.black.withAlphaComponent(0.28)
+        return NSColor.black.withAlphaComponent(0.2)
     }
 
     private var clampedFractionUsed: Double {
