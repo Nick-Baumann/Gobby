@@ -39,6 +39,7 @@ import {
 import { logVerbose } from "../globals.js";
 import { buildProviderSummary } from "../infra/provider-summary.js";
 import { triggerClawdisRestart } from "../infra/restart.js";
+import { enqueueSystemEvent } from "../infra/system-events.js";
 import { drainSystemEvents } from "../infra/system-events.js";
 import { clearCommandLane, getQueueSize } from "../process/command-queue.js";
 import { defaultRuntime } from "../runtime.js";
@@ -546,6 +547,10 @@ export async function getReplyFromConfig(
     lookupContextTokens(model) ??
     DEFAULT_CONTEXT_TOKENS;
 
+  const initialModelLabel = `${provider}/${model}`;
+  const formatModelSwitchEvent = (label: string, alias?: string) =>
+    alias ? `Model switched to ${alias} (${label}).` : `Model switched to ${label}.`;
+
   const directiveOnly = (() => {
     if (
       !hasThinkDirective &&
@@ -639,6 +644,12 @@ export async function getReplyFromConfig(
         isDefault,
         alias: resolved.alias,
       };
+      const nextLabel = `${modelSelection.provider}/${modelSelection.model}`;
+      if (nextLabel !== initialModelLabel) {
+        enqueueSystemEvent(formatModelSwitchEvent(nextLabel, modelSelection.alias), {
+          contextKey: `model:${nextLabel}`,
+        });
+      }
     }
 
     if (sessionEntry && sessionStore && sessionKey) {
@@ -745,6 +756,13 @@ export async function getReplyFromConfig(
           }
           provider = resolved.ref.provider;
           model = resolved.ref.model;
+          const nextLabel = `${provider}/${model}`;
+          if (nextLabel !== initialModelLabel) {
+            enqueueSystemEvent(
+              formatModelSwitchEvent(nextLabel, resolved.alias),
+              { contextKey: `model:${nextLabel}` },
+            );
+          }
           contextTokens =
             agentCfg?.contextTokens ??
             lookupContextTokens(model) ??
