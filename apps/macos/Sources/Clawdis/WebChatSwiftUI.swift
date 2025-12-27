@@ -11,8 +11,7 @@ private let webChatSwiftLogger = Logger(subsystem: "com.steipete.clawdis", categ
 private enum WebChatSwiftUILayout {
     static let windowSize = NSSize(width: 1120, height: 840)
     static let panelSize = NSSize(width: 480, height: 640)
-    static let windowMinSize = NSSize(width: 960, height: 720)
-    static let windowInset: CGFloat = 6
+    static let windowMinSize = NSSize(width: 480, height: 360)
     static let anchorPadding: CGFloat = 8
 }
 
@@ -320,30 +319,14 @@ final class WebChatSwiftUIWindowController {
         case .panel:
             16
         case .window:
-            14
+            0
         }
         effectView.layer?.cornerRadius = cornerRadius
         effectView.layer?.masksToBounds = true
 
-        let rootView: NSView
-        if case .window = presentation {
-            let container = NSView()
-            container.wantsLayer = true
-            container.layer?.backgroundColor = NSColor.clear.cgColor
-            effectView.translatesAutoresizingMaskIntoConstraints = false
-            container.addSubview(effectView)
-            NSLayoutConstraint.activate([
-                effectView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: WebChatSwiftUILayout.windowInset),
-                effectView.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -WebChatSwiftUILayout.windowInset),
-                effectView.topAnchor.constraint(equalTo: container.topAnchor, constant: WebChatSwiftUILayout.windowInset),
-                effectView.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -WebChatSwiftUILayout.windowInset),
-            ])
-            rootView = container
-        } else {
-            effectView.translatesAutoresizingMaskIntoConstraints = true
-            effectView.autoresizingMask = [.width, .height]
-            rootView = effectView
-        }
+        effectView.translatesAutoresizingMaskIntoConstraints = true
+        effectView.autoresizingMask = [.width, .height]
+        let rootView = effectView
 
         hosting.view.translatesAutoresizingMaskIntoConstraints = false
         hosting.view.wantsLayer = true
