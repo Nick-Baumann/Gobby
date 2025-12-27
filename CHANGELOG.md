@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.0.0-beta4 — 2025-12-27
+
+### Fixes
+- Package contents: include Discord/hooks build outputs in the npm tarball to avoid missing module errors.
+
 ## 2.0.0-beta3 — 2025-12-27
 
 ### Highlights
