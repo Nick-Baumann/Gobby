@@ -514,6 +514,23 @@ public struct NodePairVerifyParams: Codable {
     }
 }
 
+public struct NodeRenameParams: Codable {
+    public let nodeid: String
+    public let displayname: String
+
+    public init(
+        nodeid: String,
+        displayname: String
+    ) {
+        self.nodeid = nodeid
+        self.displayname = displayname
+    }
+    private enum CodingKeys: String, CodingKey {
+        case nodeid = "nodeId"
+        case displayname = "displayName"
+    }
+}
+
 public struct NodeListParams: Codable {
 }
 
