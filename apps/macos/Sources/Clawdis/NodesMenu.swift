@@ -2,40 +2,44 @@ import AppKit
 import SwiftUI
 
 struct NodeMenuEntryFormatter {
-    static func isGateway(_ entry: InstanceInfo) -> Bool {
-        entry.mode?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "gateway"
+    static func isConnected(_ entry: NodeInfo) -> Bool {
+        entry.isConnected
     }
 
-    static func isLocal(_ entry: InstanceInfo) -> Bool {
-        entry.mode?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "local"
+    static func primaryName(_ entry: NodeInfo) -> String {
+        entry.displayName?.nonEmpty ?? entry.nodeId
     }
 
-    static func primaryName(_ entry: InstanceInfo) -> String {
-        if self.isGateway(entry) {
-            let host = entry.host?.nonEmpty
-            if let host, host.lowercased() != "gateway" { return host }
-            return "Gateway"
+    static func summaryText(_ entry: NodeInfo) -> String {
+        let name = self.primaryName(entry)
+        var prefix = "Node: \(name)"
+        if let ip = entry.remoteIp?.nonEmpty {
+            prefix += " (\(ip))"
         }
-        return entry.host?.nonEmpty ?? entry.id
+        var parts = [prefix]
+        if let platform = self.platformText(entry) {
+            parts.append("platform \(platform)")
+        }
+        if let version = entry.version?.nonEmpty {
+            parts.append("app \(self.compactVersion(version))")
+        }
+        parts.append("status \(self.roleText(entry))")
+        return parts.joined(separator: " · ")
     }
 
-    static func summaryText(_ entry: InstanceInfo) -> String {
-        entry.text.nonEmpty ?? self.primaryName(entry)
+    static func roleText(_ entry: NodeInfo) -> String {
+        if entry.isConnected { return "connected" }
+        if entry.isPaired { return "paired" }
+        return "unpaired"
     }
 
-    static func roleText(_ entry: InstanceInfo) -> String {
-        if self.isGateway(entry) { return "gateway" }
-        if let mode = entry.mode?.nonEmpty { return mode }
-        return "node"
-    }
-
-    static func detailLeft(_ entry: InstanceInfo) -> String {
+    static func detailLeft(_ entry: NodeInfo) -> String {
         let role = self.roleText(entry)
-        if let ip = entry.ip?.nonEmpty { return "\(ip) · \(role)" }
+        if let ip = entry.remoteIp?.nonEmpty { return "\(ip) · \(role)" }
         return role
     }
 
-    static func detailRight(_ entry: InstanceInfo) -> String? {
+    static func detailRight(_ entry: NodeInfo) -> String? {
         var parts: [String] = []
         if let platform = self.platformText(entry) { parts.append(platform) }
         if let version = entry.version?.nonEmpty {
@@ -46,7 +50,7 @@ struct NodeMenuEntryFormatter {
         return parts.joined(separator: " · ")
     }
 
-    static func platformText(_ entry: InstanceInfo) -> String? {
+    static func platformText(_ entry: NodeInfo) -> String? {
         if let raw = entry.platform?.nonEmpty {
             return self.prettyPlatform(raw) ?? raw
         }
@@ -99,8 +103,7 @@ struct NodeMenuEntryFormatter {
         return trimmed
     }
 
-    static func leadingSymbol(_ entry: InstanceInfo) -> String {
-        if self.isGateway(entry) { return self.safeSystemSymbol("dot.radiowaves.left.and.right", fallback: "network") }
+    static func leadingSymbol(_ entry: NodeInfo) -> String {
         if let family = entry.deviceFamily?.lowercased() {
             if family.contains("mac") {
                 return self.safeSystemSymbol("laptopcomputer", fallback: "laptopcomputer")
@@ -116,9 +119,11 @@ struct NodeMenuEntryFormatter {
         return "cpu"
     }
 
-    static func isAndroid(_ entry: InstanceInfo) -> Bool {
+    static func isAndroid(_ entry: NodeInfo) -> Bool {
         let family = entry.deviceFamily?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return family == "android"
+        if family == "android" { return true }
+        let platform = entry.platform?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return platform?.contains("android") == true
     }
 
     private static func safeSystemSymbol(_ preferred: String, fallback: String) -> String {
@@ -128,7 +133,7 @@ struct NodeMenuEntryFormatter {
 }
 
 struct NodeMenuRowView: View {
-    let entry: InstanceInfo
+    let entry: NodeInfo
     let width: CGFloat
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
@@ -147,7 +152,7 @@ struct NodeMenuRowView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(NodeMenuEntryFormatter.primaryName(self.entry))
-                    .font(.callout.weight(NodeMenuEntryFormatter.isGateway(self.entry) ? .semibold : .regular))
+                    .font(.callout.weight(NodeMenuEntryFormatter.isConnected(self.entry) ? .semibold : .regular))
                     .foregroundStyle(self.primaryColor)
                     .lineLimit(1)
                     .truncationMode(.middle)
