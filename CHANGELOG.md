@@ -6,6 +6,7 @@
 - macOS: Voice Wake now fully tears down the Speech pipeline when disabled (cancel pending restarts, drop stale callbacks) to avoid high CPU in the background.
 - iOS/Android nodes: enable scrolling for loaded web pages in the Canvas WebView (default scaffold stays touch-first).
 - macOS menu: device list now uses `node.list` (devices only; no agent/tool presence entries).
+- macOS menu: device list now shows connected nodes only.
 
 ## 2.0.0-beta4 — 2025-12-27
 

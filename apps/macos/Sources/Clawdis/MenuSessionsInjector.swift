@@ -683,7 +683,7 @@ final class MenuSessionsInjector: NSObject, NSMenuDelegate {
     }
 
     private func sortedNodeEntries() -> [NodeInfo] {
-        let entries = self.nodesStore.nodes
+        let entries = self.nodesStore.nodes.filter { $0.isConnected }
         return entries.sorted { lhs, rhs in
             if lhs.isConnected != rhs.isConnected { return lhs.isConnected }
             if lhs.isPaired != rhs.isPaired { return lhs.isPaired }
