@@ -12,6 +12,7 @@
 - iOS/Android nodes: status pill now surfaces camera activity instead of overlay toasts.
 - iOS/Android nodes: camera snaps recompress to keep base64 payloads under 5 MB.
 - CLI: avoid spurious gateway close errors after successful request/response cycles.
+- Agent runtime: clamp tool-result images to the 5MB Anthropic limit to avoid hard request rejections.
 - Tests: add Swift Testing coverage for camera errors and Kotest coverage for Android bridge endpoints.
 
 ## 2.0.0-beta4 — 2025-12-27
