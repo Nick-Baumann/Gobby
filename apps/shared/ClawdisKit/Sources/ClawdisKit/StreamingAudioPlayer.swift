@@ -143,7 +143,7 @@ private final class Playback: @unchecked Sendable {
                 return
             }
             self.enqueueCurrentBuffer(flushOnly: true)
-            self.stop(immediate: false)
+            _ = self.stop(immediate: false)
         }
     }
 

@@ -500,7 +500,7 @@ actor TalkModeRuntime {
             if let apiKey, !apiKey.isEmpty, let voiceId {
                 let desiredOutputFormat = directive?.outputFormat ?? self.defaultOutputFormat ?? "pcm_44100"
                 let outputFormat = ElevenLabsTTSClient.validatedOutputFormat(desiredOutputFormat)
-                if outputFormat == nil, let desiredOutputFormat, !desiredOutputFormat.isEmpty {
+                if outputFormat == nil, !desiredOutputFormat.isEmpty {
                     self.logger
                         .warning(
                             "talk output_format unsupported for local playback: \(desiredOutputFormat, privacy: .public)")
@@ -639,11 +639,12 @@ actor TalkModeRuntime {
     }
 
     func stopSpeaking(reason: TalkStopReason) async {
+        let usePCM = self.lastPlaybackWasPCM
         let interruptedAt = await MainActor.run {
-            let primary = self.lastPlaybackWasPCM
+            let primary = usePCM
                 ? PCMStreamingAudioPlayer.shared.stop()
                 : StreamingAudioPlayer.shared.stop()
-            _ = self.lastPlaybackWasPCM
+            _ = usePCM
                 ? StreamingAudioPlayer.shared.stop()
                 : PCMStreamingAudioPlayer.shared.stop()
             return primary
