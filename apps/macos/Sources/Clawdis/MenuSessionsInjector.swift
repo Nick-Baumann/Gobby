@@ -229,7 +229,7 @@ final class MenuSessionsInjector: NSObject, NSMenuDelegate {
                 item.view = HighlightedMenuItemHostView(
                     rootView: AnyView(NodeMenuRowView(entry: entry, width: width)),
                     width: width)
-                item.submenu = self.buildNodeSubmenu(entry: entry)
+                item.submenu = self.buildNodeSubmenu(entry: entry, width: width)
                 menu.insertItem(item, at: cursor)
                 cursor += 1
             }
@@ -444,13 +444,13 @@ final class MenuSessionsInjector: NSObject, NSMenuDelegate {
             item.view = HighlightedMenuItemHostView(
                 rootView: AnyView(NodeMenuRowView(entry: entry, width: width)),
                 width: width)
-            item.submenu = self.buildNodeSubmenu(entry: entry)
+            item.submenu = self.buildNodeSubmenu(entry: entry, width: width)
             menu.addItem(item)
         }
         return menu
     }
 
-    private func buildNodeSubmenu(entry: NodeInfo) -> NSMenu {
+    private func buildNodeSubmenu(entry: NodeInfo, width: CGFloat) -> NSMenu {
         let menu = NSMenu()
         menu.autoenablesItems = false
 
@@ -484,7 +484,10 @@ final class MenuSessionsInjector: NSObject, NSMenuDelegate {
 
         if let commands = entry.commands?.filter({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }),
            !commands.isEmpty {
-            menu.addItem(self.makeNodeCopyItem(label: "Commands", value: commands.joined(separator: ", ")))
+            menu.addItem(self.makeNodeMultilineItem(
+                label: "Commands",
+                value: commands.joined(separator: ", "),
+                width: width))
         }
 
         return menu
@@ -500,6 +503,17 @@ final class MenuSessionsInjector: NSObject, NSMenuDelegate {
         let item = NSMenuItem(title: "\(label): \(value)", action: #selector(self.copyNodeValue(_:)), keyEquivalent: "")
         item.target = self
         item.representedObject = value
+        return item
+    }
+
+    private func makeNodeMultilineItem(label: String, value: String, width: CGFloat) -> NSMenuItem {
+        let item = NSMenuItem()
+        item.target = self
+        item.action = #selector(self.copyNodeValue(_:))
+        item.representedObject = value
+        item.view = HighlightedMenuItemHostView(
+            rootView: AnyView(NodeMenuMultilineView(label: label, value: value, width: width)),
+            width: width)
         return item
     }
 

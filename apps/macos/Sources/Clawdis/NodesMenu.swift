@@ -39,12 +39,12 @@ struct NodeMenuEntryFormatter {
         return role
     }
 
-    static func detailRight(_ entry: NodeInfo) -> String? {
+    static func headlineRight(_ entry: NodeInfo) -> String? {
         var parts: [String] = []
         if let platform = self.platformText(entry) { parts.append(platform) }
         if let version = entry.version?.nonEmpty {
-            let short = self.compactVersion(version)
-            parts.append("v\(short)")
+            let short = self.shortVersionLabel(version)
+            parts.append(short)
         }
         if parts.isEmpty { return nil }
         return parts.joined(separator: " · ")
@@ -103,6 +103,16 @@ struct NodeMenuEntryFormatter {
         return trimmed
     }
 
+    private static func shortVersionLabel(_ raw: String) -> String {
+        let compact = self.compactVersion(raw)
+        if compact.isEmpty { return compact }
+        if compact.lowercased().hasPrefix("v") { return compact }
+        if let first = compact.unicodeScalars.first, CharacterSet.decimalDigits.contains(first) {
+            return "v\(compact)"
+        }
+        return compact
+    }
+
     static func leadingSymbol(_ entry: NodeInfo) -> String {
         if let family = entry.deviceFamily?.lowercased() {
             if family.contains("mac") {
@@ -151,28 +161,24 @@ struct NodeMenuRowView: View {
                 .frame(width: 22, height: 22, alignment: .center)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(NodeMenuEntryFormatter.primaryName(self.entry))
-                    .font(.callout.weight(NodeMenuEntryFormatter.isConnected(self.entry) ? .semibold : .regular))
-                    .foregroundStyle(self.primaryColor)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(NodeMenuEntryFormatter.detailLeft(self.entry))
-                        .font(.caption)
-                        .foregroundStyle(self.secondaryColor)
+                    Text(NodeMenuEntryFormatter.primaryName(self.entry))
+                        .font(.callout.weight(NodeMenuEntryFormatter.isConnected(self.entry) ? .semibold : .regular))
+                        .foregroundStyle(self.primaryColor)
                         .lineLimit(1)
                         .truncationMode(.middle)
+                        .layoutPriority(1)
 
-                    Spacer(minLength: 0)
+                    Spacer(minLength: 8)
 
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        if let right = NodeMenuEntryFormatter.detailRight(self.entry) {
+                        if let right = NodeMenuEntryFormatter.headlineRight(self.entry) {
                             Text(right)
                                 .font(.caption.monospacedDigit())
                                 .foregroundStyle(self.secondaryColor)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
+                                .layoutPriority(2)
                         }
 
                         Image(systemName: "chevron.right")
@@ -181,6 +187,13 @@ struct NodeMenuRowView: View {
                             .padding(.leading, 2)
                     }
                 }
+
+                Text(NodeMenuEntryFormatter.detailLeft(self.entry))
+                    .font(.caption)
+                    .foregroundStyle(self.secondaryColor)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -218,5 +231,38 @@ struct AndroidMark: View {
                 .frame(width: headWidth, height: headHeight)
                 .position(x: headX + headWidth * 0.5, y: headY + headHeight * 0.5)
         }
+    }
+}
+
+struct NodeMenuMultilineView: View {
+    let label: String
+    let value: String
+    let width: CGFloat
+    @Environment(\.menuItemHighlighted) private var isHighlighted
+
+    private var primaryColor: Color {
+        self.isHighlighted ? Color(nsColor: .selectedMenuItemTextColor) : .primary
+    }
+
+    private var secondaryColor: Color {
+        self.isHighlighted ? Color(nsColor: .selectedMenuItemTextColor).opacity(0.85) : .secondary
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("\(self.label):")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(self.secondaryColor)
+
+            Text(self.value)
+                .font(.caption)
+                .foregroundStyle(self.primaryColor)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 6)
+        .padding(.leading, 18)
+        .padding(.trailing, 12)
+        .frame(width: max(1, self.width), alignment: .leading)
     }
 }

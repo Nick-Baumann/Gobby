@@ -25,7 +25,6 @@ final class BridgeConnectionController {
     private let discovery = BridgeDiscoveryModel()
     private weak var appModel: NodeAppModel?
     private var didAutoConnect = false
-    private var seenStableIDs = Set<String>()
 
     private let bridgeClientFactory: @Sendable () -> any BridgePairingClient
 
@@ -120,9 +119,15 @@ final class BridgeConnectionController {
             return
         }
 
-        let targetStableID = defaults.string(forKey: "bridge.lastDiscoveredStableID")?
+        let preferredStableID = defaults.string(forKey: "bridge.preferredStableID")?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !targetStableID.isEmpty else { return }
+        let lastDiscoveredStableID = defaults.string(forKey: "bridge.lastDiscoveredStableID")?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        let candidates = [preferredStableID, lastDiscoveredStableID].filter { !$0.isEmpty }
+        guard let targetStableID = candidates.first(where: { id in
+            self.bridges.contains(where: { $0.stableID == id })
+        }) else { return }
 
         guard let target = self.bridges.first(where: { $0.stableID == targetStableID }) else { return }
 
@@ -131,11 +136,18 @@ final class BridgeConnectionController {
     }
 
     private func updateLastDiscoveredBridge(from bridges: [BridgeDiscoveryModel.DiscoveredBridge]) {
-        let newlyDiscovered = bridges.filter { self.seenStableIDs.insert($0.stableID).inserted }
-        guard let last = newlyDiscovered.last else { return }
+        let defaults = UserDefaults.standard
+        let preferred = defaults.string(forKey: "bridge.preferredStableID")?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let existingLast = defaults.string(forKey: "bridge.lastDiscoveredStableID")?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
-        UserDefaults.standard.set(last.stableID, forKey: "bridge.lastDiscoveredStableID")
-        BridgeSettingsStore.saveLastDiscoveredBridgeStableID(last.stableID)
+        // Avoid overriding user intent (preferred/lastDiscovered are also set on manual Connect).
+        guard preferred.isEmpty, existingLast.isEmpty else { return }
+        guard let first = bridges.first else { return }
+
+        defaults.set(first.stableID, forKey: "bridge.lastDiscoveredStableID")
+        BridgeSettingsStore.saveLastDiscoveredBridgeStableID(first.stableID)
     }
 
     private func makeHello(token: String) -> BridgeHello {

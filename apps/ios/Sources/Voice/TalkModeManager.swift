@@ -461,11 +461,13 @@ final class TalkModeManager: NSObject {
             let canUseElevenLabs = (voiceId?.isEmpty == false) && (apiKey?.isEmpty == false)
 
             if canUseElevenLabs, let voiceId, let apiKey {
-                let desiredOutputFormat = directive?.outputFormat ?? self.defaultOutputFormat ?? "pcm_44100"
-                let outputFormat = ElevenLabsTTSClient.validatedOutputFormat(desiredOutputFormat)
-                if outputFormat == nil, let desiredOutputFormat, !desiredOutputFormat.isEmpty {
+                let desiredOutputFormat = (directive?.outputFormat ?? self.defaultOutputFormat)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let requestedOutputFormat = (desiredOutputFormat?.isEmpty == false) ? desiredOutputFormat : nil
+                let outputFormat = ElevenLabsTTSClient.validatedOutputFormat(requestedOutputFormat ?? "pcm_44100")
+                if outputFormat == nil, let requestedOutputFormat {
                     self.logger.warning(
-                        "talk output_format unsupported for local playback: \(desiredOutputFormat, privacy: .public)")
+                        "talk output_format unsupported for local playback: \(requestedOutputFormat, privacy: .public)")
                 }
 
                 let modelId = directive?.modelId ?? self.currentModelId ?? self.defaultModelId
