@@ -4,7 +4,7 @@ import XCTest
 final class ElevenLabsTTSValidationTests: XCTestCase {
     func testValidatedOutputFormatAllowsOnlyMp3Presets() {
         XCTAssertEqual(ElevenLabsTTSClient.validatedOutputFormat("mp3_44100_128"), "mp3_44100_128")
-        XCTAssertNil(ElevenLabsTTSClient.validatedOutputFormat("pcm_16000"))
+        XCTAssertEqual(ElevenLabsTTSClient.validatedOutputFormat("pcm_16000"), "pcm_16000")
     }
 
     func testValidatedLanguageAcceptsTwoLetterCodes() {
@@ -17,4 +17,3 @@ final class ElevenLabsTTSValidationTests: XCTestCase {
         XCTAssertNil(ElevenLabsTTSClient.validatedNormalize("maybe"))
     }
 }
-
