@@ -209,10 +209,12 @@ struct MenuContent: View {
                     Label("Send Test Notification", systemImage: "bell")
                 }
                 Divider()
-                Button {
-                    DebugActions.restartGateway()
-                } label: {
-                    Label("Restart Gateway", systemImage: "arrow.clockwise")
+                if self.state.connectionMode == .local, !AppStateStore.attachExistingGatewayOnly {
+                    Button {
+                        DebugActions.restartGateway()
+                    } label: {
+                        Label("Restart Gateway", systemImage: "arrow.clockwise")
+                    }
                 }
                 Button {
                     DebugActions.restartApp()
