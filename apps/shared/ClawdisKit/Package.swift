@@ -13,7 +13,7 @@ let package = Package(
         .library(name: "ClawdisChatUI", targets: ["ClawdisChatUI"]),
     ],
     dependencies: [
-        .package(path: "../../../ElevenLabsKit"),
+        .package(path: "../../../../ElevenLabsKit"),
     ],
     targets: [
         .target(

@@ -40,14 +40,12 @@ struct NodeMenuEntryFormatter {
     }
 
     static func headlineRight(_ entry: NodeInfo) -> String? {
-        var parts: [String] = []
-        if let platform = self.platformText(entry) { parts.append(platform) }
-        if let version = entry.version?.nonEmpty {
-            let short = self.shortVersionLabel(version)
-            parts.append(short)
-        }
-        if parts.isEmpty { return nil }
-        return parts.joined(separator: " · ")
+        self.platformText(entry)
+    }
+
+    static func detailRightVersion(_ entry: NodeInfo) -> String? {
+        guard let version = entry.version?.nonEmpty else { return nil }
+        return self.shortVersionLabel(version)
     }
 
     static func platformText(_ entry: NodeInfo) -> String? {
@@ -188,12 +186,24 @@ struct NodeMenuRowView: View {
                     }
                 }
 
-                Text(NodeMenuEntryFormatter.detailLeft(self.entry))
-                    .font(.caption)
-                    .foregroundStyle(self.secondaryColor)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(NodeMenuEntryFormatter.detailLeft(self.entry))
+                        .font(.caption)
+                        .foregroundStyle(self.secondaryColor)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+
+                    Spacer(minLength: 0)
+
+                    if let version = NodeMenuEntryFormatter.detailRightVersion(self.entry) {
+                        Text(version)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(self.secondaryColor)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 

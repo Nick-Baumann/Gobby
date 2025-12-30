@@ -39,6 +39,7 @@
 - macOS menu: device list now uses `node.list` (devices only; no agent/tool presence entries).
 - macOS menu: device list now shows connected nodes only.
 - macOS menu: device rows now pack platform/version on the first line, and command lists wrap in submenus.
+- macOS menu: split device platform/version across first and second rows for better fit.
 - iOS node: fix ReplayKit screen recording crash caused by queue isolation assertions during capture.
 - iOS Talk Mode: avoid audio tap queue assertions when starting recognition.
 - iOS/Android nodes: bridge auto-connect refreshes stale tokens and settings now show richer bridge/device details.
