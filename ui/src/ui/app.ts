@@ -5,6 +5,15 @@ import { GatewayBrowserClient, type GatewayEventFrame, type GatewayHelloOk } fro
 import { loadSettings, saveSettings, type UiSettings } from "./storage";
 import { renderApp } from "./app-render";
 import { normalizePath, pathForTab, tabFromPath, type Tab } from "./navigation";
+import {
+  resolveTheme,
+  type ResolvedTheme,
+  type ThemeMode,
+} from "./theme";
+import {
+  startThemeTransition,
+  type ThemeTransitionContext,
+} from "./theme-transition";
 import type {
   ConfigSnapshot,
   CronJob,
@@ -72,6 +81,8 @@ export class ClawdisApp extends LitElement {
   @state() password = "";
   @state() tab: Tab = "chat";
   @state() connected = false;
+  @state() theme: ThemeMode = this.settings.theme ?? "system";
+  @state() themeResolved: ResolvedTheme = "dark";
   @state() hello: GatewayHelloOk | null = null;
   @state() lastError: string | null = null;
   @state() eventLog: EventLogEntry[] = [];
@@ -159,6 +170,8 @@ export class ClawdisApp extends LitElement {
   private chatScrollFrame: number | null = null;
   basePath = "";
   private popStateHandler = () => this.onPopState();
+  private themeMedia: MediaQueryList | null = null;
+  private themeMediaHandler: ((event: MediaQueryListEvent) => void) | null = null;
 
   createRenderRoot() {
     return this;
@@ -168,12 +181,15 @@ export class ClawdisApp extends LitElement {
     super.connectedCallback();
     this.basePath = this.inferBasePath();
     this.syncTabWithLocation(true);
+    this.syncThemeWithSettings();
+    this.attachThemeListener();
     window.addEventListener("popstate", this.popStateHandler);
     this.connect();
   }
 
   disconnectedCallback() {
     window.removeEventListener("popstate", this.popStateHandler);
+    this.detachThemeListener();
     super.disconnectedCallback();
   }
 
@@ -271,12 +287,30 @@ export class ClawdisApp extends LitElement {
   applySettings(next: UiSettings) {
     this.settings = next;
     saveSettings(next);
+    if (next.theme !== this.theme) {
+      this.theme = next.theme;
+      this.applyResolvedTheme(resolveTheme(next.theme));
+    }
   }
 
   setTab(next: Tab) {
     if (this.tab !== next) this.tab = next;
     void this.refreshActiveTab();
     this.syncUrlWithTab(next, false);
+  }
+
+  setTheme(next: ThemeMode, context?: ThemeTransitionContext) {
+    const applyTheme = () => {
+      this.theme = next;
+      this.applySettings({ ...this.settings, theme: next });
+      this.applyResolvedTheme(resolveTheme(next));
+    };
+    startThemeTransition({
+      nextTheme: next,
+      applyTheme,
+      context,
+      currentTheme: this.theme,
+    });
   }
 
   private async refreshActiveTab() {
@@ -300,6 +334,45 @@ export class ClawdisApp extends LitElement {
     const path = window.location.pathname;
     if (path === "/ui" || path.startsWith("/ui/")) return "/ui";
     return "";
+  }
+
+  private syncThemeWithSettings() {
+    this.theme = this.settings.theme ?? "system";
+    this.applyResolvedTheme(resolveTheme(this.theme));
+  }
+
+  private applyResolvedTheme(resolved: ResolvedTheme) {
+    this.themeResolved = resolved;
+    if (typeof document === "undefined") return;
+    const root = document.documentElement;
+    root.dataset.theme = resolved;
+    root.style.colorScheme = resolved;
+  }
+
+  private attachThemeListener() {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function")
+      return;
+    this.themeMedia = window.matchMedia("(prefers-color-scheme: dark)");
+    this.themeMediaHandler = (event) => {
+      if (this.theme !== "system") return;
+      this.applyResolvedTheme(event.matches ? "dark" : "light");
+    };
+    if ("addEventListener" in this.themeMedia) {
+      this.themeMedia.addEventListener("change", this.themeMediaHandler);
+    } else {
+      this.themeMedia.addListener(this.themeMediaHandler);
+    }
+  }
+
+  private detachThemeListener() {
+    if (!this.themeMedia || !this.themeMediaHandler) return;
+    if ("removeEventListener" in this.themeMedia) {
+      this.themeMedia.removeEventListener("change", this.themeMediaHandler);
+    } else {
+      this.themeMedia.removeListener(this.themeMediaHandler);
+    }
+    this.themeMedia = null;
+    this.themeMediaHandler = null;
   }
 
   private syncTabWithLocation(replace: boolean) {
