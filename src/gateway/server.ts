@@ -393,6 +393,7 @@ import {
   validateSkillsInstallParams,
   validateSkillsStatusParams,
   validateSkillsUpdateParams,
+  validateTalkModeParams,
   validateWakeParams,
   validateWebLoginStartParams,
   validateWebLoginWaitParams,
@@ -469,6 +470,7 @@ const METHODS = [
   "status",
   "config.get",
   "config.set",
+  "talk.mode",
   "models.list",
   "skills.status",
   "skills.install",
@@ -518,6 +520,7 @@ const EVENTS = [
   "chat",
   "presence",
   "tick",
+  "talk.mode",
   "shutdown",
   "health",
   "heartbeat",
@@ -2378,6 +2381,25 @@ export async function startGatewayServer(
               config: validated.config,
             }),
           };
+        }
+        case "talk.mode": {
+          const params = parseParams();
+          if (!validateTalkModeParams(params)) {
+            return {
+              ok: false,
+              error: {
+                code: ErrorCodes.INVALID_REQUEST,
+                message: `invalid talk.mode params: ${formatValidationErrors(validateTalkModeParams.errors)}`,
+              },
+            };
+          }
+          const payload = {
+            enabled: (params as { enabled: boolean }).enabled,
+            phase: (params as { phase?: string }).phase ?? null,
+            ts: Date.now(),
+          };
+          broadcast("talk.mode", payload, { dropIfSlow: true });
+          return { ok: true, payloadJSON: JSON.stringify(payload) };
         }
         case "models.list": {
           const params = parseParams();
@@ -4613,6 +4635,28 @@ export async function startGatewayServer(
                 },
                 undefined,
               );
+              break;
+            }
+            case "talk.mode": {
+              const params = (req.params ?? {}) as Record<string, unknown>;
+              if (!validateTalkModeParams(params)) {
+                respond(
+                  false,
+                  undefined,
+                  errorShape(
+                    ErrorCodes.INVALID_REQUEST,
+                    `invalid talk.mode params: ${formatValidationErrors(validateTalkModeParams.errors)}`,
+                  ),
+                );
+                break;
+              }
+              const payload = {
+                enabled: (params as { enabled: boolean }).enabled,
+                phase: (params as { phase?: string }).phase ?? null,
+                ts: Date.now(),
+              };
+              broadcast("talk.mode", payload, { dropIfSlow: true });
+              respond(true, payload, undefined);
               break;
             }
             case "skills.status": {

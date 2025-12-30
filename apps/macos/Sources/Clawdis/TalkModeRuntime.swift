@@ -244,6 +244,7 @@ actor TalkModeRuntime {
         await self.reloadConfig()
         let prompt = self.buildPrompt(transcript: transcript)
         let runId = UUID().uuidString
+        let startedAt = Date().timeIntervalSince1970
 
         do {
             let response = try await GatewayConnection.shared.chatSend(
@@ -261,7 +262,11 @@ actor TalkModeRuntime {
                 return
             }
 
-            guard let assistantText = await self.latestAssistantText(sessionKey: "main") else {
+            guard let assistantText = await self.waitForAssistantText(
+                sessionKey: "main",
+                since: startedAt,
+                timeoutSeconds: 12)
+            else {
                 await self.startListening()
                 await self.startRecognition()
                 return
@@ -335,7 +340,22 @@ actor TalkModeRuntime {
         }
     }
 
-    private func latestAssistantText(sessionKey: String) async -> String? {
+    private func waitForAssistantText(
+        sessionKey: String,
+        since: Double,
+        timeoutSeconds: Int) async -> String?
+    {
+        let deadline = Date().addingTimeInterval(TimeInterval(timeoutSeconds))
+        while Date() < deadline {
+            if let text = await self.latestAssistantText(sessionKey: sessionKey, since: since) {
+                return text
+            }
+            try? await Task.sleep(nanoseconds: 300_000_000)
+        }
+        return nil
+    }
+
+    private func latestAssistantText(sessionKey: String, since: Double? = nil) async -> String? {
         do {
             let history = try await GatewayConnection.shared.chatHistory(sessionKey: sessionKey)
             let messages = history.messages ?? []
@@ -343,7 +363,13 @@ actor TalkModeRuntime {
                 guard let data = try? JSONEncoder().encode(item) else { return nil }
                 return try? JSONDecoder().decode(ClawdisChatMessage.self, from: data)
             }
-            guard let assistant = decoded.last(where: { $0.role == "assistant" }) else { return nil }
+            let assistant = decoded.last { message in
+                guard message.role == "assistant" else { return false }
+                guard let since else { return true }
+                guard let timestamp = message.timestamp else { return false }
+                return timestamp >= since - 0.5
+            }
+            guard let assistant else { return nil }
             let text = assistant.content.compactMap { $0.text }.joined(separator: "\n")
             let trimmed = text.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
             return trimmed.isEmpty ? nil : trimmed

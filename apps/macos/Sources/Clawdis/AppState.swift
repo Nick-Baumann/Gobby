@@ -329,18 +329,26 @@ final class AppState {
     func setTalkEnabled(_ enabled: Bool) async {
         guard voiceWakeSupported else {
             self.talkEnabled = false
+            await GatewayConnection.shared.talkMode(enabled: false, phase: "disabled")
             return
         }
 
         self.talkEnabled = enabled
         guard !self.isPreview else { return }
 
-        if !enabled { return }
+        if !enabled {
+            await GatewayConnection.shared.talkMode(enabled: false, phase: "disabled")
+            return
+        }
 
-        if PermissionManager.voiceWakePermissionsGranted() { return }
+        if PermissionManager.voiceWakePermissionsGranted() {
+            await GatewayConnection.shared.talkMode(enabled: true, phase: "enabled")
+            return
+        }
 
         let granted = await PermissionManager.ensureVoiceWakePermissions(interactive: true)
         self.talkEnabled = granted
+        await GatewayConnection.shared.talkMode(enabled: granted, phase: granted ? "enabled" : "denied")
     }
 
     // MARK: - Global wake words sync (Gateway-owned)

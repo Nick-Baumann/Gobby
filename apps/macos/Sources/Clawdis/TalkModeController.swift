@@ -20,6 +20,7 @@ final class TalkModeController {
 
     func updatePhase(_ phase: TalkModePhase) {
         TalkOverlayController.shared.updatePhase(phase)
+        Task { await GatewayConnection.shared.talkMode(enabled: AppStateStore.shared.talkEnabled, phase: phase.rawValue) }
     }
 
     func updateLevel(_ level: Double) {

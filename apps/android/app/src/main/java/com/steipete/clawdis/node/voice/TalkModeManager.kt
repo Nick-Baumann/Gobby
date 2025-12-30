@@ -76,6 +76,7 @@ class TalkModeManager(
   private var defaultModelId: String? = null
   private var currentModelId: String? = null
   private var defaultOutputFormat: String? = null
+  private var apiKey: String? = null
   private var interruptOnSpeech: Boolean = true
   private var voiceOverrideActive = false
   private var modelOverrideActive = false
@@ -268,6 +269,7 @@ class TalkModeManager(
     }
 
     try {
+      val startedAt = System.currentTimeMillis().toDouble() / 1000.0
       val runId = sendChat(prompt, bridge)
       val ok = waitForChatFinal(runId)
       if (!ok) {
@@ -275,7 +277,7 @@ class TalkModeManager(
         start()
         return
       }
-      val assistant = fetchLatestAssistantText(bridge)
+      val assistant = waitForAssistantText(bridge, startedAt, 12_000)
       if (assistant.isNullOrBlank()) {
         _statusText.value = "No reply"
         start()
@@ -345,13 +347,34 @@ class TalkModeManager(
     return result
   }
 
-  private suspend fun fetchLatestAssistantText(bridge: BridgeSession): String? {
+  private suspend fun waitForAssistantText(
+    bridge: BridgeSession,
+    sinceSeconds: Double,
+    timeoutMs: Long,
+  ): String? {
+    val deadline = SystemClock.elapsedRealtime() + timeoutMs
+    while (SystemClock.elapsedRealtime() < deadline) {
+      val text = fetchLatestAssistantText(bridge, sinceSeconds)
+      if (!text.isNullOrBlank()) return text
+      delay(300)
+    }
+    return null
+  }
+
+  private suspend fun fetchLatestAssistantText(
+    bridge: BridgeSession,
+    sinceSeconds: Double? = null,
+  ): String? {
     val res = bridge.request("chat.history", "{\"sessionKey\":\"main\"}")
     val root = json.parseToJsonElement(res).asObjectOrNull() ?: return null
     val messages = root["messages"] as? JsonArray ?: return null
     for (item in messages.reversed()) {
       val obj = item.asObjectOrNull() ?: continue
       if (obj["role"].asStringOrNull() != "assistant") continue
+      if (sinceSeconds != null) {
+        val timestamp = obj["timestamp"].asDoubleOrNull()
+        if (timestamp != null && timestamp < sinceSeconds - 0.5) continue
+      }
       val content = obj["content"] as? JsonArray ?: continue
       val text =
         content.mapNotNull { entry ->
@@ -390,7 +413,9 @@ class TalkModeManager(
       return
     }
 
-    val apiKey = System.getenv("ELEVENLABS_API_KEY")?.trim()
+    val apiKey =
+      apiKey?.trim()?.takeIf { it.isNotEmpty() }
+        ?: System.getenv("ELEVENLABS_API_KEY")?.trim()
     if (apiKey.isNullOrEmpty()) {
       _statusText.value = "Missing ELEVENLABS_API_KEY"
       return
@@ -495,6 +520,7 @@ class TalkModeManager(
     val bridge = session ?: return
     val envVoice = System.getenv("ELEVENLABS_VOICE_ID")?.trim()
     val sagVoice = System.getenv("SAG_VOICE_ID")?.trim()
+    val envKey = System.getenv("ELEVENLABS_API_KEY")?.trim()
     try {
       val res = bridge.request("config.get", "{}")
       val root = json.parseToJsonElement(res).asObjectOrNull()
@@ -503,6 +529,7 @@ class TalkModeManager(
       val voice = talk?.get("voiceId")?.asStringOrNull()?.trim()?.takeIf { it.isNotEmpty() }
       val model = talk?.get("modelId")?.asStringOrNull()?.trim()?.takeIf { it.isNotEmpty() }
       val outputFormat = talk?.get("outputFormat")?.asStringOrNull()?.trim()?.takeIf { it.isNotEmpty() }
+      val key = talk?.get("apiKey")?.asStringOrNull()?.trim()?.takeIf { it.isNotEmpty() }
       val interrupt = talk?.get("interruptOnSpeech")?.asBooleanOrNull()
 
       defaultVoiceId = voice ?: envVoice?.takeIf { it.isNotEmpty() } ?: sagVoice?.takeIf { it.isNotEmpty() }
@@ -510,9 +537,11 @@ class TalkModeManager(
       defaultModelId = model
       if (!modelOverrideActive) currentModelId = defaultModelId
       defaultOutputFormat = outputFormat
+      apiKey = key ?: envKey?.takeIf { it.isNotEmpty() }
       if (interrupt != null) interruptOnSpeech = interrupt
     } catch (_: Throwable) {
       defaultVoiceId = envVoice?.takeIf { it.isNotEmpty() } ?: sagVoice?.takeIf { it.isNotEmpty() }
+      apiKey = envKey?.takeIf { it.isNotEmpty() }
     }
   }
 

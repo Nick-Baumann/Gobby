@@ -28,6 +28,7 @@ final class TalkModeManager: NSObject {
     private var defaultModelId: String?
     private var currentModelId: String?
     private var defaultOutputFormat: String?
+    private var apiKey: String?
     private var interruptOnSpeech: Bool = true
 
     private var bridge: BridgeSession?
@@ -189,6 +190,7 @@ final class TalkModeManager: NSObject {
         }
 
         do {
+            let startedAt = Date().timeIntervalSince1970
             let runId = try await self.sendChat(prompt, bridge: bridge)
             let ok = await self.waitForChatFinal(runId: runId, bridge: bridge)
             if !ok {
@@ -197,7 +199,11 @@ final class TalkModeManager: NSObject {
                 return
             }
 
-            guard let assistantText = try await self.fetchLatestAssistantText(bridge: bridge) else {
+            guard let assistantText = try await self.waitForAssistantText(
+                bridge: bridge,
+                since: startedAt,
+                timeoutSeconds: 12)
+            else {
                 self.statusText = "No reply"
                 await self.start()
                 return
@@ -259,7 +265,22 @@ final class TalkModeManager: NSObject {
         return false
     }
 
-    private func fetchLatestAssistantText(bridge: BridgeSession) async throws -> String? {
+    private func waitForAssistantText(
+        bridge: BridgeSession,
+        since: Double,
+        timeoutSeconds: Int) async throws -> String?
+    {
+        let deadline = Date().addingTimeInterval(TimeInterval(timeoutSeconds))
+        while Date() < deadline {
+            if let text = try await self.fetchLatestAssistantText(bridge: bridge, since: since) {
+                return text
+            }
+            try? await Task.sleep(nanoseconds: 300_000_000)
+        }
+        return nil
+    }
+
+    private func fetchLatestAssistantText(bridge: BridgeSession, since: Double? = nil) async throws -> String? {
         let res = try await bridge.request(
             method: "chat.history",
             paramsJSON: "{\"sessionKey\":\"main\"}",
@@ -268,6 +289,9 @@ final class TalkModeManager: NSObject {
         guard let messages = json["messages"] as? [[String: Any]] else { return nil }
         for msg in messages.reversed() {
             guard (msg["role"] as? String) == "assistant" else { continue }
+            if let since, let timestamp = msg["timestamp"] as? Double, timestamp < since - 0.5 {
+                continue
+            }
             guard let content = msg["content"] as? [[String: Any]] else { continue }
             let text = content.compactMap { $0["text"] as? String }.joined(separator: "\n")
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -299,7 +323,10 @@ final class TalkModeManager: NSObject {
             return
         }
 
-        guard let apiKey = ProcessInfo.processInfo.environment["ELEVENLABS_API_KEY"], !apiKey.isEmpty else {
+        let resolvedKey =
+            (self.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? self.apiKey : nil) ??
+            ProcessInfo.processInfo.environment["ELEVENLABS_API_KEY"]
+        guard let apiKey = resolvedKey, !apiKey.isEmpty else {
             self.statusText = "Missing ELEVENLABS_API_KEY"
             return
         }
@@ -375,6 +402,7 @@ final class TalkModeManager: NSObject {
             self.currentModelId = self.defaultModelId
             self.defaultOutputFormat = (talk?["outputFormat"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
+            self.apiKey = (talk?["apiKey"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
             if let interrupt = talk?["interruptOnSpeech"] as? Bool {
                 self.interruptOnSpeech = interrupt
             }

@@ -198,6 +198,7 @@ Controls inbound/outbound prefixes and timestamps.
 ### `talk`
 
 Defaults for Talk mode (macOS/iOS/Android). Voice IDs fall back to `ELEVENLABS_VOICE_ID` or `SAG_VOICE_ID` when unset.
+`apiKey` falls back to `ELEVENLABS_API_KEY` (or the gateway’s shell profile) when unset.
 
 ```json5
 {
@@ -205,6 +206,7 @@ Defaults for Talk mode (macOS/iOS/Android). Voice IDs fall back to `ELEVENLABS_V
     voiceId: "elevenlabs_voice_id",
     modelId: "eleven_v3",
     outputFormat: "mp3_44100_128",
+    apiKey: "elevenlabs_api_key",
     interruptOnSpeech: true
   }
 }

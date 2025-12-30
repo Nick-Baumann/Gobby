@@ -34,6 +34,7 @@ struct ConfigSettings: View {
     @State private var talkVoiceId: String = ""
     @State private var talkInterruptOnSpeech: Bool = true
     @State private var talkApiKey: String = ""
+    @State private var gatewayApiKeyFound = false
 
     var body: some View {
         ScrollView { self.content }
@@ -49,6 +50,7 @@ struct ConfigSettings: View {
                 self.hasLoaded = true
                 self.loadConfig()
                 await self.loadModels()
+                await self.refreshGatewayTalkApiKey()
                 self.allowAutosave = true
             }
     }
@@ -323,6 +325,10 @@ struct ConfigSettings: View {
                             Text("Using ELEVENLABS_API_KEY from the environment.")
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
+                        } else if self.gatewayApiKeyFound && self.talkApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Text("Using API key from the gateway profile.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -389,6 +395,20 @@ struct ConfigSettings: View {
             if let interrupt = talk["interruptOnSpeech"] as? Bool {
                 self.talkInterruptOnSpeech = interrupt
             }
+        }
+    }
+
+    private func refreshGatewayTalkApiKey() async {
+        do {
+            let snap: ConfigSnapshot = try await GatewayConnection.shared.requestDecoded(
+                method: .configGet,
+                params: nil,
+                timeoutMs: 8000)
+            let talk = snap.config?["talk"]?.dictionaryValue
+            let apiKey = talk?["apiKey"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines)
+            self.gatewayApiKeyFound = !(apiKey ?? "").isEmpty
+        } catch {
+            self.gatewayApiKeyFound = false
         }
     }
 
@@ -487,12 +507,14 @@ struct ConfigSettings: View {
         if !self.talkApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return "ElevenLabs API key: stored in config"
         }
+        if self.gatewayApiKeyFound { return "ElevenLabs API key: found (gateway)" }
         return "ElevenLabs API key: missing"
     }
 
     private var apiKeyStatusColor: Color {
         if self.hasEnvApiKey { return .green }
         if !self.talkApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return .green }
+        if self.gatewayApiKeyFound { return .green }
         return .red
     }
 

@@ -226,6 +226,8 @@ export type TalkConfig = {
   modelId?: string;
   /** Default ElevenLabs output format (e.g. mp3_44100_128). */
   outputFormat?: string;
+  /** ElevenLabs API key (optional; falls back to ELEVENLABS_API_KEY). */
+  apiKey?: string;
   /** Stop speaking when user starts talking (default: true). */
   interruptOnSpeech?: boolean;
 };
@@ -802,6 +804,7 @@ const ClawdisSchema = z.object({
       voiceId: z.string().optional(),
       modelId: z.string().optional(),
       outputFormat: z.string().optional(),
+      apiKey: z.string().optional(),
       interruptOnSpeech: z.boolean().optional(),
     })
     .optional(),
@@ -964,17 +967,59 @@ export function parseConfigJson5(
   }
 }
 
+function readTalkApiKeyFromProfile(): string | null {
+  const home = os.homedir();
+  const candidates = [".profile", ".zprofile", ".zshrc", ".bashrc"].map(
+    (name) => path.join(home, name),
+  );
+  for (const candidate of candidates) {
+    if (!fs.existsSync(candidate)) continue;
+    try {
+      const text = fs.readFileSync(candidate, "utf-8");
+      const match = text.match(
+        /(?:^|\n)\s*(?:export\s+)?ELEVENLABS_API_KEY\s*=\s*["']?([^\n"']+)["']?/,
+      );
+      const value = match?.[1]?.trim();
+      if (value) return value;
+    } catch {
+      // Ignore profile read errors.
+    }
+  }
+  return null;
+}
+
+function resolveTalkApiKey(): string | null {
+  const envValue = (process.env.ELEVENLABS_API_KEY ?? "").trim();
+  if (envValue) return envValue;
+  return readTalkApiKeyFromProfile();
+}
+
+function applyTalkApiKey(config: ClawdisConfig): ClawdisConfig {
+  const resolved = resolveTalkApiKey();
+  if (!resolved) return config;
+  const existing = config.talk?.apiKey?.trim();
+  if (existing) return config;
+  return {
+    ...config,
+    talk: {
+      ...config.talk,
+      apiKey: resolved,
+    },
+  };
+}
+
 export async function readConfigFileSnapshot(): Promise<ConfigFileSnapshot> {
   const configPath = CONFIG_PATH_CLAWDIS;
   const exists = fs.existsSync(configPath);
   if (!exists) {
+    const config = applyTalkApiKey({});
     return {
       path: configPath,
       exists: false,
       raw: null,
       parsed: {},
       valid: true,
-      config: {},
+      config,
       issues: [],
     };
   }
@@ -1015,7 +1060,7 @@ export async function readConfigFileSnapshot(): Promise<ConfigFileSnapshot> {
       raw,
       parsed: parsedRes.parsed,
       valid: true,
-      config: validated.config,
+      config: applyTalkApiKey(validated.config),
       issues: [],
     };
   } catch (err) {

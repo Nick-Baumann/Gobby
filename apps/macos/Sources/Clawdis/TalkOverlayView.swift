@@ -7,12 +7,12 @@ struct TalkOverlayView: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             TalkOrbView(phase: self.controller.model.phase, level: self.controller.model.level)
-                .frame(width: 80, height: 80)
+                .frame(width: 96, height: 96)
                 .contentShape(Rectangle())
                 .onTapGesture {
                     TalkModeController.shared.stopSpeaking(reason: .userTap)
                 }
-                .padding(16)
+                .padding(26)
 
             Button {
                 TalkModeController.shared.exitTalkMode()
@@ -29,7 +29,7 @@ struct TalkOverlayView: View {
             .padding(4)
             .onHover { self.hovering = $0 }
         }
-        .frame(width: 120, height: 120, alignment: .center)
+        .frame(width: 160, height: 160, alignment: .center)
     }
 }
 
@@ -72,6 +72,7 @@ private struct TalkWaveRings: View {
     let phase: TalkModePhase
     let level: Double
     let time: TimeInterval
+    private let ringColor = Color(red: 0.82, green: 0.94, blue: 1.0)
 
     var body: some View {
         ZStack {
@@ -80,9 +81,9 @@ private struct TalkWaveRings: View {
                 let progress = (time * speed + Double(idx) * 0.28).truncatingRemainder(dividingBy: 1)
                 let amplitude = phase == .speaking ? 0.95 : phase == .listening ? 0.5 + level * 0.7 : 0.35
                 let scale = 0.75 + progress * amplitude + (phase == .listening ? level * 0.15 : 0)
-                let alpha = phase == .speaking ? 0.55 : phase == .listening ? 0.45 + level * 0.25 : 0.28
+                let alpha = phase == .speaking ? 0.72 : phase == .listening ? 0.58 + level * 0.28 : 0.4
                 Circle()
-                    .stroke(Color.white.opacity(alpha - progress * 0.35), lineWidth: 1.2)
+                    .stroke(self.ringColor.opacity(alpha - progress * 0.3), lineWidth: 1.6)
                     .scaleEffect(scale)
                     .opacity(alpha - progress * 0.6)
             }
@@ -97,13 +98,13 @@ private struct TalkOrbitArcs: View {
         ZStack {
             Circle()
                 .trim(from: 0.08, to: 0.26)
-                .stroke(Color.white.opacity(0.75), style: StrokeStyle(lineWidth: 1.4, lineCap: .round))
+                .stroke(Color.white.opacity(0.88), style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
                 .rotationEffect(.degrees(time * 42))
             Circle()
                 .trim(from: 0.62, to: 0.86)
-                .stroke(Color.white.opacity(0.55), style: StrokeStyle(lineWidth: 1.2, lineCap: .round))
+                .stroke(Color.white.opacity(0.7), style: StrokeStyle(lineWidth: 1.4, lineCap: .round))
                 .rotationEffect(.degrees(-time * 35))
         }
-        .scaleEffect(1.05)
+        .scaleEffect(1.08)
     }
 }

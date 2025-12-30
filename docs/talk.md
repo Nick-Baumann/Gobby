@@ -47,6 +47,7 @@ Supported keys:
     "voiceId": "elevenlabs_voice_id",
     "modelId": "eleven_v3",
     "outputFormat": "mp3_44100_128",
+    "apiKey": "elevenlabs_api_key",
     "interruptOnSpeech": true
   }
 }
@@ -55,6 +56,7 @@ Supported keys:
 Defaults:
 - `interruptOnSpeech`: true
 - `voiceId`: falls back to `ELEVENLABS_VOICE_ID` / `SAG_VOICE_ID`
+- `apiKey`: falls back to `ELEVENLABS_API_KEY` (or gateway shell profile if available)
 
 ## macOS UI
 - Menu bar toggle: **Talk**
