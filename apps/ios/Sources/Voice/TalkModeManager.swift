@@ -33,6 +33,7 @@ final class TalkModeManager: NSObject {
     private var modelOverrideActive = false
     private var defaultOutputFormat: String?
     private var apiKey: String?
+    private var voiceAliases: [String: String] = [:]
     private var interruptOnSpeech: Bool = true
     private var mainSessionKey: String = "main"
 
@@ -419,7 +420,12 @@ final class TalkModeManager: NSObject {
         let cleaned = parsed.stripped.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else { return }
 
-        if let voice = directive?.voiceId {
+        let requestedVoice = directive?.voiceId?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedVoice = self.resolveVoiceAlias(requestedVoice)
+        if requestedVoice?.isEmpty == false, resolvedVoice == nil {
+            self.logger.warning("unknown voice alias \(requestedVoice ?? "?", privacy: .public)")
+        }
+        if let voice = resolvedVoice {
             if directive?.once != true {
                 self.currentVoiceId = voice
                 self.voiceOverrideActive = true
@@ -440,8 +446,7 @@ final class TalkModeManager: NSObject {
             let started = Date()
             let language = ElevenLabsTTSClient.validatedLanguage(directive?.language)
 
-            let voiceId = (directive?.voiceId ?? self.currentVoiceId ?? self.defaultVoiceId)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let voiceId = resolvedVoice ?? self.currentVoiceId ?? self.defaultVoiceId
             let resolvedKey =
                 (self.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? self.apiKey : nil) ??
                 ProcessInfo.processInfo.environment["ELEVENLABS_API_KEY"]
@@ -565,6 +570,22 @@ final class TalkModeManager: NSObject {
         return true
     }
 
+    private func resolveVoiceAlias(_ value: String?) -> String? {
+        let trimmed = (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let normalized = trimmed.lowercased()
+        if let mapped = self.voiceAliases[normalized] { return mapped }
+        if self.voiceAliases.values.contains(where: { $0.caseInsensitiveCompare(trimmed) == .orderedSame }) {
+            return trimmed
+        }
+        return Self.isLikelyVoiceId(trimmed) ? trimmed : nil
+    }
+
+    private static func isLikelyVoiceId(_ value: String) -> Bool {
+        guard value.count >= 10 else { return false }
+        return value.allSatisfy { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }
+    }
+
     private func reloadConfig() async {
         guard let bridge else { return }
         do {
@@ -576,6 +597,19 @@ final class TalkModeManager: NSObject {
             let rawMainKey = (session?["mainKey"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             self.mainSessionKey = rawMainKey.isEmpty ? "main" : rawMainKey
             self.defaultVoiceId = (talk?["voiceId"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let aliases = talk?["voiceAliases"] as? [String: Any] {
+                self.voiceAliases =
+                    aliases.compactMap { key, value in
+                        guard let id = value as? String else { return nil }
+                        let normalizedKey = key.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                        let trimmedId = id.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !normalizedKey.isEmpty, !trimmedId.isEmpty else { return nil }
+                        return (normalizedKey, trimmedId)
+                    }
+                    .reduce(into: [:]) { $0[$1.0] = $1.1 }
+            } else {
+                self.voiceAliases = [:]
+            }
             if !self.voiceOverrideActive {
                 self.currentVoiceId = self.defaultVoiceId
             }

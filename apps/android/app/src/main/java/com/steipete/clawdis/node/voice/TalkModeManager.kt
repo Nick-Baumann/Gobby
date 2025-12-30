@@ -61,6 +61,12 @@ class TalkModeManager(
   private val _statusText = MutableStateFlow("Off")
   val statusText: StateFlow<String> = _statusText
 
+  private val _lastAssistantText = MutableStateFlow<String?>(null)
+  val lastAssistantText: StateFlow<String?> = _lastAssistantText
+
+  private val _usingFallbackTts = MutableStateFlow(false)
+  val usingFallbackTts: StateFlow<Boolean> = _usingFallbackTts
+
   private var recognizer: SpeechRecognizer? = null
   private var restartJob: Job? = null
   private var stopRequested = false
@@ -79,6 +85,7 @@ class TalkModeManager(
   private var currentModelId: String? = null
   private var defaultOutputFormat: String? = null
   private var apiKey: String? = null
+  private var voiceAliases: Map<String, String> = emptyMap()
   private var interruptOnSpeech: Boolean = true
   private var voiceOverrideActive = false
   private var modelOverrideActive = false
@@ -179,6 +186,7 @@ class TalkModeManager(
     _isListening.value = false
     _statusText.value = "Off"
     stopSpeaking()
+    _usingFallbackTts.value = false
     chatSubscribedSessionKey = null
 
     mainHandler.post {
@@ -334,7 +342,7 @@ class TalkModeManager(
   private fun buildPrompt(transcript: String): String {
     val lines = mutableListOf(
       "Talk Mode active. Reply in a concise, spoken tone.",
-      "You may optionally prefix the response with JSON (first line) to set ElevenLabs voice, e.g. {\"voice\":\"<id>\",\"once\":true}.",
+      "You may optionally prefix the response with JSON (first line) to set ElevenLabs voice (id or alias), e.g. {\"voice\":\"<id>\",\"once\":true}.",
     )
     lastInterruptedAtSeconds?.let {
       lines.add("Assistant speech interrupted at ${"%.1f".format(it)}s.")
@@ -432,10 +440,17 @@ class TalkModeManager(
     val directive = parsed.directive
     val cleaned = parsed.stripped.trim()
     if (cleaned.isEmpty()) return
+    _lastAssistantText.value = cleaned
+
+    val requestedVoice = directive?.voiceId?.trim()?.takeIf { it.isNotEmpty() }
+    val resolvedVoice = resolveVoiceAlias(requestedVoice)
+    if (requestedVoice != null && resolvedVoice == null) {
+      Log.w(tag, "unknown voice alias: $requestedVoice")
+    }
 
     if (directive?.voiceId != null) {
       if (directive.once != true) {
-        currentVoiceId = directive.voiceId
+        currentVoiceId = resolvedVoice
         voiceOverrideActive = true
       }
     }
@@ -449,7 +464,7 @@ class TalkModeManager(
     val apiKey =
       apiKey?.trim()?.takeIf { it.isNotEmpty() }
         ?: System.getenv("ELEVENLABS_API_KEY")?.trim()
-    val voiceId = directive?.voiceId ?: currentVoiceId ?: defaultVoiceId
+    val voiceId = resolvedVoice ?: currentVoiceId ?: defaultVoiceId
 
     _statusText.value = "Speaking…"
     _isSpeaking.value = true
@@ -465,9 +480,11 @@ class TalkModeManager(
         if (apiKey.isNullOrEmpty()) {
           Log.w(tag, "missing ELEVENLABS_API_KEY; falling back to system voice")
         }
+        _usingFallbackTts.value = true
         _statusText.value = "Speaking (System)…"
         speakWithSystemTts(cleaned)
       } else {
+        _usingFallbackTts.value = false
         val ttsStarted = SystemClock.elapsedRealtime()
         val request =
           ElevenLabsRequest(
@@ -491,6 +508,7 @@ class TalkModeManager(
     } catch (err: Throwable) {
       Log.w(tag, "speak failed: ${err.message ?: err::class.simpleName}; falling back to system voice")
       try {
+        _usingFallbackTts.value = true
         _statusText.value = "Speaking (System)…"
         speakWithSystemTts(cleaned)
       } catch (fallbackErr: Throwable) {
@@ -681,6 +699,11 @@ class TalkModeManager(
       val sessionCfg = config?.get("session").asObjectOrNull()
       val mainKey = sessionCfg?.get("mainKey").asStringOrNull()?.trim()?.takeIf { it.isNotEmpty() } ?: "main"
       val voice = talk?.get("voiceId")?.asStringOrNull()?.trim()?.takeIf { it.isNotEmpty() }
+      val aliases =
+        talk?.get("voiceAliases").asObjectOrNull()?.entries?.mapNotNull { (key, value) ->
+          val id = value.asStringOrNull()?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+          normalizeAliasKey(key).takeIf { it.isNotEmpty() }?.let { it to id }
+        }?.toMap().orEmpty()
       val model = talk?.get("modelId")?.asStringOrNull()?.trim()?.takeIf { it.isNotEmpty() }
       val outputFormat = talk?.get("outputFormat")?.asStringOrNull()?.trim()?.takeIf { it.isNotEmpty() }
       val key = talk?.get("apiKey")?.asStringOrNull()?.trim()?.takeIf { it.isNotEmpty() }
@@ -688,6 +711,7 @@ class TalkModeManager(
 
       mainSessionKey = mainKey
       defaultVoiceId = voice ?: envVoice?.takeIf { it.isNotEmpty() } ?: sagVoice?.takeIf { it.isNotEmpty() }
+      voiceAliases = aliases
       if (!voiceOverrideActive) currentVoiceId = defaultVoiceId
       defaultModelId = model
       if (!modelOverrideActive) currentModelId = defaultModelId
@@ -697,6 +721,7 @@ class TalkModeManager(
     } catch (_: Throwable) {
       defaultVoiceId = envVoice?.takeIf { it.isNotEmpty() } ?: sagVoice?.takeIf { it.isNotEmpty() }
       apiKey = envKey?.takeIf { it.isNotEmpty() }
+      voiceAliases = emptyMap()
     }
   }
 
@@ -841,6 +866,23 @@ class TalkModeManager(
       }
     }
   }
+
+  private fun resolveVoiceAlias(value: String?): String? {
+    val trimmed = value?.trim().orEmpty()
+    if (trimmed.isEmpty()) return null
+    val normalized = normalizeAliasKey(trimmed)
+    voiceAliases[normalized]?.let { return it }
+    if (voiceAliases.values.any { it.equals(trimmed, ignoreCase = true) }) return trimmed
+    return if (isLikelyVoiceId(trimmed)) trimmed else null
+  }
+
+  private fun isLikelyVoiceId(value: String): Boolean {
+    if (value.length < 10) return false
+    return value.all { it.isLetterOrDigit() || it == '-' || it == '_' }
+  }
+
+  private fun normalizeAliasKey(value: String): String =
+    value.trim().lowercase()
 
   private val listener =
     object : RecognitionListener {

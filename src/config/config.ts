@@ -222,6 +222,8 @@ export type CanvasHostConfig = {
 export type TalkConfig = {
   /** Default ElevenLabs voice ID for Talk mode. */
   voiceId?: string;
+  /** Optional voice name -> ElevenLabs voice ID map. */
+  voiceAliases?: Record<string, string>;
   /** Default ElevenLabs model ID for Talk mode. */
   modelId?: string;
   /** Default ElevenLabs output format (e.g. mp3_44100_128). */
@@ -815,6 +817,7 @@ const ClawdisSchema = z.object({
   talk: z
     .object({
       voiceId: z.string().optional(),
+      voiceAliases: z.record(z.string(), z.string()).optional(),
       modelId: z.string().optional(),
       outputFormat: z.string().optional(),
       apiKey: z.string().optional(),
