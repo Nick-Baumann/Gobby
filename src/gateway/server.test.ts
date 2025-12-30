@@ -439,56 +439,60 @@ describe("gateway server", () => {
     "voicewake.get returns defaults and voicewake.set broadcasts",
     { timeout: 15_000 },
     async () => {
-    const homeDir = await fs.mkdtemp(path.join(os.tmpdir(), "clawdis-home-"));
-    const prevHome = process.env.HOME;
-    process.env.HOME = homeDir;
+      const homeDir = await fs.mkdtemp(path.join(os.tmpdir(), "clawdis-home-"));
+      const prevHome = process.env.HOME;
+      process.env.HOME = homeDir;
 
-    const { server, ws } = await startServerWithClient();
-    await connectOk(ws);
+      const { server, ws } = await startServerWithClient();
+      await connectOk(ws);
 
-    const initial = await rpcReq<{ triggers: string[] }>(ws, "voicewake.get");
-    expect(initial.ok).toBe(true);
-    expect(initial.payload?.triggers).toEqual(["clawd", "claude", "computer"]);
+      const initial = await rpcReq<{ triggers: string[] }>(ws, "voicewake.get");
+      expect(initial.ok).toBe(true);
+      expect(initial.payload?.triggers).toEqual([
+        "clawd",
+        "claude",
+        "computer",
+      ]);
 
-    const changedP = onceMessage<{
-      type: "event";
-      event: string;
-      payload?: unknown;
-    }>(ws, (o) => o.type === "event" && o.event === "voicewake.changed");
+      const changedP = onceMessage<{
+        type: "event";
+        event: string;
+        payload?: unknown;
+      }>(ws, (o) => o.type === "event" && o.event === "voicewake.changed");
 
-    const setRes = await rpcReq<{ triggers: string[] }>(ws, "voicewake.set", {
-      triggers: ["  hi  ", "", "there"],
-    });
-    expect(setRes.ok).toBe(true);
-    expect(setRes.payload?.triggers).toEqual(["hi", "there"]);
+      const setRes = await rpcReq<{ triggers: string[] }>(ws, "voicewake.set", {
+        triggers: ["  hi  ", "", "there"],
+      });
+      expect(setRes.ok).toBe(true);
+      expect(setRes.payload?.triggers).toEqual(["hi", "there"]);
 
-    const changed = await changedP;
-    expect(changed.event).toBe("voicewake.changed");
-    expect(
-      (changed.payload as { triggers?: unknown } | undefined)?.triggers,
-    ).toEqual(["hi", "there"]);
+      const changed = await changedP;
+      expect(changed.event).toBe("voicewake.changed");
+      expect(
+        (changed.payload as { triggers?: unknown } | undefined)?.triggers,
+      ).toEqual(["hi", "there"]);
 
-    const after = await rpcReq<{ triggers: string[] }>(ws, "voicewake.get");
-    expect(after.ok).toBe(true);
-    expect(after.payload?.triggers).toEqual(["hi", "there"]);
+      const after = await rpcReq<{ triggers: string[] }>(ws, "voicewake.get");
+      expect(after.ok).toBe(true);
+      expect(after.payload?.triggers).toEqual(["hi", "there"]);
 
-    const onDisk = JSON.parse(
-      await fs.readFile(
-        path.join(homeDir, ".clawdis", "settings", "voicewake.json"),
-        "utf8",
-      ),
-    ) as { triggers?: unknown; updatedAtMs?: unknown };
-    expect(onDisk.triggers).toEqual(["hi", "there"]);
-    expect(typeof onDisk.updatedAtMs).toBe("number");
+      const onDisk = JSON.parse(
+        await fs.readFile(
+          path.join(homeDir, ".clawdis", "settings", "voicewake.json"),
+          "utf8",
+        ),
+      ) as { triggers?: unknown; updatedAtMs?: unknown };
+      expect(onDisk.triggers).toEqual(["hi", "there"]);
+      expect(typeof onDisk.updatedAtMs).toBe("number");
 
-    ws.close();
-    await server.close();
+      ws.close();
+      await server.close();
 
-    if (prevHome === undefined) {
-      delete process.env.HOME;
-    } else {
-      process.env.HOME = prevHome;
-    }
+      if (prevHome === undefined) {
+        delete process.env.HOME;
+      } else {
+        process.env.HOME = prevHome;
+      }
     },
   );
 
