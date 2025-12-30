@@ -77,6 +77,8 @@ class BridgeSession(
 
   fun disconnect() {
     desired = null
+    // Unblock connectOnce() read loop. Coroutine cancellation alone won't interrupt BufferedReader.readLine().
+    currentConnection?.closeQuietly()
     scope.launch(Dispatchers.IO) {
       job?.cancelAndJoin()
       job = null
@@ -218,10 +220,13 @@ class BridgeSession(
             val rawCanvasUrl = first["canvasHostUrl"].asStringOrNull()?.trim()?.ifEmpty { null }
             canvasHostUrl = normalizeCanvasHostUrl(rawCanvasUrl, endpoint)
             if (BuildConfig.DEBUG) {
-              android.util.Log.d(
-                "ClawdisBridge",
-                "canvasHostUrl resolved=${canvasHostUrl ?: "none"} (raw=${rawCanvasUrl ?: "none"})",
-              )
+              // Local JVM unit tests use android.jar stubs; Log.d can throw "not mocked".
+              runCatching {
+                android.util.Log.d(
+                  "ClawdisBridge",
+                  "canvasHostUrl resolved=${canvasHostUrl ?: "none"} (raw=${rawCanvasUrl ?: "none"})",
+                )
+              }
             }
             onConnected(name, conn.remoteAddress)
           }
