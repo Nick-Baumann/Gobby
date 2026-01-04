@@ -212,3 +212,4 @@ A running notebook of changes, observations, and small experiments.
 - 2026-01-02: removed dead code path
 - 2026-01-03: noticed a slow path in MCTS expand
 - 2026-01-03: candidate passed at 58%
+- 2026-01-04: tightened the coach prompt
