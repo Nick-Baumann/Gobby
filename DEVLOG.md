@@ -221,3 +221,4 @@ A running notebook of changes, observations, and small experiments.
 - 2026-01-07: candidate passed at 56%
 - 2026-01-08: removed noisy log line
 - 2026-01-09: fewer allocations in the hot loop
+- 2026-01-09: promoted
