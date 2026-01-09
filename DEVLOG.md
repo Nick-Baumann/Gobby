@@ -222,3 +222,4 @@ A running notebook of changes, observations, and small experiments.
 - 2026-01-08: removed noisy log line
 - 2026-01-09: fewer allocations in the hot loop
 - 2026-01-09: promoted
+- 2026-01-09: added a circuit breaker on coach calls
