@@ -237,3 +237,4 @@ A running notebook of changes, observations, and small experiments.
 - 2026-01-16: renamed a confusing field
 - 2026-01-16: raised batch size now that it's stable
 - 2026-01-18: engine learned to fianchetto
+- 2026-01-21: noticed a slow path in the encoder
