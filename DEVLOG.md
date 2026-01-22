@@ -239,3 +239,4 @@ A running notebook of changes, observations, and small experiments.
 - 2026-01-18: engine learned to fianchetto
 - 2026-01-21: noticed a slow path in the encoder
 - 2026-01-21: small win in arena
+- 2026-01-22: moved a cargo dep to workspace
