@@ -243,3 +243,4 @@ A running notebook of changes, observations, and small experiments.
 - 2026-01-24: removed noisy log line
 - 2026-01-25: moved a cargo dep to workspace
 - 2026-01-25: tightened the coach prompt
+- 2026-01-26: candidate failed gate, archived
