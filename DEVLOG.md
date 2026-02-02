@@ -256,3 +256,4 @@ A running notebook of changes, observations, and small experiments.
 - 2026-02-01: noticed a slow path in MCTS expand
 - 2026-02-02: removed dead code path
 - 2026-02-02: split a long function
+- 2026-02-02: added a regression test
