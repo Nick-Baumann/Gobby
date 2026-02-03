@@ -259,3 +259,4 @@ A running notebook of changes, observations, and small experiments.
 - 2026-02-02: added a regression test
 - 2026-02-03: split a long function
 - 2026-02-03: added a circuit breaker on coach calls
+- 2026-02-03: added a quick benchmark
