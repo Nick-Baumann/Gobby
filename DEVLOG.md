@@ -266,3 +266,4 @@ A running notebook of changes, observations, and small experiments.
 - 2026-02-06: clarified a comment
 - 2026-02-08: fixed a flaky test
 - 2026-02-09: tightened type signatures
+- 2026-02-09: engine learned to fianchetto
