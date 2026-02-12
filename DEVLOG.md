@@ -268,3 +268,4 @@ A running notebook of changes, observations, and small experiments.
 - 2026-02-09: tightened type signatures
 - 2026-02-09: engine learned to fianchetto
 - 2026-02-12: tightened type signatures
+- 2026-02-12: small win in arena
