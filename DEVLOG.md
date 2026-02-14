@@ -271,3 +271,4 @@ A running notebook of changes, observations, and small experiments.
 - 2026-02-12: small win in arena
 - 2026-02-13: found a bug in resign logic
 - 2026-02-13: raised batch size now that it's stable
+- 2026-02-14: kept Adam, AdamW was worse here
