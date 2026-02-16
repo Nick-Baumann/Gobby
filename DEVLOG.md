@@ -274,3 +274,4 @@ A running notebook of changes, observations, and small experiments.
 - 2026-02-14: kept Adam, AdamW was worse here
 - 2026-02-15: loss curve smoother now
 - 2026-02-15: coach output is now strict JSON
+- 2026-02-16: candidate passed at 61%
