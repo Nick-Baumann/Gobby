@@ -277,3 +277,4 @@ A running notebook of changes, observations, and small experiments.
 - 2026-02-16: candidate passed at 61%
 - 2026-02-16: discovered another sicilian line
 - 2026-02-17: candidate passed at 61%
+- 2026-02-17: added more telemetry
