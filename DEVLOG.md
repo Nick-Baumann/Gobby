@@ -282,3 +282,4 @@ A running notebook of changes, observations, and small experiments.
 - 2026-02-18: swapped to a faster hashmap
 - 2026-02-18: small win in arena
 - 2026-02-18: coach output is now strict JSON
+- 2026-02-19: tightened type signatures
