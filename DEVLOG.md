@@ -284,3 +284,4 @@ A running notebook of changes, observations, and small experiments.
 - 2026-02-18: coach output is now strict JSON
 - 2026-02-19: tightened type signatures
 - 2026-02-20: tightened type signatures
+- 2026-02-20: kept Adam, AdamW was worse here
