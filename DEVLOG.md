@@ -294,3 +294,4 @@ A running notebook of changes, observations, and small experiments.
 - 2026-02-27: coach output is now strict JSON
 - 2026-02-27: candidate passed at 58%
 - 2026-02-27: noticed a slow path in MCTS expand
+- 2026-02-28: candidate passed at 61%
