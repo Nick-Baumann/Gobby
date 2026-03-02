@@ -23,3 +23,4 @@ Loose tracker. Items here are nice-to-have, not promises.
 - [ ] fewer allocations in the hot loop
 - [ ] added more telemetry
 - [ ] tightened the coach prompt
+- [ ] fewer allocations in the hot loop
