@@ -297,3 +297,4 @@ A running notebook of changes, observations, and small experiments.
 - 2026-02-28: candidate passed at 61%
 - 2026-02-28: wrote a quick repro
 - 2026-03-02: tightened the coach prompt
+- 2026-03-05: candidate passed at 58%
