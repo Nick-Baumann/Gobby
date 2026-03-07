@@ -299,3 +299,4 @@ A running notebook of changes, observations, and small experiments.
 - 2026-03-02: tightened the coach prompt
 - 2026-03-05: candidate passed at 58%
 - 2026-03-07: 1.4x throughput on inference
+- 2026-03-07: added more telemetry
