@@ -304,3 +304,4 @@ A running notebook of changes, observations, and small experiments.
 - 2026-03-10: tightened the coach prompt
 - 2026-03-10: smaller checkpoints on disk now
 - 2026-03-11: discovered another sicilian line
+- 2026-03-11: removed dead code path
