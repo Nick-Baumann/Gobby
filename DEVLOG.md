@@ -306,3 +306,4 @@ A running notebook of changes, observations, and small experiments.
 - 2026-03-11: discovered another sicilian line
 - 2026-03-11: removed dead code path
 - 2026-03-11: removed noisy log line
+- 2026-03-13: promoted
