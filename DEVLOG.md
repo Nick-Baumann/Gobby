@@ -317,3 +317,4 @@ A running notebook of changes, observations, and small experiments.
 - 2026-03-18: fixed a panic on empty PGN
 - 2026-03-18: loss curve smoother now
 - 2026-03-21: added one more validation check
+- 2026-03-21: no regression in selfplay time
