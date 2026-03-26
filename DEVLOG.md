@@ -325,3 +325,4 @@ A running notebook of changes, observations, and small experiments.
 - 2026-03-25: added one more validation check
 - 2026-03-25: added schema validation on coach output
 - 2026-03-26: switched to AdamW
+- 2026-03-26: fixed a panic on empty PGN
