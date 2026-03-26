@@ -324,3 +324,4 @@ A running notebook of changes, observations, and small experiments.
 - 2026-03-23: raised batch size now that it's stable
 - 2026-03-25: added one more validation check
 - 2026-03-25: added schema validation on coach output
+- 2026-03-26: switched to AdamW
