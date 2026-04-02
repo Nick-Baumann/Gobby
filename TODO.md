@@ -26,3 +26,4 @@ Loose tracker. Items here are nice-to-have, not promises.
 - [ ] fewer allocations in the hot loop
 - [ ] added a quick benchmark
 - [ ] discovered another sicilian line
+- [ ] renamed a confusing field
