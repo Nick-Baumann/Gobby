@@ -339,3 +339,4 @@ A running notebook of changes, observations, and small experiments.
 - 2026-03-31: noticed a slow path in the encoder
 - 2026-04-01: coach output is now strict JSON
 - 2026-04-01: engine learned to fianchetto
+- 2026-04-03: switched to AdamW
