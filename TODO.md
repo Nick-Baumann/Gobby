@@ -27,3 +27,4 @@ Loose tracker. Items here are nice-to-have, not promises.
 - [ ] added a quick benchmark
 - [ ] discovered another sicilian line
 - [ ] renamed a confusing field
+- [ ] engine learned to fianchetto
