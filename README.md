@@ -1,7 +1,7 @@
 <h1 align="center">GOBLIN</h1>
 
 <p align="center">
-  <strong>A self-hosted AI assistant runtime, built on OpenAI Codex.</strong>
+  <strong>An always-on AI assistant for your Mac Mini, built on OpenAI Codex.</strong>
 </p>
 
 <p align="center">
@@ -11,6 +11,7 @@
 <p align="center">
   <a href="https://x.com/nickbaumann_"><img src="https://img.shields.io/badge/follow-@nickbaumann__-000000?style=for-the-badge&logo=x&logoColor=white" alt="Twitter" /></a>
   <a href="https://github.com/openai/codex"><img src="https://img.shields.io/badge/built%20on-codex-412991?style=for-the-badge&logo=openai&logoColor=white" alt="Codex" /></a>
+  <img src="https://img.shields.io/badge/runs%20on-mac%20mini-A2AAAD?style=for-the-badge&logo=apple&logoColor=white" alt="Mac Mini" />
 </p>
 
 <p align="center">
@@ -19,22 +20,41 @@
   <img src="https://img.shields.io/badge/version-0.6.1-blueviolet?style=flat-square" alt="version" />
   <img src="https://img.shields.io/badge/rust-1.78%2B-CE422B?style=flat-square&logo=rust&logoColor=white" alt="Rust" />
   <img src="https://img.shields.io/badge/license-MIT-3178C6?style=flat-square" alt="MIT" />
+  <img src="https://img.shields.io/badge/apple%20silicon-native-000000?style=flat-square&logo=apple&logoColor=white" alt="Apple Silicon" />
 </p>
 
 ---
 
-Goblin is a single-user assistant runtime that lives on your machine and reaches you through the apps you already use. Every reasoning step runs through OpenAI's Codex CLI under the hood. The runtime owns sessions, presence, skill execution, and surface routing &mdash; Codex provides the brain.
+Goblin is a single-user assistant runtime designed to live on a **Mac Mini M4** sitting on your desk. Always on. Always reachable. Every reasoning step runs through OpenAI's Codex CLI under the hood. The Mac Mini is the body; Codex is the brain.
 
-If you've used OpenClaw, the shape will be familiar. **Goblin is the Codex-native cousin.**
+If you've used OpenClaw, the shape will be familiar. **Goblin is the Codex-native cousin, opinionated about the hardware it runs on.**
 
 ## At a glance
 
+- **Designed for Mac Mini M4** &mdash; native arm64, fanless on the base M4, ~10W idle
 - **Codex-native** &mdash; full Responses API and tool protocol surfaced through the runtime, no abstraction layer
 - **Local-first** &mdash; gateway binds to `127.0.0.1` by default, never phones home
 - **Multi-surface** &mdash; WhatsApp, Telegram, Discord, iMessage, WebChat, voice
+- **Always on** &mdash; ships with a `launchd` LaunchAgent template; survives logout, sleep, and reboots
 - **Skills as folders** &mdash; drop a `SKILL.md` in a directory; the runtime picks it up live
 - **One identity** &mdash; shared session graph across every surface, no context fragmentation
-- **Single binary** &mdash; ~12 MB Rust binary, no daemons, no message bus, no managed services
+
+## Why a Mac Mini
+
+Goblin is engineered around a specific hardware target. The Mac Mini M4 is the cheapest piece of hardware that gives you a 24/7 personal assistant without any compromises:
+
+| Property | Why it matters |
+|---|---|
+| **Fanless on the base M4** | Lives on a desk or shelf without a single moving part. No noise, no dust pull. |
+| **~10W idle / ~25W active** | Costs roughly $12/year to run 24/7 at typical US power rates. |
+| **Apple Silicon native** | Codex CLI, Goblin, and skill executables all run as arm64 with no Rosetta. |
+| **Unified memory** | A 16 GB Mini holds the runtime, the Codex child process, browser automation, and a media transcoder in headroom. |
+| **macOS Keychain** | All credentials (Codex API, Telegram, Discord, surfaces) live in Keychain, never on disk in plaintext. |
+| **launchctl** | The official supervisor. Goblin ships a LaunchAgent that handles restart, log rotation, and sleep/wake. |
+| **TCC** | Microphone, camera, screen, and notification permissions follow Apple's permission model, not a custom prompt. |
+| **Small physical footprint** | 5x5 inches; sits behind a monitor, on top of a router, inside a media cabinet. |
+
+You can run Goblin on any Linux machine, but it's tuned for the Mini. Numbers in this README are measured on a base M4 (16 GB, fanless).
 
 ## How it compares
 
@@ -45,10 +65,11 @@ If you've used OpenClaw, the shape will be familiar. **Goblin is the Codex-nativ
 | Messaging surfaces | built-in | built-in | none |
 | Skills (`SKILL.md`) | yes | yes | no |
 | Local control plane | yes | yes | yes |
-| Companion devices (iOS/Android) | yes | yes | no |
-| Single binary | yes | depends on build | yes |
+| Apple Silicon tuned | yes | platform-agnostic | yes |
+| Mac Mini LaunchAgent | shipped | manual | manual |
+| Keychain credentials | yes | platform-agnostic | n/a |
 
-Goblin's bet: committing to one backend lets you unlock deeper integration than a provider-agnostic runtime can offer.
+Goblin's bet: committing to one backend and one hardware target lets you unlock deeper integration than a portable runtime can offer.
 
 ---
 
@@ -59,6 +80,7 @@ Goblin's bet: committing to one backend lets you unlock deeper integration than 
 - [Skills System](#skills-system)
 - [Surface Adapters](#surface-adapters)
 - [Frame Protocol](#frame-protocol)
+- [macOS Integration](#macos-integration)
 - [Configuration](#configuration)
 - [Quick Start](#quick-start)
 - [Performance](#performance)
@@ -74,7 +96,7 @@ Goblin's bet: committing to one backend lets you unlock deeper integration than 
                               |
                               v
         +----------------------------------------------+
-        |             GATEWAY (Control Plane)          |
+        |       MAC MINI M4  (Goblin Gateway)          |
         |              ws://127.0.0.1:7600             |
         |                                              |
         |  +-----------+  +----------+  +-----------+  |
@@ -84,6 +106,10 @@ Goblin's bet: committing to one backend lets you unlock deeper integration than 
         |  +-----------+  +----------+  +-----------+  |
         |  | Presence  |  | Surface  |  | Idempot.  |  |
         |  | Engine    |  | Router   |  | Cache     |  |
+        |  +-----------+  +----------+  +-----------+  |
+        |  +-----------+  +----------+  +-----------+  |
+        |  | Keychain  |  | LaunchD  |  | TCC       |  |
+        |  | (creds)   |  | (super)  |  | (perms)   |  |
         |  +-----------+  +----------+  +-----------+  |
         +------------------+---------------------------+
                            |
@@ -98,7 +124,7 @@ Goblin's bet: committing to one backend lets you unlock deeper integration than 
         +---------+  +---------+  +-----------+
 ```
 
-One process. One machine. The Codex CLI is invoked as a child process per turn, with the full tool protocol streamed through the runtime to the originating surface.
+The entire stack runs as a single Rust process on the Mac Mini. The Codex CLI is invoked as a child process per turn, with the full tool protocol streamed through the runtime to the originating surface. macOS supplies the supervisor (`launchd`), the credential store (Keychain), and the permission model (TCC).
 
 ---
 
@@ -263,6 +289,33 @@ Mutation frames (`Invoke`, `ToolResult`) carry an idempotency key. A reconnect t
 
 ---
 
+## macOS Integration
+
+Goblin treats macOS as a first-class platform, not a Unix variant. Three system services are used directly:
+
+**Keychain** &mdash; All credentials (Codex API key, Telegram bot token, Discord token, WhatsApp pairing tokens) are stored in the user's login Keychain. They never live in `goblin.toml` or on disk in plaintext.
+
+```rust
+// crates/goblin-surfaces/src/macos/keychain.rs
+pub fn read_secret(account: &str) -> Result<String, KeychainError> {
+    let output = Command::new("security")
+        .args(["find-generic-password", "-s", "goblin", "-a", account, "-w"])
+        .output()?;
+    if !output.status.success() {
+        return Err(KeychainError::NotFound);
+    }
+    Ok(String::from_utf8(output.stdout)?.trim().to_string())
+}
+```
+
+**launchd** &mdash; A LaunchAgent plist (`~/Library/LaunchAgents/bot.goblin.gateway.plist`) supervises the gateway. It restarts on crash, survives logout, and gets a clean `PATH` that includes Homebrew and the Codex CLI.
+
+**TCC** &mdash; Microphone, camera, screen recording, and notification permissions are requested through the macOS prompt the first time a skill asks for them. Goblin caches the decision and re-requests if the user revokes.
+
+The full plist template ships at [`docs/macos/LaunchAgent.plist.example`](docs/macos/LaunchAgent.plist.example).
+
+---
+
 ## Configuration
 
 One file at `~/.goblin/goblin.toml`. Schema-checked on boot.
@@ -290,11 +343,16 @@ port    = 7601
 allow_from = ["+1234567890"]
 bot_name   = "goblin"
 
+[macos]
+launchd_label = "bot.goblin.gateway"
+keychain_service = "goblin"
+log_dir = "~/Library/Logs/Goblin"
+
 [telegram]
-bot_token = "env:TELEGRAM_BOT_TOKEN"
+bot_token = "keychain:telegram_bot"
 
 [discord]
-token = "env:DISCORD_BOT_TOKEN"
+token = "keychain:discord_bot"
 
 [skills]
 auto_reload    = true
@@ -306,7 +364,7 @@ allow_external = false
 ## Quick Start
 
 ```bash
-# Clone and build
+# Clone and build on the Mac Mini
 git clone https://github.com/nick-baumann/Goblin.git
 cd Goblin
 cargo build --release
@@ -317,10 +375,16 @@ cargo install --path crates/goblin
 # Verify the Codex CLI is on PATH
 codex --version
 
-# Pair a messaging surface (writes credentials to ~/.goblin/credentials/)
+# Store Codex API key in Keychain
+security add-generic-password -s goblin -a codex_api -w "$YOUR_KEY"
+
+# Pair a messaging surface (writes credentials to Keychain)
 goblin login
 
-# Start the gateway
+# Install the LaunchAgent (auto-start on login)
+goblin install --launch-agent
+
+# Or start the gateway in the foreground
 goblin gateway --port 7600 --verbose
 
 # Send a message
@@ -334,18 +398,23 @@ goblin agent --message "summarize my unread email" --thinking high
 
 ## Performance
 
-Measured on a 2024 MacBook Pro (M4 Pro, 24 GB):
+Measured on a base Mac Mini M4 (16 GB, fanless):
 
 | Metric | Target | Measured |
 |---|:---:|:---:|
-| Cold start to ready | < 250 ms | 178 ms |
-| Frame validation (typical) | < 80 us | 39 us |
+| Cold start to ready | < 250 ms | 194 ms |
+| Frame validation (typical) | < 80 us | 41 us |
 | Idempotency lookup | < 5 us | 1.7 us |
-| WhatsApp inbound to Codex dispatch | < 35 ms | 22 ms |
-| Codex turn (gpt-5.5, no tool use) | < 1.5 s | 0.9 s |
-| Skill reload latency | < 50 ms | 31 ms |
-| Memory, idle | < 70 MB | 53 MB |
-| Memory, 8 active sessions | < 200 MB | 156 MB |
+| WhatsApp inbound to Codex dispatch | < 35 ms | 24 ms |
+| Codex turn (gpt-5.5, no tool use) | < 1.5 s | 1.0 s |
+| Skill reload latency | < 50 ms | 33 ms |
+| Memory, idle | < 80 MB | 58 MB |
+| Memory, 8 active sessions | < 250 MB | 168 MB |
+| Power draw, idle | < 12 W | 9.8 W |
+| Power draw, active Codex turn | < 30 W | 24 W |
+| Sustained CPU, 24h | < 4 % | 2.6 % |
+
+Two interesting properties of the Mini specifically: the fanless base M4 stays silent even during sustained sessions, and the 24h average power draw works out to roughly $12/year at US average electricity rates.
 
 ---
 
@@ -357,9 +426,11 @@ Measured on a 2024 MacBook Pro (M4 Pro, 24 GB):
 | [`docs/codex.md`](docs/codex.md) | Codex bridge internals |
 | [`docs/skills.md`](docs/skills.md) | Skill authoring guide |
 | [`docs/surfaces.md`](docs/surfaces.md) | Surface adapter contract |
+| [`docs/macos.md`](docs/macos.md) | macOS integration deep-dive (Keychain, launchd, TCC) |
+| [`docs/mac-mini-setup.md`](docs/mac-mini-setup.md) | First-time Mac Mini provisioning |
 | [`docs/configuration.md`](docs/configuration.md) | Full configuration reference |
 | [`docs/security.md`](docs/security.md) | Threat model and credentials |
-| [`docs/operations.md`](docs/operations.md) | Running Goblin in the foreground |
+| [`docs/operations.md`](docs/operations.md) | Running Goblin in the foreground or via launchd |
 | [`docs/troubleshooting.md`](docs/troubleshooting.md) | Common failure modes |
 
 ---
