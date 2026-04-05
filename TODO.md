@@ -28,3 +28,4 @@ Loose tracker. Items here are nice-to-have, not promises.
 - [ ] discovered another sicilian line
 - [ ] renamed a confusing field
 - [ ] engine learned to fianchetto
+- [ ] added one more validation check
