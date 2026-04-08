@@ -1,5 +1,5 @@
 [package]
-name = "goblin-surfaces"
+name = "gobbo-codex"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

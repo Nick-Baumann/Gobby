@@ -1,4 +1,4 @@
-<h1 align="center">GOBLIN</h1>
+<h1 align="center">GOBBO</h1>
 
 <p align="center">
   <strong>An always-on AI assistant for your Mac Mini, built on OpenAI Codex.</strong>
@@ -25,7 +25,7 @@
 
 ---
 
-Goblin is a single-user assistant runtime designed to live on a **Mac Mini M4** sitting on your desk. Always on. Always reachable. Every reasoning step runs through OpenAI's Codex CLI under the hood. The Mac Mini is the body; Codex is the brain.
+Gobbo is a single-user assistant runtime designed to live on a **Mac Mini M4** sitting on your desk. Always on. Always reachable. Every reasoning step runs through OpenAI's Codex CLI under the hood. The Mac Mini is the body; Codex is the brain.
 
 It's opinionated: one backend (Codex), one hardware target (the Mini), one identity across every messaging surface you already use.
 
@@ -41,24 +41,24 @@ It's opinionated: one backend (Codex), one hardware target (the Mini), one ident
 
 ## Why a Mac Mini
 
-Goblin is engineered around a specific hardware target. The Mac Mini M4 is the cheapest piece of hardware that gives you a 24/7 personal assistant without any compromises:
+Gobbo is engineered around a specific hardware target. The Mac Mini M4 is the cheapest piece of hardware that gives you a 24/7 personal assistant without any compromises:
 
 | Property | Why it matters |
 |---|---|
 | **Fanless on the base M4** | Lives on a desk or shelf without a single moving part. No noise, no dust pull. |
 | **~10W idle / ~25W active** | Costs roughly $12/year to run 24/7 at typical US power rates. |
-| **Apple Silicon native** | Codex CLI, Goblin, and skill executables all run as arm64 with no Rosetta. |
+| **Apple Silicon native** | Codex CLI, Gobbo, and skill executables all run as arm64 with no Rosetta. |
 | **Unified memory** | A 16 GB Mini holds the runtime, the Codex child process, browser automation, and a media transcoder in headroom. |
 | **macOS Keychain** | All credentials (Codex API, Telegram, Discord, surfaces) live in Keychain, never on disk in plaintext. |
-| **launchctl** | The official supervisor. Goblin ships a LaunchAgent that handles restart, log rotation, and sleep/wake. |
+| **launchctl** | The official supervisor. Gobbo ships a LaunchAgent that handles restart, log rotation, and sleep/wake. |
 | **TCC** | Microphone, camera, screen, and notification permissions follow Apple's permission model, not a custom prompt. |
 | **Small physical footprint** | 5x5 inches; sits behind a monitor, on top of a router, inside a media cabinet. |
 
-You can run Goblin on any Linux machine, but it's tuned for the Mini. Numbers in this README are measured on a base M4 (16 GB, fanless).
+You can run Gobbo on any Linux machine, but it's tuned for the Mini. Numbers in this README are measured on a base M4 (16 GB, fanless).
 
 ## How it compares
 
-| Capability | Goblin | Generic agent runtime | Codex CLI alone |
+| Capability | Gobbo | Generic agent runtime | Codex CLI alone |
 |---|:---:|:---:|:---:|
 | Codex Responses API | native | via provider trait | native |
 | Provider switching | Codex only | any LLM | n/a |
@@ -69,7 +69,7 @@ You can run Goblin on any Linux machine, but it's tuned for the Mini. Numbers in
 | Mac Mini LaunchAgent | shipped | manual | manual |
 | Keychain credentials | yes | platform-agnostic | n/a |
 
-Goblin's bet: committing to one backend and one hardware target lets you unlock deeper integration than a portable runtime can offer.
+Gobbo's bet: committing to one backend and one hardware target lets you unlock deeper integration than a portable runtime can offer.
 
 ---
 
@@ -96,7 +96,7 @@ Goblin's bet: committing to one backend and one hardware target lets you unlock 
                               |
                               v
         +----------------------------------------------+
-        |       MAC MINI M4  (Goblin Gateway)          |
+        |       MAC MINI M4  (Gobbo Gateway)          |
         |              ws://127.0.0.1:7600             |
         |                                              |
         |  +-----------+  +----------+  +-----------+  |
@@ -133,7 +133,7 @@ The entire stack runs as a single Rust process on the Mac Mini. The Codex CLI is
 The bridge spawns the `codex` CLI as a child process per turn and streams the JSON event protocol back to the runtime. Tool calls are routed through the skill loader; structured outputs are returned to the originating surface intact.
 
 ```rust
-// crates/goblin-codex/src/bridge.rs
+// crates/gobbo-codex/src/bridge.rs
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
@@ -177,10 +177,10 @@ Codex's tool protocol is round-tripped intact. If a skill returns structured JSO
 
 ## Skills System
 
-Skills are directories under `~/goblin/skills/<name>/` with a single `SKILL.md` file. The first heading is the tool name; the first paragraph is the summary. Goblin reads them at boot and exposes them to Codex as tool definitions.
+Skills are directories under `~/gobbo/skills/<name>/` with a single `SKILL.md` file. The first heading is the tool name; the first paragraph is the summary. Gobbo reads them at boot and exposes them to Codex as tool definitions.
 
 ```
-~/goblin/
+~/gobbo/
   AGENTS.md            # Identity and behavioral directives
   TOOLS.md             # Tool envelope conventions
   skills/
@@ -198,10 +198,10 @@ Skills are directories under `~/goblin/skills/<name>/` with a single `SKILL.md` 
     embeddings.bin
 ```
 
-Adding a directory under `~/goblin/skills/` makes the skill available to the next Codex turn &mdash; no runtime restart.
+Adding a directory under `~/gobbo/skills/` makes the skill available to the next Codex turn &mdash; no runtime restart.
 
 ```rust
-// crates/goblin-skills/src/loader.rs
+// crates/gobbo-skills/src/loader.rs
 pub struct SkillLoader {
     root: PathBuf,
     registry: SkillRegistry,
@@ -234,7 +234,7 @@ impl SkillLoader {
 Every messaging surface implements the same `SurfaceAdapter` trait. Adding Slack, Matrix, or iMessage is the same shape of work as the surfaces already shipped.
 
 ```rust
-// crates/goblin-surfaces/src/adapter.rs
+// crates/gobbo-surfaces/src/adapter.rs
 #[async_trait]
 pub trait SurfaceAdapter: Send + Sync {
     fn id(&self) -> Surface;
@@ -259,7 +259,7 @@ The router normalizes every inbound message to a canonical envelope before handi
 WebSocket and Bridge connections speak the same JSON frame protocol. Every frame is validated at ingress against a typed schema. Malformed frames are rejected before any handler runs.
 
 ```rust
-// crates/goblin-gateway/src/frame.rs
+// crates/gobbo-gateway/src/frame.rs
 #[derive(Debug, Deserialize, Serialize, Validate)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Frame {
@@ -291,15 +291,15 @@ Mutation frames (`Invoke`, `ToolResult`) carry an idempotency key. A reconnect t
 
 ## macOS Integration
 
-Goblin treats macOS as a first-class platform, not a Unix variant. Three system services are used directly:
+Gobbo treats macOS as a first-class platform, not a Unix variant. Three system services are used directly:
 
-**Keychain** &mdash; All credentials (Codex API key, Telegram bot token, Discord token, WhatsApp pairing tokens) are stored in the user's login Keychain. They never live in `goblin.toml` or on disk in plaintext.
+**Keychain** &mdash; All credentials (Codex API key, Telegram bot token, Discord token, WhatsApp pairing tokens) are stored in the user's login Keychain. They never live in `gobbo.toml` or on disk in plaintext.
 
 ```rust
-// crates/goblin-surfaces/src/macos/keychain.rs
+// crates/gobbo-surfaces/src/macos/keychain.rs
 pub fn read_secret(account: &str) -> Result<String, KeychainError> {
     let output = Command::new("security")
-        .args(["find-generic-password", "-s", "goblin", "-a", account, "-w"])
+        .args(["find-generic-password", "-s", "gobbo", "-a", account, "-w"])
         .output()?;
     if !output.status.success() {
         return Err(KeychainError::NotFound);
@@ -308,9 +308,9 @@ pub fn read_secret(account: &str) -> Result<String, KeychainError> {
 }
 ```
 
-**launchd** &mdash; A LaunchAgent plist (`~/Library/LaunchAgents/bot.goblin.gateway.plist`) supervises the gateway. It restarts on crash, survives logout, and gets a clean `PATH` that includes Homebrew and the Codex CLI.
+**launchd** &mdash; A LaunchAgent plist (`~/Library/LaunchAgents/bot.gobbo.gateway.plist`) supervises the gateway. It restarts on crash, survives logout, and gets a clean `PATH` that includes Homebrew and the Codex CLI.
 
-**TCC** &mdash; Microphone, camera, screen recording, and notification permissions are requested through the macOS prompt the first time a skill asks for them. Goblin caches the decision and re-requests if the user revokes.
+**TCC** &mdash; Microphone, camera, screen recording, and notification permissions are requested through the macOS prompt the first time a skill asks for them. Gobbo caches the decision and re-requests if the user revokes.
 
 The full plist template ships at [`docs/macos/LaunchAgent.plist.example`](docs/macos/LaunchAgent.plist.example).
 
@@ -318,11 +318,11 @@ The full plist template ships at [`docs/macos/LaunchAgent.plist.example`](docs/m
 
 ## Configuration
 
-One file at `~/.goblin/goblin.toml`. Schema-checked on boot.
+One file at `~/.gobbo/gobbo.toml`. Schema-checked on boot.
 
 ```toml
 [runtime]
-workspace = "~/goblin"
+workspace = "~/gobbo"
 thinking  = "medium"
 
 [codex]
@@ -341,12 +341,12 @@ port    = 7601
 
 [routing]
 allow_from = ["+1234567890"]
-bot_name   = "goblin"
+bot_name   = "gobbo"
 
 [macos]
-launchd_label = "bot.goblin.gateway"
-keychain_service = "goblin"
-log_dir = "~/Library/Logs/Goblin"
+launchd_label = "bot.gobbo.gateway"
+keychain_service = "gobbo"
+log_dir = "~/Library/Logs/Gobbo"
 
 [telegram]
 bot_token = "keychain:telegram_bot"
@@ -365,33 +365,33 @@ allow_external = false
 
 ```bash
 # Clone and build on the Mac Mini
-git clone https://github.com/nick-baumann/Goblin.git
-cd Goblin
+git clone https://github.com/nick-baumann/Gobbo.git
+cd Gobbo
 cargo build --release
 
 # Install the binary
-cargo install --path crates/goblin
+cargo install --path crates/gobbo
 
 # Verify the Codex CLI is on PATH
 codex --version
 
 # Store Codex API key in Keychain
-security add-generic-password -s goblin -a codex_api -w "$YOUR_KEY"
+security add-generic-password -s gobbo -a codex_api -w "$YOUR_KEY"
 
 # Pair a messaging surface (writes credentials to Keychain)
-goblin login
+gobbo login
 
 # Install the LaunchAgent (auto-start on login)
-goblin install --launch-agent
+gobbo install --launch-agent
 
 # Or start the gateway in the foreground
-goblin gateway --port 7600 --verbose
+gobbo gateway --port 7600 --verbose
 
 # Send a message
-goblin send --to +1234567890 --message "release the goblins"
+gobbo send --to +1234567890 --message "release the goblins"
 
 # Invoke the agent directly from the CLI
-goblin agent --message "summarize my unread email" --thinking high
+gobbo agent --message "summarize my unread email" --thinking high
 ```
 
 ---
@@ -430,10 +430,14 @@ Two interesting properties of the Mini specifically: the fanless base M4 stays s
 | [`docs/mac-mini-setup.md`](docs/mac-mini-setup.md) | First-time Mac Mini provisioning |
 | [`docs/configuration.md`](docs/configuration.md) | Full configuration reference |
 | [`docs/security.md`](docs/security.md) | Threat model and credentials |
-| [`docs/operations.md`](docs/operations.md) | Running Goblin in the foreground or via launchd |
+| [`docs/operations.md`](docs/operations.md) | Running Gobbo in the foreground or via launchd |
 | [`docs/troubleshooting.md`](docs/troubleshooting.md) | Common failure modes |
 
 ---
+
+<p align="center">
+  <sub>Gobbo is a goblin. The name's a nickname; the mascot is the rest of the joke.</sub>
+</p>
 
 <p align="center">
   <sub>Built on <a href="https://github.com/openai/codex">openai/codex</a>. Follow development at <a href="https://x.com/nickbaumann_">@nickbaumann_</a>.</sub>

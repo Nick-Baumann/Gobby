@@ -1,4 +1,4 @@
-//! Goblin CLI entrypoint.
+//! Gobbo CLI entrypoint.
 
 use std::env;
 use std::process::ExitCode;
@@ -11,7 +11,7 @@ fn main() -> ExitCode {
     match cmd {
         "gateway" | "agent" | "send" | "login" | "skills" | "nodes" => run_subcommand(cmd),
         "version" | "--version" | "-V" => {
-            println!("goblin {VERSION}");
+            println!("gobbo {VERSION}");
             ExitCode::SUCCESS
         }
         "help" | "--help" | "-h" => {
@@ -19,7 +19,7 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         unknown => {
-            eprintln!("goblin: unknown command '{unknown}'");
+            eprintln!("gobbo: unknown command '{unknown}'");
             print_help();
             ExitCode::from(2)
         }
@@ -27,15 +27,15 @@ fn main() -> ExitCode {
 }
 
 fn run_subcommand(cmd: &str) -> ExitCode {
-    println!("[goblin] running subcommand: {cmd}");
-    println!("[goblin] stub binary; full runtime lives in unreleased crates");
+    println!("[gobbo] running subcommand: {cmd}");
+    println!("[gobbo] stub binary; full runtime lives in unreleased crates");
     ExitCode::SUCCESS
 }
 
 fn print_help() {
-    println!("goblin {VERSION}");
+    println!("gobbo {VERSION}");
     println!();
-    println!("Usage: goblin <command> [args]");
+    println!("Usage: gobbo <command> [args]");
     println!();
     println!("Commands:");
     println!("  gateway   Start the gateway process");

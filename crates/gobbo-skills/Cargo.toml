@@ -1,5 +1,5 @@
 [package]
-name = "goblin-codex"
+name = "gobbo-skills"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
