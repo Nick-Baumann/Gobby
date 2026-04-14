@@ -1,17 +1,17 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/milton",
-    "crates/milton-arena",
-    "crates/milton-mcts",
-    "crates/milton-net",
-    "crates/milton-selfplay",
+    "crates/goblin",
+    "crates/goblin-codex",
+    "crates/goblin-gateway",
+    "crates/goblin-skills",
+    "crates/goblin-surfaces",
 ]
 
 [workspace.package]
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/nick-baumann/Milton"
+repository = "https://github.com/nick-baumann/Goblin"
 authors = ["Nick Baumann"]
-version = "0.4.2"
+version = "0.6.1"
 rust-version = "1.78"

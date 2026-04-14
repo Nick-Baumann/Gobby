@@ -1,5 +1,5 @@
 [package]
-name = "milton-mcts"
+name = "goblin-gateway"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
