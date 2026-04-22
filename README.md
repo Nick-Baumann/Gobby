@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="README-header.png" alt="MILTON" width="720" />
+  <img src="https://cdn.prod.website-files.com/69082c5061a39922df8ed3b6/69ffd6302384f60d1a1b8575_New%20Project%20-%202026-05-10T013848.571.png" alt="MILTON" width="100%" />
 </p>
 
 <h1 align="center">MILTON</h1>
