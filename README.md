@@ -2,7 +2,7 @@
   <img src="https://cdn.prod.website-files.com/69082c5061a39922df8ed3b6/69b88b355cf35e13745104a0_Mar%2016%2C%202026%2C%2010_58_53%20PM.png" alt="CLAWDIS" width="140" />
 </p>
 
-<h1 align="center">CLAWDIS</h1>
+<h1 align="center">CLAWDIS OS</h1>
 
 <p align="center">
   <strong>Multi-Surface Autonomous AI Assistant -- Always On, Always Local, Always Listening.</strong>
