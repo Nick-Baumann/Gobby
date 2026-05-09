@@ -29,3 +29,14 @@ cleanly.
 
 If a stage crashes, the orchestrator records the failure and retries up to 3
 times before halting. Halts surface to the dashboard as a red event card.
+
+## Restart safety
+
+Each stage writes a stage-complete marker to `~/.milton/state.json` before
+moving to the next. Killing the process mid-stage is safe: the next launch
+detects the missing marker and re-runs the affected stage from scratch.
+
+The only state that cannot be reconstructed is the in-flight self-play games
+themselves; those are dropped on restart and the iteration restarts its
+self-play stage with zero games. This is acceptable because self-play is the
+cheapest stage to redo.
