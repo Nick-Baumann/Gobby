@@ -1,0 +1,17 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/milton",
+    "crates/milton-arena",
+    "crates/milton-mcts",
+    "crates/milton-net",
+    "crates/milton-selfplay",
+]
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/nick-baumann/Milton"
+authors = ["Nick Baumann"]
+version = "0.4.2"
+rust-version = "1.78"

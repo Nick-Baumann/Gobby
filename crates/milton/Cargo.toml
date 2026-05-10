@@ -1,0 +1,18 @@
+[package]
+name = "milton"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "milton"
+path = "src/main.rs"
+
+[dependencies]
+milton-arena = { path = "../milton-arena" }
+milton-mcts = { path = "../milton-mcts" }
+milton-net = { path = "../milton-net" }
+milton-selfplay = { path = "../milton-selfplay" }
